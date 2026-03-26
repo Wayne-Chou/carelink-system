@@ -1,0 +1,308 @@
+<template>
+  <div class="list-page">
+    <div class="top-bar">
+      <div class="header-left">
+        <button class="back-btn" @click="$router.push('/')">← 返回</button>
+      </div>
+      <div class="header-center">
+        <h2>社區資源管理清單</h2>
+      </div>
+      <div class="header-right">
+        <button class="add-btn" @click="$router.push('/form')">＋ 新增</button>
+      </div>
+    </div>
+
+    <div class="filter-container">
+      <div class="search-box">
+        <input
+          type="text"
+          placeholder="搜尋資源名稱、單位或標籤..."
+          v-model="searchQuery"
+        />
+      </div>
+      <div class="filter-tabs">
+        <div
+          v-for="tab in ['全部', '待審核', '活躍', '暫停']"
+          :key="tab"
+          :class="['filter-tab', { active: currentTab === tab }]"
+          @click="currentTab = tab"
+        >
+          {{ tab }}
+        </div>
+      </div>
+    </div>
+
+    <div class="container main-list">
+      <div v-if="filteredResources.length > 0">
+        <div
+          v-for="item in filteredResources"
+          :key="item.id"
+          class="resource-card"
+        >
+          <div class="card-status" :class="item.statusColor"></div>
+          <div class="card-content">
+            <div class="card-header">
+              <span class="org-name">{{ item.organization }}</span>
+              <span class="verify-date">驗證日: {{ item.lastVerifyDate }}</span>
+            </div>
+            <h4 class="resource-name">{{ item.name }}</h4>
+            <div class="tag-row">
+              <span class="type-badge">{{ item.type }}</span>
+              <span v-for="tag in item.tags" :key="tag" class="info-tag"
+                >#{{ tag }}</span
+              >
+            </div>
+            <div class="card-footer">
+              <div class="location">📍 {{ item.locationName }}</div>
+              <button class="detail-btn" @click="viewDetail(item)">
+                管理詳情
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="empty-state">
+        <div class="empty-icon">📂</div>
+        <p>目前沒有符合條件的資源資料</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from "vue";
+
+const searchQuery = ref("");
+const currentTab = ref("全部");
+
+// 模擬已提交的資源數據
+const resources = ref([
+  {
+    id: 1,
+    name: "社區健康步行團",
+    organization: "紅十字會服務站",
+    lastVerifyDate: "2026/03/10",
+    status: "待審核",
+    statusColor: "status-yellow",
+    type: "身心健康促進",
+    tags: ["運動健身", "長者友善"],
+    locationName: "河堤公園",
+  },
+  {
+    id: 2,
+    name: "數位技能進修班",
+    organization: "社區發展協會",
+    lastVerifyDate: "2026/02/20",
+    status: "活躍",
+    statusColor: "status-green",
+    type: "學習與發展",
+    tags: ["數位技能"],
+    locationName: "社區活動中心",
+  },
+]);
+
+// 篩選邏輯
+const filteredResources = computed(() => {
+  return resources.value.filter((item) => {
+    const matchesSearch =
+      item.name.includes(searchQuery.value) ||
+      item.organization.includes(searchQuery.value);
+    const matchesTab =
+      currentTab.value === "全部" || item.status === currentTab.value;
+    return matchesSearch && matchesTab;
+  });
+});
+
+const viewDetail = (item) => {
+  alert(`查看 ${item.name} 的詳細資料與風險評級（功能開發中）`);
+};
+</script>
+
+<style scoped>
+.list-page {
+  background: #fcfaf8;
+  min-height: 100vh;
+  padding-bottom: 40px;
+}
+
+/* Top Bar */
+.top-bar {
+  background: #5d4037;
+  color: white;
+  padding: 15px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.header-left,
+.header-right {
+  flex: 1;
+}
+.header-center {
+  flex: 3;
+  text-align: center;
+}
+.header-center h2 {
+  font-size: 18px;
+  margin: 0;
+  font-weight: 700;
+}
+.back-btn,
+.add-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: white;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.add-btn {
+  background: #c2956e;
+  border: none;
+  font-weight: 700;
+}
+
+/* Filter & Search */
+.filter-container {
+  background: #efe7dc;
+  padding: 15px 20px;
+}
+.search-box input {
+  width: 100%;
+  padding: 10px 15px;
+  border-radius: 10px;
+  border: 1px solid #d6ccc2;
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 5px;
+}
+.filter-tab {
+  padding: 6px 16px;
+  background: white;
+  border-radius: 50px;
+  font-size: 13px;
+  color: #8d6e63;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 1px solid #d6ccc2;
+}
+.filter-tab.active {
+  background: #5d4037;
+  color: white;
+  border-color: #5d4037;
+}
+
+/* Resource Card */
+.main-list {
+  margin-top: 20px;
+  padding: 0 15px;
+}
+.resource-card {
+  background: white;
+  border-radius: 15px;
+  margin-bottom: 15px;
+  display: flex;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(93, 64, 55, 0.05);
+  border: 1px solid #f0e6e0;
+}
+.card-status {
+  width: 6px;
+}
+.status-yellow {
+  background: #fbc02d;
+}
+.status-green {
+  background: #2e7d32;
+}
+.status-red {
+  background: #d32f2f;
+}
+
+.card-content {
+  flex: 1;
+  padding: 15px;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+.org-name {
+  font-size: 12px;
+  color: #a1887f;
+  font-weight: 600;
+}
+.verify-date {
+  font-size: 11px;
+  color: #bcaaa4;
+}
+.resource-name {
+  font-size: 17px;
+  color: #3e2723;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 15px;
+}
+.type-badge {
+  background: #fdf8f5;
+  color: #5d4037;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  border: 1px solid #efe7dc;
+}
+.info-tag {
+  color: #c2956e;
+  font-size: 11px;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px dashed #efe7dc;
+}
+.location {
+  font-size: 12px;
+  color: #8d6e63;
+}
+.detail-btn {
+  background: #fdf8f5;
+  border: 1px solid #d6ccc2;
+  color: #5d4037;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #bcaaa4;
+}
+.empty-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+</style>
