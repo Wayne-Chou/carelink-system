@@ -8,6 +8,8 @@
         <h2>社區資源管理清單</h2>
       </div>
       <div class="header-right">
+        <button class="add-btn" @click="$router.push('/cases')">👤 個人端</button>
+        <button class="add-btn" @click="$router.push('/resource-dashboard')">🏢 資源端</button>
         <button class="add-btn" @click="$router.push('/form')">＋ 新增</button>
       </div>
     </div>
@@ -39,7 +41,7 @@
           :key="item.id"
           class="resource-card"
         >
-          <div class="card-status" :class="item.statusColor"></div>
+          <div class="card-status" :class="item.statusClass"></div>
           <div class="card-content">
             <div class="card-header">
               <span class="org-name">{{ item.organization }}</span>
@@ -47,16 +49,18 @@
             </div>
             <h4 class="resource-name">{{ item.name }}</h4>
             <div class="tag-row">
-              <span class="type-badge">{{ item.type }}</span>
+              <span class="type-badge">{{ item.types?.[0] || "未分類" }}</span>
               <span v-for="tag in item.tags" :key="tag" class="info-tag"
                 >#{{ tag }}</span
               >
             </div>
             <div class="card-footer">
               <div class="location">📍 {{ item.locationName }}</div>
+              
               <button class="detail-btn" @click="viewDetail(item)">
                 管理詳情
               </button>
+              <button class="delete-btn" @click="deleteResource(item.id)">刪除</button>
             </div>
           </div>
         </div>
@@ -64,58 +68,83 @@
 
       <div v-else class="empty-state">
         <div class="empty-icon">📂</div>
-        <p>目前沒有符合條件的資源資料</p>
+        <p v-if="resources.length === 0">尚未建立任何資源，請點右上角新增</p>
+        <p v-else>目前沒有符合條件的資源資料</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { useRouter } from "vue-router";
 
 const searchQuery = ref("");
 const currentTab = ref("全部");
+const resources = ref([]);
+const router = useRouter();
 
-// 模擬已提交的資源數據
-const resources = ref([
-  {
-    id: 1,
-    name: "社區健康步行團",
-    organization: "紅十字會服務站",
-    lastVerifyDate: "2026/03/10",
-    status: "待審核",
-    statusColor: "status-yellow",
-    type: "身心健康促進",
-    tags: ["運動健身", "長者友善"],
-    locationName: "河堤公園",
-  },
-  {
-    id: 2,
-    name: "數位技能進修班",
-    organization: "社區發展協會",
-    lastVerifyDate: "2026/02/20",
-    status: "活躍",
-    statusColor: "status-green",
-    type: "學習與發展",
-    tags: ["數位技能"],
-    locationName: "社區活動中心",
-  },
-]);
+const getStatusClass = (status) => {
+  switch (status) {
+    case "active":
+      return "status-green";
+    case "pause":
+      return "status-yellow";
+    case "end":
+      return "status-red";
+    default:
+      return "status-yellow";
+  }
+};
+
+const resourcesWithStatus = computed(() =>
+  resources.value.map((item) => ({
+    ...item,
+    statusClass: getStatusClass(item.status),
+  }))
+);
+
+onMounted(() => {
+  try {
+    const storedResources = localStorage.getItem("resources");
+    resources.value = storedResources ? JSON.parse(storedResources) : [];
+    if (!Array.isArray(resources.value)) {
+      resources.value = [];
+    }
+  } catch (error) {
+    resources.value = [];
+  }
+});
 
 // 篩選邏輯
 const filteredResources = computed(() => {
-  return resources.value.filter((item) => {
+  const keyword = searchQuery.value.trim();
+  return resourcesWithStatus.value.filter((item) => {
+    const tags = Array.isArray(item.tags) ? item.tags : [];
     const matchesSearch =
-      item.name.includes(searchQuery.value) ||
-      item.organization.includes(searchQuery.value);
+      item.name?.includes(keyword) ||
+      item.organization?.includes(keyword) ||
+      tags.some((tag) => tag.includes(keyword));
     const matchesTab =
       currentTab.value === "全部" || item.status === currentTab.value;
     return matchesSearch && matchesTab;
   });
 });
 
+const deleteResource = (id) => {
+  if (!confirm("確定刪除？")) return;
+  resources.value = resources.value.filter((item) => item.id !== id);
+  localStorage.setItem("resources", JSON.stringify(resources.value));
+};
+
+const loginResource = (id) => {
+  localStorage.setItem("currentResourceId", id);
+  alert("已登入此資源");
+  router.push("/resource-dashboard");
+};
+
 const viewDetail = (item) => {
-  alert(`查看 ${item.name} 的詳細資料與風險評級（功能開發中）`);
+  router.push(`/resources/${item.id}`);
 };
 </script>
 
@@ -141,6 +170,11 @@ const viewDetail = (item) => {
 .header-left,
 .header-right {
   flex: 1;
+}
+.header-right {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 .header-center {
   flex: 3;
@@ -289,6 +323,16 @@ const viewDetail = (item) => {
   background: #fdf8f5;
   border: 1px solid #d6ccc2;
   color: #5d4037;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.delete-btn {
+  background: #fff5f5;
+  border: 1px solid #ef9a9a;
+  color: #b71c1c;
   padding: 4px 12px;
   border-radius: 6px;
   font-size: 12px;

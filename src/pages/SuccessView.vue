@@ -6,6 +6,9 @@
       <p>感謝您的辛勞，該筆資源已進入審核隊列。</p>
 
       <div class="action-buttons">
+        <button class="btn-again" @click="$router.push('/list')">
+          查看資源列表
+        </button>
         <button class="btn-again" @click="$router.push('/form')">
           再新增一筆
         </button>

@@ -3,9 +3,13 @@
     <div class="bg-blur b1"></div>
     <div class="bg-blur b2"></div>
 
-    <div class="hero-wrapper">
+    <div
+      class="hero-wrapper"
+      :style="{ backgroundImage: `url(${heroBg})` }"
+    >
       <div class="hero-inner">
-        <div class="hero-tag">COMMUNITY CARE</div>
+        <img :src="logo" class="hero-logo" />
+ 
         <h1>社區資源連結平台</h1>
         <p>讓社區支持更容易被找到，建立更有溫度的照護網絡</p>
       </div>
@@ -13,16 +17,16 @@
 
     <div class="main-container container">
       <div class="glass-panel">
-        <div class="header-content">
+        <div class="panel-header">
           <h3>請選擇您的角色</h3>
           <p>依據身分進入專屬操作流程</p>
         </div>
 
-        <div class="row justify-content-center g-4">
-          <div class="col-md-4">
+        <div class="card-group">
+          <div>
             <div class="card-item" @click="goForm">
               <div class="card-icon">
-                <span class="emoji">📝</span>
+                <i class="fa-solid fa-clipboard-list"></i>
               </div>
               <div class="card-body">
                 <h5>訪查員端</h5>
@@ -35,10 +39,10 @@
             </div>
           </div>
 
-          <div class="col-md-4">
+          <div>
             <div class="card-item" @click="goList">
               <div class="card-icon">
-                <span class="emoji">🛠️</span>
+                <i class="fa-solid fa-shield-halved"></i>
               </div>
               <div class="card-body">
                 <h5>管理後台</h5>
@@ -51,10 +55,10 @@
             </div>
           </div>
 
-          <div class="col-md-4">
+          <div>
             <div class="card-item" @click="goUser">
               <div class="card-icon">
-                <span class="emoji">👥</span>
+                <i class="fa-solid fa-users"></i>
               </div>
               <div class="card-body">
                 <h5>一般使用者</h5>
@@ -73,13 +77,16 @@
 </template>
 
 <script setup>
+import heroBg from "../assets/bg-community-brown.png";
+import logo from "../assets/logo.png";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
 
 const goForm = () => router.push("/form");
 const goList = () => router.push("/list");
-const goUser = () => router.push("/user"); // 這裡假設使用者的路徑為 /user
+const goUser = () => router.push("/user"); 
+
 </script>
 
 <style scoped>
@@ -100,6 +107,15 @@ const goUser = () => router.push("/user"); // 這裡假設使用者的路徑為 
   z-index: 0;
   opacity: 0.4;
 }
+.hero-logo {
+  width: 100px;
+  height: 100px;
+  object-fit: contain;
+  margin-bottom: 12px;
+
+  
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
 .b1 {
   width: 450px;
   height: 450px;
@@ -115,27 +131,24 @@ const goUser = () => router.push("/user"); // 這裡假設使用者的路徑為 
   right: -5%;
 }
 
-/* ===== Hero Section (深咖啡色調) ===== */
+
 .hero-wrapper {
-  height: 320px;
-  background: linear-gradient(135deg, #5d4037 0%, #8d6e63 100%);
+  min-height: 42vh;
+
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   color: white;
-  padding-bottom: 60px;
+
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+
+  position: relative;
 }
-.hero-tag {
-  font-size: 11px;
-  letter-spacing: 2px;
-  background: rgba(255, 255, 255, 0.15);
-  display: inline-block;
-  padding: 3px 12px;
-  border-radius: 4px;
-  margin-bottom: 15px;
-  font-weight: 600;
-}
+
+
 .hero-inner h1 {
   font-size: 32px;
   font-weight: 700;
@@ -148,6 +161,7 @@ const goUser = () => router.push("/user"); // 這裡假設使用者的路徑為 
   font-weight: 300;
 }
 
+
 /* ===== 主面板 (毛玻璃效果) ===== */
 .main-container {
   margin-top: -80px;
@@ -156,54 +170,71 @@ const goUser = () => router.push("/user"); // 這裡假設使用者的路徑為 
   padding-bottom: 80px;
 }
 .glass-panel {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: 24px;
-  padding: 50px 30px;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  box-shadow: 0 20px 50px rgba(93, 64, 55, 0.08);
+  background: #f5efe6;
+  border-radius: 30px;
+  padding: 60px 40px;
+  box-shadow: 0 18px 42px rgba(93, 64, 55, 0.12);
 }
 
-.header-content {
+.panel-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 34px;
 }
-.header-content h3 {
-  color: #3e2723;
-  font-weight: 700;
-  font-size: 24px;
+.panel-header h3 {
+  color: #4e342e;
+  font-weight: 800;
+  font-size: 30px;
+  margin-bottom: 8px;
 }
-.header-content p {
-  color: #8d6e63;
-  font-size: 14px;
+.panel-header p {
+  color: #a1887f;
+  font-size: 15px;
+}
+
+.card-group {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
 }
 
 /* ===== 卡片設計 (大地色系) ===== */
 .card-item {
-  background: #ffffff;
-  border-radius: 20px;
-  padding: 35px 25px;
+  background: #f8f4f0;
+  border-radius: 24px;
+  padding: 36px;
   height: 100%;
   display: flex;
   flex-direction: column;
-  transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
-  border: 1px solid #f0e6e0;
+  transition: all 0.25s ease;
+  border: none;
   cursor: pointer;
   text-decoration: none;
+  box-shadow: 0 10px 28px rgba(93, 64, 55, 0.1);
 }
 
 .card-icon {
-  width: 65px;
-  height: 65px;
-  background: #fdf8f5;
-  border-radius: 18px;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30px;
-  margin-bottom: 20px;
+  font-size: 32px;
+  margin-bottom: 22px;
   transition: 0.3s;
+  color: white;
+}
+
+.card-group > div:nth-child(1) .card-icon {
+  background: #c79a6d;
+}
+
+.card-group > div:nth-child(2) .card-icon {
+  background: #8f9d85;
+}
+
+.card-group > div:nth-child(3) .card-icon {
+  background: #d68552;
 }
 
 .card-body h5 {
@@ -222,14 +253,18 @@ const goUser = () => router.push("/user"); // 這裡假設使用者的路徑為 
 
 .card-footer {
   margin-top: auto;
-  padding-top: 15px;
-  border-top: 1px solid #f5f0ed;
+  padding: 10px 16px;
+  border-top: none;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  color: #a1887f;
+  gap: 8px;
+  color: #ffffff;
   font-weight: 600;
   font-size: 14px;
+  background: #c79a6d;
+  border-radius: 999px;
+  transition: background-color 0.2s ease;
 }
 
 .arrow {
@@ -238,18 +273,17 @@ const goUser = () => router.push("/user"); // 這裡假設使用者的路徑為 
 
 /* ===== 互動效果 ===== */
 .card-item:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 15px 35px rgba(93, 64, 55, 0.12);
-  border-color: #d7ccc8;
+  transform: translateY(-7px);
+  box-shadow: 0 16px 34px rgba(93, 64, 55, 0.16);
 }
 
 .card-item:hover .card-icon {
-  background: #5d4037;
-  transform: rotate(5deg);
+  transform: scale(1.03);
 }
 
 .card-item:hover .card-footer {
-  color: #5d4037;
+  background: #b98158;
+  color: #ffffff;
 }
 
 .card-item:hover .arrow {

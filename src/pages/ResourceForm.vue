@@ -53,6 +53,27 @@
               <label>最後驗證日期</label>
               <input type="date" v-model="formData.lastVerifyDate" />
             </div>
+            <div class="col-6">
+              <label>預計驗證日期</label>
+              <input type="date" v-model="formData.nextVerifyDate" />
+            </div>
+          </div>
+          <div class="input-group">
+            <label>風險等級</label>
+            <select v-model="formData.riskLevel">
+              <option value="green">🟢 綠燈（可推薦）</option>
+              <option value="yellow">🟡 黃燈（需陪同）</option>
+              <option value="red">🔴 紅燈（避免推薦）</option>
+            </select>
+          </div>
+
+          <div class="input-group">
+            <label>風險說明（選填）</label>
+            <textarea
+              rows="2"
+              placeholder="例如：尚未實地查核或需陪同"
+              v-model="formData.riskNote"
+            ></textarea>
           </div>
         </div>
 
@@ -143,23 +164,7 @@
               placeholder="請輸入完整地址"
               v-model="formData.address"
             />
-            <button class="btn-geo" @click="handleLocationAction">
-              <span v-if="!isLocating">
-                {{
-                  formData.address
-                    ? "🗺️ 在地圖中開啟確認"
-                    : "📍 獲取當前位置座標"
-                }}
-              </span>
-              <span v-else>⌛ 定位讀取中...</span>
-            </button>
-            <div v-if="formData.lat" class="geo-info-box">
-              <p>
-                經緯度：{{ formData.lat.toFixed(5) }},
-                {{ formData.lng.toFixed(5) }}
-              </p>
-              <small>* 座標已自動存入，將用於地圖標註</small>
-            </div>
+            <button class="btn-geo" @click="openMap">🗺️ 在地圖中確認地址</button>
           </div>
           <div class="mt-3">
             <label>無障礙規劃 (多選)</label>
@@ -204,6 +209,54 @@
               <option value="none">尚未確認</option>
             </select>
           </div>
+          <!-- 聯絡資訊 -->
+          <div class="input-group">
+            <label>聯絡人</label>
+            <input v-model="formData.contactName" placeholder="請輸入聯絡人" />
+          </div>
+
+          <div class="input-group">
+            <label>電話</label>
+            <input v-model="formData.contactPhone" placeholder="請輸入電話" />
+          </div>
+
+          <!-- 適用對象 -->
+          <div class="mt-3">
+            <label>適用對象</label>
+            <div class="tag-cloud">
+              <div
+                v-for="item in targetOptions"
+                :key="item"
+                :class="[
+                  'tag-item',
+                  { active: formData.targetGroups.includes(item) },
+                ]"
+                @click="toggleTarget(item)"
+              >
+                {{ item }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 參與條件 -->
+          <div class="input-group">
+            <label>參與條件</label>
+            <select v-model="formData.participation">
+              <option v-for="p in participationOptions" :key="p" :value="p">
+                {{ p }}
+              </option>
+            </select>
+          </div>
+
+          <!-- 費用 -->
+          <div class="input-group">
+            <label>費用</label>
+            <select v-model="formData.feeType">
+              <option v-for="f in feeOptions" :key="f" :value="f">
+                {{ f }}
+              </option>
+            </select>
+          </div>
         </div>
 
         <div class="form-footer">
@@ -235,7 +288,6 @@ import { ref, reactive } from "vue";
 import { useRouter } from "vue-router";
 const router = useRouter();
 const currentStep = ref(1);
-const isLocating = ref(false);
 const stepTitles = ["基本管理", "處方標籤", "服務量能", "空間位置", "合作與AI"];
 
 const formData = reactive({
@@ -243,6 +295,9 @@ const formData = reactive({
   organization: "",
   status: "active",
   lastVerifyDate: "",
+  nextVerifyDate: "",
+  riskLevel: "green",
+  riskNote: "",
   types: [],
   tags: [],
   content: "",
@@ -257,6 +312,11 @@ const formData = reactive({
   keywords: "",
   aiContext: "",
   coopStatus: "none",
+  contactName: "",
+  contactPhone: "",
+  targetGroups: [],
+  participation: "",
+  feeType: "",
 });
 
 const prescriptionTypes = [
@@ -282,7 +342,16 @@ const accessibilityOptions = [
   "兒童友善",
   "性別友善",
 ];
+const targetOptions = ["長者", "成人", "慢性病", "照顧者", "身心障礙"];
 
+const participationOptions = ["自由參加", "須報名", "僅接受轉介"];
+
+const feeOptions = ["免費", "自費", "補助"];
+
+const toggleTarget = (v) => {
+  const i = formData.targetGroups.indexOf(v);
+  i > -1 ? formData.targetGroups.splice(i, 1) : formData.targetGroups.push(v);
+};
 const toggleType = (v) => {
   const i = formData.types.indexOf(v);
   i > -1 ? formData.types.splice(i, 1) : formData.types.push(v);
@@ -296,41 +365,32 @@ const toggleAccess = (v) => {
   i > -1 ? formData.accessibility.splice(i, 1) : formData.accessibility.push(v);
 };
 
-const handleLocationAction = () => {
-  if (formData.address) {
-    window.open(
-      `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-        formData.address
-      )}`,
-      "_blank"
-    );
-  } else {
-    if (!navigator.geolocation) return alert("您的瀏覽器不支援定位");
-    isLocating.value = true;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        formData.lat = pos.coords.latitude;
-        formData.lng = pos.coords.longitude;
-        isLocating.value = false;
-        if (!formData.address) {
-          formData.address = `定位點座標 (${formData.lat.toFixed(
-            5
-          )}, ${formData.lng.toFixed(5)})`;
-        }
-      },
-      (err) => {
-        isLocating.value = false;
-        alert("定位失敗，請手動輸入地址");
-      },
-      { enableHighAccuracy: true }
-    );
+const openMap = () => {
+  if (!formData.address) {
+    alert("請先輸入地址");
+    return;
   }
+
+  window.open(
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      formData.address
+    )}`,
+    "_blank"
+  );
 };
 
 const submitForm = () => {
-  // 模擬提交過程
-  alert("資源已成功送出！將進入管理員審核流程。");
-  // 跳轉回首頁，或是跳轉到一個成功頁面 (假設路徑為 /success)
+  const oldData = JSON.parse(localStorage.getItem("resources") || "[]");
+
+  oldData.push({
+    ...formData,
+    id: Date.now(),
+  });
+
+  localStorage.setItem("resources", JSON.stringify(oldData));
+
+  alert("資源已成功送出！");
+
   router.push("/success");
 };
 </script>
@@ -402,7 +462,8 @@ const submitForm = () => {
   background: white;
   border-radius: 20px;
   padding: 30px;
-  box-shadow: 0 10px 30px rgba(93, 64, 55, 0.05);
+  box-shadow: 0 
+  10px 30px rgba(93, 64, 55, 0.05);
   margin-top: 20px;
 }
 .input-group {

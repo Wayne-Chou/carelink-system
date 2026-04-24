@@ -16,15 +16,25 @@
             placeholder="搜尋關鍵字，例如：健走、共餐..."
             v-model="searchText"
           />
-          <button class="search-btn">🔍</button>
+          <button class="search-btn">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
         </div>
       </div>
     </div>
 
     <div class="container mt-n4">
       <div class="category-grid">
-        <div v-for="cat in categories" :key="cat.name" class="cat-item">
-          <div class="cat-icon">{{ cat.icon }}</div>
+        <div
+          v-for="cat in categories"
+          :key="cat.name"
+          class="cat-item"
+          :class="{ active: selectedCategory === cat.name }"
+          @click="toggleCategory(cat.name)"
+        >
+          <div class="cat-icon">
+            <i class="fa-solid" :class="cat.icon"></i>
+          </div>
           <span>{{ cat.name }}</span>
         </div>
       </div>
@@ -32,16 +42,20 @@
 
     <div class="container mt-4">
       <div class="section-title">
-        <h3>🔥 熱門社區活動</h3>
-        <span class="more">查看更多</span>
+        <h3><i class="fa-solid fa-fire"></i> 熱門社區活動</h3>
+       
       </div>
-      <div class="event-slider-wrapper">
+      <div v-if="upcomingEvents.length === 0" class="empty-state">
+        目前沒有熱門活動
+      </div>
+
+      <div v-else class="event-slider-wrapper">
         <div v-for="event in upcomingEvents" :key="event.id" class="event-card">
           <div class="event-tag">{{ event.type }}</div>
           <div class="event-info">
             <h4>{{ event.name }}</h4>
-            <p>📅 {{ event.date }} {{ event.time }}</p>
-            <p>📍 {{ event.location }}</p>
+            <p><i class="fa-solid fa-calendar-days"></i> {{ event.date }} {{ event.time }}</p>
+            <p><i class="fa-solid fa-location-dot"></i> {{ event.location }}</p>
           </div>
         </div>
       </div>
@@ -49,28 +63,48 @@
 
     <div class="container mt-4">
       <div class="section-title">
-        <h3>📍 附近的社區資源</h3>
-        <div class="view-toggle">
-          <button class="active">列表</button>
-          <button>地圖</button>
-        </div>
+        <h3><i class="fa-solid fa-location-dot"></i> 附近的社區資源</h3>
+        
+      </div>
+      <div v-if="filteredResources.length === 0" class="empty-state">
+        {{ searchText ? "找不到相關資源" : "目前沒有可用資源" }}
       </div>
 
-      <div class="resource-list">
+      <div v-else class="resource-list">
         <div
-          v-for="res in nearResources"
+          v-for="res in filteredResources"
           :key="res.id"
           class="res-item"
           @click="goDetail(res)"
         >
           <div class="res-img">
-            <span>{{ res.emoji }}</span>
+            <i class="fa-solid fa-location-dot"></i>
           </div>
           <div class="res-details">
             <h5>{{ res.name }}</h5>
+            <div class="risk" :class="res.risk">
+              <i class="fa-solid" :class="riskIconMap[res.risk]"></i>
+              <span>{{ riskLabelMap[res.risk] }}</span>
+            </div>
             <div class="res-meta">
-              <span>📏 距離 {{ res.distance }}</span>
-              <span>💰 {{ res.price }}</span>
+              <span><i class="fa-solid fa-location-dot"></i> 距離 {{ res.distance }}</span>
+              <span><i class="fa-solid fa-dollar-sign"></i> {{ res.price }}</span>
+            </div>
+            <div class="res-targets">
+              <span v-for="target in res.targets" :key="target">#{{ target }}</span>
+            </div>
+            <div class="res-access">
+              <span v-if="res.accessibility.transport"><i class="fa-solid fa-bus"></i> 大眾運輸</span>
+              <span v-if="res.accessibility.barrierFree"><i class="fa-solid fa-wheelchair"></i> 無障礙</span>
+              <span v-if="res.accessibility.parking"><i class="fa-solid fa-car"></i> 停車</span>
+            </div>
+            <div class="res-condition">
+              <span v-if="res.condition.needRegister">需報名</span>
+              <span v-if="res.condition.referralOnly">僅限轉介</span>
+              <span v-if="res.condition.freeJoin">自由參加</span>
+            </div>
+            <div class="capacity" :class="res.capacity.status">
+              {{ capacityLabelMap[res.capacity.status] }}
             </div>
             <div class="res-tags">
               <span v-for="tag in res.tags" :key="tag">#{{ tag }}</span>
@@ -83,15 +117,15 @@
 
     <div class="bottom-nav">
       <div class="nav-btn active">
-        <div class="nav-icon">🏠</div>
+        <div class="nav-icon"><i class="fa-solid fa-house"></i></div>
         <span>首頁</span>
       </div>
       <div class="nav-btn">
-        <div class="nav-icon">📅</div>
+        <div class="nav-icon"><i class="fa-solid fa-calendar-days"></i></div>
         <span>我的預約</span>
       </div>
       <div class="nav-btn">
-        <div class="nav-icon">👤</div>
+        <div class="nav-icon"><i class="fa-solid fa-user"></i></div>
         <span>個人中心</span>
       </div>
     </div>
@@ -99,66 +133,124 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 
 const searchText = ref("");
+const router = useRouter();
 
+// category-grid 使用「需求標籤（tags）」作為分類來源
 const categories = [
-  { name: "運動健身", icon: "👟" },
-  { name: "社交陪伴", icon: "☕" },
-  { name: "教育學習", icon: "📚" },
-  { name: "基本生活", icon: "🏠" },
-  { name: "藝術文化", icon: "🎨" },
-  { name: "更多", icon: "⋯" },
+  { name: "全部", icon: "fa-layer-group" },
+  { name: "運動健身", icon: "fa-shoe-prints" },
+  { name: "社交陪伴", icon: "fa-mug-hot" },
+  { name: "教育學習", icon: "fa-book" },
+  { name: "藝術文化", icon: "fa-palette" },
 ];
 
-const upcomingEvents = [
-  {
-    id: 1,
-    name: "河堤公園晨間健走",
-    date: "明天",
-    time: "07:00",
-    location: "河堤公園入口",
-    type: "運動",
-  },
-  {
-    id: 2,
-    name: "長者數位手機教學",
-    date: "本週五",
-    time: "14:00",
-    location: "社區中心",
-    type: "學習",
-  },
-  {
-    id: 3,
-    name: "週末愛心共餐",
-    date: "本週六",
-    time: "11:30",
-    location: "社區食堂",
-    type: "共餐",
-  },
-];
+const selectedCategory = ref("全部");
+const upcomingEvents = ref([]);
+const nearResources = ref([]);
 
-const nearResources = [
-  {
-    id: 1,
-    name: "老友室內桌遊社",
-    distance: "500m",
-    price: "免費",
-    emoji: "🎲",
-    tags: ["社交", "室內"],
-  },
-  {
-    id: 2,
-    name: "銀髮族共餐食堂",
-    distance: "800m",
-    price: "$50",
-    emoji: "🍱",
-    tags: ["食物", "共餐"],
-  },
-];
+const filteredResources = computed(() => {
+  const keyword = searchText.value.trim().toLowerCase();
 
-const goDetail = (res) => alert(`進入「${res.name}」詳情頁`);
+  return nearResources.value.filter((res) => {
+    const matchKeyword =
+      !keyword ||
+      res.name?.toLowerCase().includes(keyword) ||
+      (res.tags || []).join(" ").toLowerCase().includes(keyword) ||
+      (res.targets || []).join(" ").toLowerCase().includes(keyword);
+
+    // category-grid 使用「需求標籤」，因此只比對 tags，不包含 targets
+    const matchCategory =
+      selectedCategory.value === "全部" ||
+      (res.tags || []).includes(selectedCategory.value);
+
+    return matchKeyword && matchCategory;
+  });
+});
+
+onMounted(() => {
+  const stored = JSON.parse(localStorage.getItem("resources") || "[]");
+
+  nearResources.value = stored
+    .filter((item) => item.status === "approved")
+    .map((item) => ({
+      id: item.id,
+      name: item.name || "未命名資源",
+      risk: item.riskLevel || "green",
+      distance: "附近",
+      price:
+        item.feeType === "免費"
+          ? "免費"
+          : item.feeAmount
+          ? item.feeAmount
+          : item.feeType || "未提供",
+      targets: item.targetGroups || [],
+      tags: item.tags || [],
+      accessibility: {
+        transport: true,
+        barrierFree: (item.accessibility || []).includes("無障礙空間"),
+        parking: false,
+      },
+      condition: {
+        needRegister: item.participation === "須報名",
+        referralOnly: item.participation === "僅接受轉介",
+        freeJoin: item.participation === "自由參加",
+      },
+      capacity: {
+        status: item.capacityStatus || "available",
+      },
+    }))
+    .sort((a, b) => {
+      const order = { green: 1, yellow: 2, red: 3 };
+      return order[a.risk] - order[b.risk];
+    });
+
+  upcomingEvents.value = stored
+    .filter((item) => item.status === "approved")
+    .slice(0, 3)
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      date: "近期",
+      time: "依現場",
+      location: item.locationName || "未提供",
+      type: item.types?.[0] || "活動",
+    }));
+
+  console.log("所有資源:", stored);
+  console.log("顯示資源:", nearResources.value);
+});
+
+const riskIconMap = {
+  green: "fa-circle-check",
+  yellow: "fa-triangle-exclamation",
+  red: "fa-circle-xmark",
+};
+
+const riskLabelMap = {
+  green: "低風險",
+  yellow: "中風險",
+  red: "高風險",
+};
+
+const capacityLabelMap = {
+  available: "尚有名額",
+  full: "已額滿",
+  waiting: "候補中",
+};
+
+const goDetail = (res) => {
+  if (!res?.id) return;
+  router.push(`/resources/${res.id}`);
+};
+
+const toggleCategory = (name) => {
+  selectedCategory.value =
+    selectedCategory.value === name ? "全部" : name;
+};
 </script>
 
 <style scoped>
@@ -225,9 +317,19 @@ const goDetail = (res) => alert(`進入「${res.name}」詳情頁`);
 .cat-item {
   text-align: center;
 }
+.cat-item.active {
+  background: #5d4037;
+  color: #fff;
+  border-radius: 10px;
+}
 .cat-icon {
   font-size: 28px;
   margin-bottom: 5px;
+  color: #8d6e63;
+}
+.cat-item.active .cat-icon,
+.cat-item.active span {
+  color: #fff;
 }
 .cat-item span {
   font-size: 13px;
@@ -268,34 +370,20 @@ const goDetail = (res) => alert(`進入「${res.name}」詳情頁`);
   color: #3e2723;
   margin: 0;
 }
-.more {
-  font-size: 13px;
-  color: #c2956e;
-}
-.view-toggle {
-  background: #efe7dc;
-  padding: 3px;
-  border-radius: 8px;
-  display: flex;
-}
-.view-toggle button {
-  border: none;
-  background: none;
-  padding: 4px 10px;
-  font-size: 12px;
-  border-radius: 5px;
-  cursor: pointer;
-}
-.view-toggle button.active {
-  background: white;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  font-weight: 700;
-}
+
+
 
 .resource-list {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.empty-state {
+  text-align: center;
+  color: #a1887f;
+  padding: 20px;
+  font-size: 14px;
 }
 .res-item {
   display: flex;
@@ -319,7 +407,8 @@ const goDetail = (res) => alert(`進入「${res.name}」詳情頁`);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 24px;
+  color: #8d6e63;
   margin-right: 15px;
 }
 .res-details {
@@ -338,6 +427,60 @@ const goDetail = (res) => alert(`進入「${res.name}」詳情頁`);
 }
 .res-meta span {
   margin-right: 10px;
+}
+.res-meta i {
+  margin-right: 4px;
+}
+.res-targets span {
+  color: #8d6e63;
+  font-size: 11px;
+  margin-right: 8px;
+  font-weight: 600;
+}
+.risk {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 4px 0;
+}
+.risk i {
+  margin-right: 4px;
+}
+.risk.green {
+  color: #4caf50;
+}
+.risk.yellow {
+  color: #ff9800;
+}
+.risk.red {
+  color: #f44336;
+}
+
+.res-access,
+.res-condition {
+  font-size: 12px;
+  color: #8d6e63;
+  margin: 2px 0;
+}
+.res-access span,
+.res-condition span {
+  margin-right: 10px;
+}
+.res-access i {
+  margin-right: 4px;
+}
+
+.capacity {
+  font-size: 12px;
+  font-weight: 600;
+}
+.capacity.available {
+  color: #4caf50;
+}
+.capacity.full {
+  color: #f44336;
+}
+.capacity.waiting {
+  color: #ff9800;
 }
 .res-tags span {
   color: #c2956e;
@@ -382,5 +525,15 @@ const goDetail = (res) => alert(`進入「${res.name}」詳情頁`);
 }
 .nav-btn.active {
   color: #5d4037;
+}
+
+@media (max-width: 576px) {
+  .res-meta span,
+  .res-access span,
+  .res-condition span,
+  .res-targets span {
+    display: inline-block;
+    margin-bottom: 2px;
+  }
 }
 </style>
