@@ -14,6 +14,10 @@ const routes = [
   { path: "/resources", name: "resources-list", component: ResourceList },
   { path: "/form", name: "form", component: ResourceForm },
   { path: "/user", name: "user", component: UserHome },
+  {
+    path: "/user/resources/:id",
+    component: () => import("../views/ResourceUserDetail.vue"),
+  },
   { path: "/success", name: "success", component: SuccessView },
   { path: "/resources/:id", name: "resource-detail", component: ResourceDetail },
   { path: "/resource-dashboard", name: "resource-dashboard", component: ResourceDashboard },

@@ -43,8 +43,17 @@
           <div class="card-status" :class="item.statusClass"></div>
           <div class="card-content">
             <div class="card-header">
-              <span class="org-name">{{ item.organization }}</span>
-              <span class="verify-date">驗證日: {{ item.lastVerifyDate }}</span>
+              <div class="header-left">
+                <span class="org-name">{{ item.organization }}</span>
+                <span class="status-text">
+                  {{ statusLabelMap[item.status] || "未設定" }}
+                </span>
+              </div>
+              <div class="header-right">
+                <span class="verify-date">
+                  驗證日: {{ item.lastVerifyDate || "--" }}
+                </span>
+              </div>
             </div>
             <h4 class="resource-name">{{ item.name }}</h4>
             <div class="tag-row">
@@ -54,15 +63,20 @@
               >
             </div>
             <div class="card-footer">
-              <div class="location">📍 {{ item.locationName }}</div>
-
-              <button class="detail-btn" @click="loginResource(item.id)">
-                進入資源端
-              </button>
-              <button class="detail-btn" @click="viewDetail(item)">
-                管理詳情
-              </button>
-              <button class="delete-btn" @click="deleteResource(item.id)">刪除</button>
+              <div class="footer-left">
+                <div class="location">📍 {{ item.locationName }}</div>
+              </div>
+              <div class="footer-right">
+                <button class="detail-btn" @click="loginResource(item.id)">
+                  進入資源端
+                </button>
+                <button class="detail-btn" @click="viewDetail(item)">
+                  管理詳情
+                </button>
+                <button class="delete-btn" @click="deleteResource(item.id)">
+                  刪除
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -92,6 +106,12 @@ const tabs = [
   { label: "終止", value: "end" },
   { label: "季節性", value: "season" },
 ];
+const statusLabelMap = {
+  active: "🟢 活躍",
+  pause: "🟡 暫停",
+  end: "🔴 終止",
+  season: "🔵 季節性",
+};
 
 const getStatusClass = (status) => {
   switch (status) {
@@ -277,23 +297,44 @@ const viewDetail = (item) => {
 }
 
 .card-content {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   padding: 15px;
+  height: 100%;
 }
 .card-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   margin-bottom: 5px;
+}
+.card-header .header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.card-header .header-right {
+  text-align: right;
+  flex-shrink: 0;
 }
 .org-name {
   font-size: 12px;
   color: #a1887f;
   font-weight: 600;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .verify-date {
   font-size: 11px;
   color: #bcaaa4;
+}
+.status-text {
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 8px;
 }
 .resource-name {
   font-size: 17px;
@@ -327,10 +368,23 @@ const viewDetail = (item) => {
   align-items: center;
   padding-top: 10px;
   border-top: 1px dashed #efe7dc;
+  margin-top: auto;
+}
+.footer-left {
+  flex: 1;
+  min-width: 0;
+}
+.footer-right {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
 }
 .location {
   font-size: 12px;
   color: #8d6e63;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .detail-btn {
   background: #fdf8f5;

@@ -172,11 +172,45 @@ const filteredResources = computed(() => {
 });
 
 onMounted(() => {
-  // 暫時不接資源資料（避免依賴審核流程）
-  nearResources.value = [];
-  upcomingEvents.value = [];
+  const stored = JSON.parse(localStorage.getItem("resources") || "[]");
 
-  console.log("UserHome: 暫不載入 resources");
+  const activeResources = stored.filter((r) => r.status === "active");
+
+  nearResources.value = activeResources.map((r) => ({
+    id: r.id,
+    name: r.name,
+    tags: r.tags || [],
+    targets: r.targetGroups || [],
+
+    // 風險
+    risk: r.riskLevel || "green",
+
+    // demo 用
+    distance: "附近",
+    price: r.feeType || "免費",
+
+    // accessibility 轉換（array → object）
+    accessibility: {
+      transport: true,
+      barrierFree: (r.accessibility || []).includes("無障礙空間"),
+      parking: false,
+    },
+
+    // 參與條件
+    condition: {
+      needRegister: r.participation === "須報名",
+      referralOnly: r.participation === "僅接受轉介",
+      freeJoin: r.participation === "自由參加",
+    },
+
+    // 容量
+    capacity: {
+      status: r.capacityStatus || "available",
+    },
+  }));
+
+  // 活動先維持空
+  upcomingEvents.value = [];
 });
 
 const riskIconMap = {
@@ -199,7 +233,7 @@ const capacityLabelMap = {
 
 const goDetail = (res) => {
   if (!res?.id) return;
-  router.push(`/resources/${res.id}`);
+  router.push(`/user/resources/${res.id}`);
 };
 
 const toggleCategory = (name) => {
