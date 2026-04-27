@@ -1,8 +1,16 @@
 <template>
   <div class="resource-dashboard-page">
     <div class="top-bar">
-      <h2>資源端管理面板</h2>
-      <p>目前登入資源：{{ currentResourceName }}</p>
+      <div class="header-left">
+        <button class="back-btn" @click="router.back()">← 返回</button>
+      </div>
+
+      <div class="header-center">
+        <h2>資源端管理面板</h2>
+        <p>目前登入資源：{{ currentResourceName }}</p>
+      </div>
+
+      <div class="header-right"></div>
     </div>
 
     <div class="container main-content">
@@ -33,10 +41,12 @@
 
 <script setup>
 import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 
 const currentResourceId = ref("");
 const cases = ref([]);
 const resources = ref([]);
+const router = useRouter();
 
 const loadData = () => {
   const storedCases = JSON.parse(localStorage.getItem("cases") || "[]");
@@ -89,10 +99,18 @@ const updateStatus = (caseId, status) => {
 
 onMounted(() => {
   loadData();
+
   const savedId = localStorage.getItem("currentResourceId");
-  if (savedId) {
-    currentResourceId.value = savedId;
+
+  const exists = resources.value.find((r) => String(r.id) === String(savedId));
+
+  if (!exists) {
+    currentResourceId.value = "";
+    localStorage.removeItem("currentResourceId");
+    return;
   }
+
+  currentResourceId.value = savedId;
 });
 </script>
 
@@ -107,6 +125,26 @@ onMounted(() => {
   background: #5d4037;
   color: white;
   padding: 16px;
+}
+
+.header-left,
+.header-right {
+  flex: 1;
+}
+
+.header-center {
+  flex: 3;
+  text-align: center;
+}
+
+.back-btn {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: white;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
 }
 
 .top-bar h2 {

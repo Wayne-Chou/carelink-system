@@ -9,7 +9,6 @@
       </div>
       <div class="header-right">
         <button class="add-btn" @click="$router.push('/cases')">👤 個人端</button>
-        <button class="add-btn" @click="$router.push('/resource-dashboard')">🏢 資源端</button>
         <button class="add-btn" @click="$router.push('/form')">＋ 新增</button>
       </div>
     </div>
@@ -24,12 +23,12 @@
       </div>
       <div class="filter-tabs">
         <div
-          v-for="tab in ['全部', '待審核', '活躍', '暫停']"
-          :key="tab"
-          :class="['filter-tab', { active: currentTab === tab }]"
-          @click="currentTab = tab"
+          v-for="tab in tabs"
+          :key="tab.value"
+          :class="['filter-tab', { active: currentTab === tab.value }]"
+          @click="currentTab = tab.value"
         >
-          {{ tab }}
+          {{ tab.label }}
         </div>
       </div>
     </div>
@@ -56,7 +55,10 @@
             </div>
             <div class="card-footer">
               <div class="location">📍 {{ item.locationName }}</div>
-              
+
+              <button class="detail-btn" @click="loginResource(item.id)">
+                進入資源端
+              </button>
               <button class="detail-btn" @click="viewDetail(item)">
                 管理詳情
               </button>
@@ -80,9 +82,16 @@ import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
 const searchQuery = ref("");
-const currentTab = ref("全部");
+const currentTab = ref("all");
 const resources = ref([]);
 const router = useRouter();
+const tabs = [
+  { label: "全部", value: "all" },
+  { label: "活躍", value: "active" },
+  { label: "暫停", value: "pause" },
+  { label: "終止", value: "end" },
+  { label: "季節性", value: "season" },
+];
 
 const getStatusClass = (status) => {
   switch (status) {
@@ -92,6 +101,8 @@ const getStatusClass = (status) => {
       return "status-yellow";
     case "end":
       return "status-red";
+    case "season":
+      return "status-blue";
     default:
       return "status-yellow";
   }
@@ -126,7 +137,7 @@ const filteredResources = computed(() => {
       item.organization?.includes(keyword) ||
       tags.some((tag) => tag.includes(keyword));
     const matchesTab =
-      currentTab.value === "全部" || item.status === currentTab.value;
+      currentTab.value === "all" || item.status === currentTab.value;
     return matchesSearch && matchesTab;
   });
 });
@@ -139,7 +150,6 @@ const deleteResource = (id) => {
 
 const loginResource = (id) => {
   localStorage.setItem("currentResourceId", id);
-  alert("已登入此資源");
   router.push("/resource-dashboard");
 };
 
@@ -261,6 +271,9 @@ const viewDetail = (item) => {
 }
 .status-red {
   background: #d32f2f;
+}
+.status-blue {
+  background: #2196f3;
 }
 
 .card-content {

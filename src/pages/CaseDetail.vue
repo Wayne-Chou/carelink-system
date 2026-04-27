@@ -305,19 +305,16 @@ const nextStage = () => {
   }
 
   if (currentStage === 3) {
-    // 只檢查是否有選資源
     if (!currentCase.value.linkage?.resourceId) {
       alert("請先選擇資源");
       return;
     }
 
-    // 更新連結原因
     currentCase.value.linkage = {
       ...currentCase.value.linkage,
       reason: linkageReason.value,
     };
 
-    // 記錄歷程（重要）
     currentCase.value.history.push({
       stage: 3,
       date: getToday(),
@@ -354,6 +351,7 @@ const nextStage = () => {
     );
 
     persistCases();
+    console.log(currentCase.value);
     return;
   }
 
@@ -377,6 +375,7 @@ const nextStage = () => {
     String(item.id) === String(currentCase.value.id) ? { ...currentCase.value } : item
   );
   persistCases();
+  console.log(currentCase.value);
 };
 
 const bindResource = (resourceId) => {

@@ -172,56 +172,11 @@ const filteredResources = computed(() => {
 });
 
 onMounted(() => {
-  const stored = JSON.parse(localStorage.getItem("resources") || "[]");
+  // 暫時不接資源資料（避免依賴審核流程）
+  nearResources.value = [];
+  upcomingEvents.value = [];
 
-  nearResources.value = stored
-    .filter((item) => item.status === "approved")
-    .map((item) => ({
-      id: item.id,
-      name: item.name || "未命名資源",
-      risk: item.riskLevel || "green",
-      distance: "附近",
-      price:
-        item.feeType === "免費"
-          ? "免費"
-          : item.feeAmount
-          ? item.feeAmount
-          : item.feeType || "未提供",
-      targets: item.targetGroups || [],
-      tags: item.tags || [],
-      accessibility: {
-        transport: true,
-        barrierFree: (item.accessibility || []).includes("無障礙空間"),
-        parking: false,
-      },
-      condition: {
-        needRegister: item.participation === "須報名",
-        referralOnly: item.participation === "僅接受轉介",
-        freeJoin: item.participation === "自由參加",
-      },
-      capacity: {
-        status: item.capacityStatus || "available",
-      },
-    }))
-    .sort((a, b) => {
-      const order = { green: 1, yellow: 2, red: 3 };
-      return order[a.risk] - order[b.risk];
-    });
-
-  upcomingEvents.value = stored
-    .filter((item) => item.status === "approved")
-    .slice(0, 3)
-    .map((item) => ({
-      id: item.id,
-      name: item.name,
-      date: "近期",
-      time: "依現場",
-      location: item.locationName || "未提供",
-      type: item.types?.[0] || "活動",
-    }));
-
-  console.log("所有資源:", stored);
-  console.log("顯示資源:", nearResources.value);
+  console.log("UserHome: 暫不載入 resources");
 });
 
 const riskIconMap = {

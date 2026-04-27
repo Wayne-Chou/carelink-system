@@ -382,12 +382,18 @@ const openMap = () => {
 const submitForm = () => {
   const oldData = JSON.parse(localStorage.getItem("resources") || "[]");
 
-  oldData.push({
+  // 確保既有資料每一筆都有 id
+  const resourcesWithId = oldData.map((item, index) => ({
+    ...item,
+    id: item?.id ?? Date.now() + index,
+  }));
+
+  resourcesWithId.push({
     ...formData,
     id: Date.now(),
   });
 
-  localStorage.setItem("resources", JSON.stringify(oldData));
+  localStorage.setItem("resources", JSON.stringify(resourcesWithId));
 
   alert("資源已成功送出！");
 

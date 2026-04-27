@@ -128,34 +128,6 @@
             </section>
           </div>
 
-          <div class="review-section">
-            <h3>審核狀態</h3>
-
-            <div class="status-row">
-              <span class="label">目前狀態：</span>
-              <span :class="['status-badge', resource.status]">
-                {{ statusText }}
-              </span>
-            </div>
-
-            <div class="review-actions">
-              <button
-                class="approve-btn"
-                @click="approveResource"
-                v-if="resource.status !== 'approved'"
-              >
-                審核通過
-              </button>
-
-              <button
-                class="reject-btn"
-                @click="rejectResource"
-                v-if="resource.status === 'approved'"
-              >
-                撤回審核
-              </button>
-            </div>
-          </div>
         </main>
       </div>
       <div v-else>找不到資源資料</div>
@@ -164,7 +136,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from "vue";
+import { ref, onMounted } from "vue";
 import { useRoute } from "vue-router";
 
 const route = useRoute();
@@ -189,47 +161,6 @@ const loadResource = () => {
 onMounted(() => {
   loadResource();
 });
-
-const statusText = computed(() => {
-  switch (resource.value.status) {
-    case "approved":
-      return "已審核";
-    case "active":
-      return "活躍";
-    case "pause":
-      return "暫停";
-    case "end":
-      return "終止";
-    default:
-      return "待審核";
-  }
-});
-
-const updateResource = (newStatus) => {
-  const stored = JSON.parse(localStorage.getItem("resources") || "[]");
-
-  const updated = stored.map((item) => {
-    if (String(item.id) === String(route.params.id)) {
-      return {
-        ...item,
-        status: newStatus,
-        lastVerifyDate: new Date().toISOString().slice(0, 10),
-      };
-    }
-    return item;
-  });
-
-  localStorage.setItem("resources", JSON.stringify(updated));
-  loadResource();
-};
-
-const approveResource = () => {
-  updateResource("approved");
-};
-
-const rejectResource = () => {
-  updateResource("pause");
-};
  </script>
 
 <style scoped>

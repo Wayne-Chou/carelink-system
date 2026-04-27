@@ -9,8 +9,6 @@
       </div>
       <div class="header-right">
         <button class="add-btn" @click="createCase">＋新增個案</button>
-       
-        <button class="resource-btn" @click="$router.push('/resource-dashboard')">資源端</button>
       </div>
     </div>
 
