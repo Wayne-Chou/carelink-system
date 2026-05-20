@@ -10,19 +10,14 @@
       <div class="header-right"></div>
     </div>
 
-    <div class="progress-container">
-      <div
-        class="progress-bar"
-        :style="{ width: (currentStep / 5) * 100 + '%' }"
-      ></div>
-      <div class="step-text">
-        步驟 {{ currentStep }} / 5: {{ stepTitles[currentStep - 1] }}
-      </div>
-    </div>
-
     <div class="container main-content">
       <div class="form-card">
-        <div v-if="currentStep === 1" class="step-content">
+        <section class="form-section">
+          <header class="section-header">
+            <h3 class="section-title">基本管理</h3>
+            <p class="section-desc">資源基本資訊與風險管理</p>
+          </header>
+          <div class="section-body">
           <div class="input-group">
             <label>資源名稱 <span class="required">*</span></label>
             <input
@@ -75,9 +70,17 @@
               v-model="formData.riskNote"
             ></textarea>
           </div>
-        </div>
+          </div>
+        </section>
 
-        <div v-if="currentStep === 2" class="step-content">
+        <hr class="section-divider" />
+
+        <section class="form-section">
+          <header class="section-header">
+            <h3 class="section-title">處方標籤</h3>
+            <p class="section-desc">處方類型與需求標籤設定</p>
+          </header>
+          <div class="section-body">
           <label>處方類型 (多選)</label>
           <div class="type-grid">
             <div
@@ -100,9 +103,17 @@
               {{ tag }}
             </div>
           </div>
-        </div>
+          </div>
+        </section>
 
-        <div v-if="currentStep === 3" class="step-content">
+        <hr class="section-divider" />
+
+        <section class="form-section">
+          <header class="section-header">
+            <h3 class="section-title">服務量能</h3>
+            <p class="section-desc">資源內容與服務容量</p>
+          </header>
+          <div class="section-body">
           <div class="input-group">
             <label>資源內容 (100字以內)</label>
             <textarea
@@ -146,9 +157,17 @@
               </label>
             </div>
           </div>
-        </div>
+          </div>
+        </section>
 
-        <div v-if="currentStep === 4" class="step-content">
+        <hr class="section-divider" />
+
+        <section class="form-section">
+          <header class="section-header">
+            <h3 class="section-title">空間位置</h3>
+            <p class="section-desc">地點與無障礙規劃</p>
+          </header>
+          <div class="section-body">
           <div class="input-group">
             <label>地點名稱</label>
             <input
@@ -182,9 +201,17 @@
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </section>
 
-        <div v-if="currentStep === 5" class="step-content">
+        <hr class="section-divider" />
+
+        <section class="form-section">
+          <header class="section-header">
+            <h3 class="section-title">合作與 AI</h3>
+            <p class="section-desc">合作狀態、聯絡資訊與 AI 搜尋優化</p>
+          </header>
+          <div class="section-body">
           <div class="input-group">
             <label>AI 關鍵字</label>
             <input
@@ -257,24 +284,11 @@
               </option>
             </select>
           </div>
-        </div>
+          </div>
+        </section>
 
         <div class="form-footer">
-          <button
-            v-if="currentStep > 1"
-            class="btn-outline"
-            @click="currentStep--"
-          >
-            上一步
-          </button>
-          <button
-            v-if="currentStep < 5"
-            class="btn-primary"
-            @click="currentStep++"
-          >
-            下一步
-          </button>
-          <button v-else class="btn-submit" @click="submitForm">
+          <button type="button" class="btn-submit" @click="submitForm">
             完成並送審
           </button>
         </div>
@@ -284,11 +298,9 @@
 </template>
 
 <script setup>
-import { ref, reactive } from "vue";
+import { reactive } from "vue";
 import { useRouter } from "vue-router";
 const router = useRouter();
-const currentStep = ref(1);
-const stepTitles = ["基本管理", "處方標籤", "服務量能", "空間位置", "合作與AI"];
 
 const formData = reactive({
   name: "",
@@ -446,32 +458,53 @@ const submitForm = () => {
   text-align: right;
 }
 
-.progress-container {
-  background: #efe7dc;
-  padding: 15px 20px;
-  text-align: center;
-}
-.progress-bar {
-  height: 6px;
-  background: #c2956e;
-  transition: 0.3s;
-  border-radius: 3px;
-  margin-bottom: 8px;
-}
-.step-text {
-  font-size: 13px;
-  color: #8d6e63;
-  font-weight: 600;
-}
-
 .form-card {
   background: white;
   border-radius: 20px;
   padding: 30px;
-  box-shadow: 0 
-  10px 30px rgba(93, 64, 55, 0.05);
+  box-shadow: 0 10px 30px rgba(93, 64, 55, 0.05);
   margin-top: 20px;
 }
+
+.form-section {
+  padding: 8px 0 4px;
+}
+
+.form-section + .form-section,
+.form-section + .section-divider {
+  margin-top: 0;
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid #eadfd8;
+  margin: 36px 0;
+}
+
+.section-header {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #3e2723;
+}
+
+.section-desc {
+  margin: 0;
+  font-size: 14px;
+  color: #8d6e63;
+  line-height: 1.5;
+}
+
+.section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .input-group {
   margin-bottom: 20px;
 }
@@ -576,31 +609,27 @@ select {
 }
 
 .form-footer {
-  margin-top: 40px;
-  display: flex;
-  gap: 15px;
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid #eadfd8;
 }
-.btn-primary,
+
 .btn-submit {
-  flex: 1;
-  background: #5d4037;
+  width: 100%;
+  background: #2e7d32;
   color: white;
   border: none;
   padding: 15px;
   border-radius: 12px;
   font-weight: 700;
+  font-size: 15px;
   cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
-.btn-submit {
-  background: #2e7d32;
-}
-.btn-outline {
-  flex: 1;
-  background: white;
-  border: 1px solid #5d4037;
-  color: #5d4037;
-  border-radius: 12px;
-  cursor: pointer;
+
+.btn-submit:hover {
+  background: #256628;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 768px) {
@@ -610,6 +639,19 @@ select {
   }
   .main-content {
     margin-top: 0;
+  }
+  .section-divider {
+    margin: 28px 0;
+  }
+  .section-header {
+    margin-bottom: 18px;
+  }
+  .section-title {
+    font-size: 18px;
+  }
+  .form-footer {
+    margin-top: 36px;
+    padding-top: 20px;
   }
 }
 </style>

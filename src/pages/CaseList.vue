@@ -2,7 +2,7 @@
   <div class="case-list-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="$router.push('/list')">← 返回</button>
+        <button class="back-btn" @click="$router.push('/')">← 返回</button>
       </div>
       <div class="header-center">
         <h2>個案管理</h2>
