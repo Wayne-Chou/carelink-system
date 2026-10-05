@@ -42,7 +42,7 @@
         還沒有帳號？
         <router-link to="/register">立即註冊</router-link>
       </p>
-      <button type="button" class="btn-text" @click="goHome">返回首頁</button>
+      <button type="button" class="btn-text" @click="back">← 返回</button>
     </div>
   </div>
 </template>
@@ -50,10 +50,12 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { goBack } from "../utils/navigation.js";
 import logo from "../assets/logo.png";
 import { login } from "../utils/auth.js";
 
 const router = useRouter();
+const back = () => goBack(router, "/");
 const email = ref("");
 const password = ref("");
 const showPassword = ref(false);

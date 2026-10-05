@@ -46,7 +46,7 @@
         已有帳號？
         <router-link to="/login">立即登入</router-link>
       </p>
-      <button type="button" class="btn-text" @click="goHome">返回首頁</button>
+      <button type="button" class="btn-text" @click="back">← 返回</button>
     </div>
   </div>
 </template>
@@ -54,10 +54,12 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import { goBack } from "../utils/navigation.js";
 import logo from "../assets/logo.png";
 import { register } from "../utils/auth.js";
 
 const router = useRouter();
+const back = () => goBack(router, "/");
 const name = ref("");
 const email = ref("");
 const password = ref("");

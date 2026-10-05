@@ -2,7 +2,7 @@
   <div class="resource-dashboard-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="router.back()">← 返回</button>
+        <button class="back-btn" @click="back">← 返回</button>
       </div>
 
       <div class="header-center">
@@ -42,11 +42,13 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { goBack } from "../utils/navigation.js";
 
 const currentResourceId = ref("");
 const cases = ref([]);
 const resources = ref([]);
 const router = useRouter();
+const back = () => goBack(router, "/list");
 
 const loadData = () => {
   const storedCases = JSON.parse(localStorage.getItem("cases") || "[]");

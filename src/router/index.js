@@ -26,6 +26,12 @@ const routes = [
   },
   { path: "/form", name: "form", component: ResourceForm, meta: { requiresAuth: true } },
   {
+    path: "/form/:id",
+    name: "form-edit",
+    component: ResourceForm,
+    meta: { requiresAuth: true },
+  },
+  {
     path: "/user/resources/:id",
     name: "user-resource-detail",
     component: () => import("../pages/ResourceUserDetail.vue"),

@@ -2,7 +2,7 @@
   <div class="case-detail-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="router.push('/cases')">← 返回</button>
+        <button class="back-btn" @click="back">← 返回</button>
       </div>
       <div class="header-center">
         <h2>個案詳情</h2>
@@ -19,6 +19,65 @@
         <div class="info-card">
             <h3>{{ currentCase.basic?.name || currentCase.name || "未命名個案" }}</h3>
           <p>目前階段：{{ stageText(currentCase.stage || 1) }}</p>
+        </div>
+
+        <!-- 已連結資源：各階段都顯示，並標示資源目前狀態 -->
+        <div
+          v-if="linkedStatus.linked"
+          :class="['linked-card', { warning: linkedStatus.deleted || !linkedStatus.available }]"
+        >
+          <div class="linked-head">
+            <span class="linked-label">已連結資源</span>
+            <span v-if="linkedStatus.deleted" class="state-badge off">已刪除</span>
+            <span v-else-if="!linkedStatus.available" class="state-badge off">
+              {{ reasonLabels(linkedStatus.reasons) }}
+            </span>
+            <span v-else class="state-badge on">可轉介</span>
+          </div>
+
+          <template v-if="linkedStatus.deleted">
+            <h5>{{ linkedResourceName || "（名稱不明）" }}</h5>
+            <p class="linked-warning">
+              此資源已從資源清單刪除，無法查看詳細資料。
+              <template v-if="currentCase.stage === 3">請重新選擇資源。</template>
+            </p>
+          </template>
+          <template v-else>
+            <h5>
+              {{ linkedStatus.resource.name || "未命名資源" }}
+              <router-link :to="`/resources/${linkedStatus.resource.id}`" class="detail-link">
+                查看資源
+              </router-link>
+            </h5>
+            <dl class="linked-info">
+              <div>
+                <dt>單位</dt>
+                <dd>{{ linkedStatus.resource.organization || "未填寫" }}</dd>
+              </div>
+              <div>
+                <dt>地址</dt>
+                <dd>{{ formatAddress(linkedStatus.resource.address) || "未填寫" }}</dd>
+              </div>
+              <div v-if="formatSchedule(linkedStatus.resource.schedule)">
+                <dt>時間</dt>
+                <dd>{{ formatSchedule(linkedStatus.resource.schedule) }}</dd>
+              </div>
+              <div v-if="linkedStatus.resource.publicContact.phone">
+                <dt>聯絡</dt>
+                <dd>
+                  {{ linkedStatus.resource.publicContact.name }}
+                  {{ linkedStatus.resource.publicContact.phone }}
+                </dd>
+              </div>
+            </dl>
+            <p v-if="linkedStatus.needsEscort" class="escort-note">
+              <i class="fa-solid fa-user-nurse" aria-hidden="true"></i> {{ ESCORT_NOTICE }}
+            </p>
+            <p v-if="!linkedStatus.available" class="linked-warning">
+              此資源目前{{ reasonLabels(linkedStatus.reasons) }}，已不在轉介選單中。
+              <template v-if="currentCase.stage === 3">請重新選擇可轉介的資源。</template>
+            </p>
+          </template>
         </div>
 
         <div class="flow-card">
@@ -93,10 +152,7 @@
 
         <div v-if="currentCase.stage === 3" class="section-card">
           <h4>資源連結</h4>
-          <p v-if="selectedResourceName" class="linked-resource">
-            已連結：{{ selectedResourceName }}
-          </p>
-          <p v-else class="linked-resource">尚未綁定資源</p>
+          <p v-if="!linkedStatus.linked" class="linked-resource">尚未綁定資源</p>
           <div class="status-box">
             狀態：
             <span :class="`status-${currentCase.linkage?.status || 'pending'}`">
@@ -105,14 +161,37 @@
           </div>
           <input v-model="linkageReason" placeholder="輸入連結原因" />
 
-          <div v-if="resources.length === 0" class="empty-inline">目前沒有可選資源</div>
+          <p class="section-title">可轉介資源（{{ referralOptions.length }}）</p>
+          <div v-if="referralOptions.length === 0" class="empty-inline">
+            目前沒有可轉介的資源（只列出活躍、合作已確認、風險綠燈或黃燈的資源）
+          </div>
           <div v-else class="resource-list">
-            <div v-for="resource in resources" :key="resource.id" class="resource-card">
+            <div
+              v-for="{ resource, needsEscort } in referralOptions"
+              :key="resource.id"
+              :class="['resource-card', { selected: isLinked(resource.id) }]"
+            >
               <div class="resource-content">
                 <h5>{{ resource.name || "未命名資源" }}</h5>
-                <span class="resource-tag">{{ resource.types?.[0] || "未分類" }}</span>
+                <p class="resource-meta">
+                  {{ resource.organization }}｜{{ formatRegion(resource) }}
+                </p>
+                <div class="resource-tags">
+                  <span v-for="tag in resource.needTags.slice(0, 3)" :key="tag" class="resource-tag">
+                    {{ getNeedTagLabel(tag) }}
+                  </span>
+                </div>
+                <p v-if="needsEscort" class="escort-note">
+                  <i class="fa-solid fa-user-nurse" aria-hidden="true"></i> 🟡 {{ ESCORT_NOTICE }}
+                </p>
               </div>
-              <button class="select-btn" @click="bindResource(resource.id)">選擇</button>
+              <button
+                class="select-btn"
+                :disabled="isLinked(resource.id)"
+                @click="bindResource(resource.id)"
+              >
+                {{ isLinked(resource.id) ? "已選擇" : linkedStatus.linked ? "改選這個" : "選擇" }}
+              </button>
             </div>
           </div>
         </div>
@@ -163,9 +242,21 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { goBack } from "../utils/navigation.js";
+import { getNeedTagLabel } from "../config/needTags.js";
+import { VISIBILITY_REASON_LABELS } from "../config/resourceOptions.js";
+import { getAllResources } from "../services/resourceService.js";
+import {
+  ESCORT_NOTICE,
+  getLinkedResourceName,
+  getLinkedResourceStatus,
+  getReferralOptions,
+} from "../services/referral.js";
+import { formatAddress, formatRegion, formatSchedule } from "../utils/resourceFormat.js";
 
 const route = useRoute();
 const router = useRouter();
+const back = () => goBack(router, "/cases");
 
 const cases = ref([]);
 const resources = ref([]);
@@ -207,10 +298,24 @@ const loadCases = () => {
   cases.value = Array.isArray(stored) ? stored : [];
 };
 
+// 讀取全部資源（含不可推薦的），才能顯示已連結資源後來被暫停或終止的狀態
 const loadResources = () => {
-  const stored = JSON.parse(localStorage.getItem("resources") || "[]");
-  resources.value = Array.isArray(stored) ? stored : [];
+  resources.value = getAllResources();
 };
+
+// 轉介選單只列出可推薦資源（轉介情境）
+const referralOptions = computed(() => getReferralOptions(resources.value));
+
+const linkedStatus = computed(() =>
+  getLinkedResourceStatus(currentCase.value?.linkage?.resourceId, resources.value)
+);
+const linkedResourceName = computed(() =>
+  getLinkedResourceName(currentCase.value?.linkage, currentCase.value?.history)
+);
+const isLinked = (resourceId) =>
+  String(currentCase.value?.linkage?.resourceId ?? "") === String(resourceId);
+const reasonLabels = (codes) =>
+  codes.map((code) => VISIBILITY_REASON_LABELS[code] ?? code).join("、");
 
 const loadCurrentCase = () => {
   const found = cases.value.find((item) => String(item.id) === String(route.params.id)) || null;
@@ -237,6 +342,7 @@ const loadCurrentCase = () => {
     },
     linkage: {
       resourceId: found.linkage?.resourceId ?? found.resourceId ?? null,
+      resourceName: found.linkage?.resourceName || "",
       reason: found.linkage?.reason || "",
       status: found.linkage?.status || "",
     },
@@ -309,6 +415,15 @@ const nextStage = () => {
       alert("請先選擇資源");
       return;
     }
+    // 已連結的資源後來被刪除、暫停或終止時，須重新選擇才能進入追蹤
+    if (linkedStatus.value.deleted) {
+      alert("已連結的資源已被刪除，請重新選擇資源");
+      return;
+    }
+    if (!linkedStatus.value.available) {
+      alert(`已連結的資源目前無法轉介（${reasonLabels(linkedStatus.value.reasons)}），請重新選擇資源`);
+      return;
+    }
 
     currentCase.value.linkage = {
       ...currentCase.value.linkage,
@@ -379,21 +494,23 @@ const nextStage = () => {
 };
 
 const bindResource = (resourceId) => {
-  console.log("選擇資源ID:", resourceId);
   if (!currentCase.value) return;
   currentCase.value.history = Array.isArray(currentCase.value.history)
     ? currentCase.value.history
     : [];
+  const resource = resources.value.find((r) => String(r.id) === String(resourceId));
+  // resourceName 存下連結當時的名稱，資源日後被刪除時個案頁仍可顯示
   currentCase.value.linkage = {
     ...currentCase.value.linkage,
     resourceId: resourceId ?? null,
+    resourceName: resource?.name || "",
     reason: linkageReason.value,
   };
-  const resource = resources.value.find((r) => r.id === resourceId);
+  const escort = resource?.riskLevel === "yellow" ? `（${ESCORT_NOTICE}）` : "";
   currentCase.value.history.push({
     stage: 3,
     date: getToday(),
-    note: withRole(`連結資源：${resource?.name || "未知資源"}`),
+    note: withRole(`連結資源：${resource?.name || "未知資源"}${escort}`),
   });
 
   cases.value = cases.value.map((item) =>
@@ -401,14 +518,6 @@ const bindResource = (resourceId) => {
   );
   persistCases();
 };
-
-const selectedResourceName = computed(() => {
-  if (!currentCase.value?.linkage?.resourceId) return "";
-  const matched = resources.value.find(
-    (item) => String(item.id) === String(currentCase.value.linkage.resourceId)
-  );
-  return matched?.name || "";
-});
 
 const addTrackingRecord = () => {
   if (!currentCase.value) return;
@@ -653,6 +762,95 @@ onMounted(() => {
   font-weight: 600;
 }
 
+/* 已連結資源 */
+.linked-card {
+  background: #fff;
+  border: 1px solid #b7dfb9;
+  border-left: 5px solid #2e7d32;
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.linked-card.warning {
+  border-color: #f5c2c0;
+  border-left-color: #d32f2f;
+  background: #fffafa;
+}
+.linked-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.linked-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8d6e63;
+}
+.state-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+.state-badge.on {
+  background: #edf7ee;
+  color: #1b5e20;
+}
+.state-badge.off {
+  background: #fdecea;
+  color: #b71c1c;
+}
+.linked-card h5 {
+  margin: 0 0 8px;
+  color: #3e2723;
+  font-size: 16px;
+  font-weight: 800;
+}
+.detail-link {
+  margin-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b98158;
+}
+.linked-info {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.linked-info div {
+  display: flex;
+  gap: 8px;
+}
+.linked-info dt {
+  flex-shrink: 0;
+  width: 32px;
+  color: #a1887f;
+  font-weight: 600;
+}
+.linked-info dd {
+  margin: 0;
+  color: #5d4037;
+}
+.linked-warning {
+  margin: 10px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b71c1c;
+}
+.escort-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #8a5a00;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  padding: 4px 10px;
+  display: inline-block;
+}
+
 .linked-resource {
   margin: 0 0 12px;
   color: #8d6e63;
@@ -675,6 +873,27 @@ onMounted(() => {
   justify-content: space-between;
 }
 
+.resource-card.selected {
+  border-color: #2e7d32;
+  background: #f6fbf6;
+}
+.resource-card {
+  gap: 12px;
+}
+.resource-meta {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #8d6e63;
+}
+.resource-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.select-btn:disabled {
+  background: #a5d6a7;
+  cursor: default;
+}
 .resource-content h5 {
   margin: 0 0 4px;
   color: #3e2723;

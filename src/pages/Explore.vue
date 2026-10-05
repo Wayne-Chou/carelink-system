@@ -3,9 +3,9 @@
     <header class="explore-header">
       <div class="container">
         <div class="explore-header-inner">
-          <button type="button" class="back-btn" @click="goHome">
-            <i class="fa-solid fa-arrow-left"></i>
-            回到首頁
+          <button type="button" class="back-btn" @click="back">
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
+            返回
           </button>
           <h1>社區資源探索</h1>
         </div>
@@ -14,7 +14,7 @@
 
     <main class="container explore-main">
       <section class="search-panel">
-        <form class="search-form" @submit.prevent="applyQuery">
+        <form class="search-form" @submit.prevent="submitSearch">
           <div class="field-group">
             <label for="keyword-input">關鍵字搜尋</label>
             <input
@@ -30,7 +30,7 @@
               id="address-input"
               v-model="address"
               type="text"
-              placeholder="例如：板橋車站、中和區公所"
+              placeholder="例如：板橋區文化路、中和區公所"
             />
           </div>
           <div class="search-actions">
@@ -45,52 +45,82 @@
 
       <section class="explore-layout">
         <aside class="filters-panel">
-          <h2>篩選條件</h2>
+          <div class="filters-head">
+            <h2>篩選條件</h2>
+            <button v-if="hasFilters" type="button" class="clear-btn" @click="clearFilters">
+              清除全部
+            </button>
+          </div>
 
           <div class="filter-block">
             <label for="region-filter">行政區</label>
-            <select id="region-filter" v-model="selectedRegion" @change="applyQuery">
+            <select id="region-filter" :value="regionValue" @change="setRegion($event.target.value)">
               <option value="">全部行政區</option>
-              <option v-for="d in districts" :key="d" :value="d">{{ d }}</option>
+              <optgroup v-for="group in regionGroups" :key="group.city" :label="group.city">
+                <option v-for="d in group.districts" :key="d.value" :value="d.value">
+                  {{ d.label }}
+                </option>
+              </optgroup>
             </select>
           </div>
 
           <div class="filter-block">
-            <label for="category-filter">分類</label>
-            <select id="category-filter" v-model="selectedCategory" @change="applyQuery">
-              <option value="">全部分類</option>
-              <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+            <label for="type-filter">處方類型</label>
+            <select id="type-filter" :value="filters.type" @change="setFilter('type', $event.target.value)">
+              <option value="">全部類型</option>
+              <option v-for="t in prescriptionTypeOptions" :key="t.code" :value="t.code">
+                {{ t.label }}
+              </option>
             </select>
           </div>
 
-          <div class="filter-block">
-            <p class="filter-title">需求標籤</p>
+          <div v-if="tagOptions.length" class="filter-block">
+            <p class="filter-title">需求標籤 <small>（符合任一）</small></p>
             <div class="chip-group">
               <button
-                v-for="tag in availableTags"
+                v-for="tag in tagOptions"
                 :key="tag"
                 type="button"
                 class="chip"
-                :class="{ active: selectedTags.includes(tag) }"
-                @click="toggleTag(tag)"
+                :class="{ active: filters.tags.includes(tag) }"
+                :aria-pressed="filters.tags.includes(tag)"
+                @click="toggleFilter('tags', tag)"
               >
-                {{ tag }}
+                {{ getNeedTagLabel(tag) }}
               </button>
             </div>
           </div>
 
           <div class="filter-block">
-            <p class="filter-title">適用對象</p>
+            <p class="filter-title">適合年齡</p>
             <div class="chip-group">
               <button
-                v-for="group in availableTargetGroups"
-                :key="group"
+                v-for="o in ageOptions"
+                :key="o.code"
                 type="button"
                 class="chip"
-                :class="{ active: selectedTargetGroups.includes(group) }"
-                @click="toggleTargetGroup(group)"
+                :class="{ active: filters.ageGroups.includes(o.code) }"
+                :aria-pressed="filters.ageGroups.includes(o.code)"
+                @click="toggleFilter('ageGroups', o.code)"
               >
-                {{ group }}
+                {{ o.label }}
+              </button>
+            </div>
+          </div>
+
+          <div class="filter-block">
+            <p class="filter-title">適合身分</p>
+            <div class="chip-group">
+              <button
+                v-for="o in identityOptions"
+                :key="o.code"
+                type="button"
+                class="chip"
+                :class="{ active: filters.identities.includes(o.code) }"
+                :aria-pressed="filters.identities.includes(o.code)"
+                @click="toggleFilter('identities', o.code)"
+              >
+                {{ o.label }}
               </button>
             </div>
           </div>
@@ -104,12 +134,14 @@
           <div class="map-placeholder">
             <i class="fa-solid fa-map-location-dot"></i>
             <p>Map Preview Area</p>
-            <small>地圖功能即將推出</small>
+            <small v-if="filters.nearby">「附近」搜尋需要資源座標，目前尚未提供，先列出全部結果</small>
+            <small v-else>地圖功能即將推出</small>
           </div>
 
           <div v-if="filteredResources.length === 0" class="empty-panel">
             <i class="fa-solid fa-folder-open"></i>
-            <p>目前沒有符合條件的資源，請調整搜尋條件</p>
+            <p v-if="allResources.length === 0">目前尚無已上架資源，請稍後再來查看</p>
+            <p v-else>目前沒有符合條件的資源，請調整搜尋條件</p>
           </div>
 
           <div v-else class="result-grid">
@@ -118,7 +150,9 @@
                 <i class="fa-solid fa-image"></i>
               </div>
               <div class="result-content">
-                <span v-if="res.tags?.length" class="result-badge">{{ res.tags[0] }}</span>
+                <span v-if="res.needTags.length" class="result-badge">
+                  {{ getNeedTagLabel(res.needTags[0]) }}
+                </span>
                 <h3 class="result-title">{{ res.name }}</h3>
                 <p class="result-desc">
                   {{ res.description || "社區資源據點，提供在地健康、社交與支持服務。" }}
@@ -126,15 +160,15 @@
                 <ul class="result-meta">
                   <li>
                     <i class="fa-solid fa-location-dot"></i>
-                    {{ res.region || "地區待確認" }}
+                    {{ formatRegion(res) }}
                   </li>
-                  <li v-if="res.locationName || res.address">
+                  <li v-if="res.placeName || res.address.detail">
                     <i class="fa-solid fa-building"></i>
-                    {{ res.locationName || res.address }}
+                    {{ res.placeName || res.address.detail }}
                   </li>
-                  <li v-if="res.targetGroups?.length">
+                  <li v-if="formatAudience(res)">
                     <i class="fa-solid fa-user-group"></i>
-                    適用：{{ res.targetGroups.join("、") }}
+                    適用：{{ formatAudience(res) }}
                   </li>
                 </ul>
                 <button type="button" class="btn-card" @click="goResource(res.id)">
@@ -151,148 +185,128 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
+import { CITIES } from "../config/districts.js";
+import { NEED_TAGS, PRESCRIPTION_TYPES, getNeedTagLabel } from "../config/needTags.js";
+import { AGE_GROUPS, IDENTITIES } from "../config/resourceOptions.js";
+import { getRecommendableResources } from "../services/resourceService.js";
+import { collectCodes, countByDistrict, filterResources } from "../services/resourceSearch.js";
+import { goBack } from "../utils/navigation.js";
+import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 
 const route = useRoute();
 const router = useRouter();
 
+// 只列出符合推薦規則的資源（探索頁情境）
+const allResources = ref(getRecommendableResources("explore"));
+
+// 篩選條件以網址 query 為準，可分享、重新整理後保留；首頁的快捷入口也是帶 query 進來
+//   keyword, address, city, district, type, tags, age, identity（後三者以逗號分隔）, nearby
+const splitList = (value) => String(value || "").split(",").filter(Boolean);
+
+const filters = computed(() => ({
+  keyword: String(route.query.keyword || ""),
+  address: String(route.query.address || ""),
+  city: String(route.query.city || ""),
+  district: String(route.query.district || ""),
+  type: String(route.query.type || ""),
+  tags: splitList(route.query.tags),
+  ageGroups: splitList(route.query.age),
+  identities: splitList(route.query.identity),
+  nearby: String(route.query.nearby || "") === "true",
+}));
+
+// 搜尋框可自由輸入，按下搜尋才寫入 query
 const keyword = ref("");
 const address = ref("");
-const selectedRegion = ref("");
-const selectedCategory = ref("");
-const isNearby = ref(false);
-const selectedTags = ref([]);
-const selectedTargetGroups = ref([]);
-const allResources = ref([]);
-
-const DISTRICT_POOL = ["板橋區", "中和區", "新店區", "永和區", "信義區", "三重區"];
-const categories = ["運動健身", "社交陪伴", "心理支持", "教育學習", "長者照護", "營養健康"];
-
-const syncFromQuery = () => {
-  keyword.value = String(route.query.keyword || "");
-  address.value = String(route.query.address || "");
-  selectedRegion.value = String(route.query.region || "");
-  selectedCategory.value = String(route.query.category || "");
-  isNearby.value = String(route.query.nearby || "") === "true";
-};
-
-const availableTags = computed(() => {
-  const tags = allResources.value.flatMap((r) => r.tags || []);
-  return [...new Set(tags)].filter(Boolean);
-});
-
-const availableTargetGroups = computed(() => {
-  const groups = allResources.value.flatMap((r) => r.targetGroups || []);
-  return [...new Set(groups)].filter(Boolean);
-});
-
-const filteredResources = computed(() => {
-  const kw = keyword.value.trim().toLowerCase();
-  const addr = address.value.trim().toLowerCase();
-  const region = selectedRegion.value;
-  const category = selectedCategory.value;
-
-  return allResources.value.filter((res) => {
-    const tags = res.tags || [];
-    const targetGroups = res.targetGroups || [];
-
-    const matchKeyword =
-      !kw ||
-      res.name?.toLowerCase().includes(kw) ||
-      tags.join(" ").toLowerCase().includes(kw) ||
-      targetGroups.join(" ").toLowerCase().includes(kw) ||
-      (res.locationName || "").toLowerCase().includes(kw) ||
-      (res.region || "").toLowerCase().includes(kw);
-
-    const matchAddress =
-      !addr ||
-      (res.address || "").toLowerCase().includes(addr) ||
-      (res.locationName || "").toLowerCase().includes(addr) ||
-      (res.region || "").toLowerCase().includes(addr);
-
-    const matchCategory =
-      !category ||
-      tags.includes(category) ||
-      (category === "心理支持" && tags.some((t) => String(t).includes("心理"))) ||
-      (category === "長者照護" && targetGroups.includes("長者")) ||
-      (category === "營養健康" &&
-        tags.some((t) => String(t).includes("營養") || String(t).includes("共餐")));
-
-    const matchRegion = !region || res.region === region;
-    const matchTags = selectedTags.value.every((tag) => tags.includes(tag));
-    const matchTargetGroups = selectedTargetGroups.value.every((group) =>
-      targetGroups.includes(group)
-    );
-
-    // nearby is placeholder mode before map/geolocation API
-    const matchNearby = !isNearby.value || true;
-
-    return (
-      matchKeyword &&
-      matchAddress &&
-      matchCategory &&
-      matchRegion &&
-      matchTags &&
-      matchTargetGroups &&
-      matchNearby
-    );
-  });
-});
-
-const applyQuery = () => {
-  const query = {};
-  if (keyword.value.trim()) query.keyword = keyword.value.trim();
-  if (address.value.trim()) query.address = address.value.trim();
-  if (selectedRegion.value) query.region = selectedRegion.value;
-  if (selectedCategory.value) query.category = selectedCategory.value;
-  if (isNearby.value) query.nearby = "true";
-  router.push({ path: "/explore", query });
-};
-
-const useNearby = () => {
-  isNearby.value = true;
-  applyQuery();
-};
-
-const toggleTag = (tag) => {
-  const idx = selectedTags.value.indexOf(tag);
-  if (idx >= 0) {
-    selectedTags.value.splice(idx, 1);
-  } else {
-    selectedTags.value.push(tag);
-  }
-};
-
-const toggleTargetGroup = (group) => {
-  const idx = selectedTargetGroups.value.indexOf(group);
-  if (idx >= 0) {
-    selectedTargetGroups.value.splice(idx, 1);
-  } else {
-    selectedTargetGroups.value.push(group);
-  }
-};
-
-const goHome = () => router.push("/");
-const goResource = (id) => router.push(`/user/resources/${id}`);
-
-onMounted(() => {
-  const stored = JSON.parse(localStorage.getItem("resources") || "[]");
-  allResources.value = stored
-    .filter((r) => r.status === "active")
-    .map((r, i) => ({
-      ...r,
-      region: r.region || DISTRICT_POOL[i % DISTRICT_POOL.length],
-    }));
-  syncFromQuery();
-});
-
 watch(
-  () => route.query,
-  () => {
-    syncFromQuery();
-  }
+  filters,
+  (f) => {
+    keyword.value = f.keyword;
+    address.value = f.address;
+  },
+  { immediate: true }
 );
+
+const filteredResources = computed(() => filterResources(allResources.value, filters.value));
+
+const hasFilters = computed(() => {
+  const f = filters.value;
+  return !!(
+    f.keyword ||
+    f.address ||
+    f.city ||
+    f.district ||
+    f.type ||
+    f.tags.length ||
+    f.ageGroups.length ||
+    f.identities.length ||
+    f.nearby
+  );
+});
+
+// ── 選項 ──
+const prescriptionTypeOptions = PRESCRIPTION_TYPES.filter((t) => t.code !== "other");
+const ageOptions = AGE_GROUPS.filter((o) => o.code !== "all");
+const identityOptions = IDENTITIES.filter((o) => o.code !== "all" && o.code !== "other");
+
+// 需求標籤只列出有資源的，另外保留目前已選的（避免從首頁帶來的條件看不到）
+const tagOptions = computed(() => {
+  const used = collectCodes(allResources.value, "needTags", NEED_TAGS.map((t) => t.code));
+  const selected = filters.value.tags.filter((t) => !used.includes(t));
+  return [...used, ...selected].filter((t) => t !== "other");
+});
+
+const districtCounts = computed(() => countByDistrict(allResources.value));
+const regionGroups = computed(() =>
+  CITIES.map((city) => ({
+    city: city.name,
+    districts: city.districts.map((d) => {
+      const count =
+        districtCounts.value.find((c) => c.city === city.name && c.district === d.name)?.count ?? 0;
+      return { value: `${city.name}|${d.name}`, label: count ? `${d.name}（${count}）` : d.name };
+    }),
+  }))
+);
+const regionValue = computed(() =>
+  filters.value.city && filters.value.district ? `${filters.value.city}|${filters.value.district}` : ""
+);
+
+// ── 更新 query ──
+// 搜尋與篩選一律用 replace：探索頁在瀏覽器歷史中只占一筆，「返回」才會回到進入探索頁之前的頁面
+const updateQuery = (patch) => {
+  const next = { ...route.query, ...patch };
+  const query = Object.fromEntries(
+    Object.entries(next).filter(([, v]) => v !== "" && v !== null && v !== undefined)
+  );
+  router.replace({ path: "/explore", query });
+};
+
+const QUERY_KEYS = { tags: "tags", ageGroups: "age", identities: "identity" };
+
+const submitSearch = () =>
+  updateQuery({ keyword: keyword.value.trim(), address: address.value.trim() });
+
+const setFilter = (key, value) => updateQuery({ [key]: value });
+
+const setRegion = (value) => {
+  const [city = "", district = ""] = value.split("|");
+  updateQuery({ city, district });
+};
+
+const toggleFilter = (key, code) => {
+  const current = filters.value[key];
+  const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
+  updateQuery({ [QUERY_KEYS[key]]: next.join(",") });
+};
+
+const useNearby = () => updateQuery({ nearby: "true" });
+
+const clearFilters = () => router.replace({ path: "/explore" });
+
+const back = () => goBack(router, "/");
+const goResource = (id) => router.push(`/user/resources/${id}`);
 </script>
 
 <style scoped>
@@ -651,5 +665,26 @@ watch(
   .result-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.filters-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.clear-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #b98158;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.filter-title small {
+  font-weight: 400;
+  color: #a1887f;
 }
 </style>

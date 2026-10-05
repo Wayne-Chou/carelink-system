@@ -2,7 +2,7 @@
   <div class="case-list-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="$router.push('/')">← 返回</button>
+        <button class="back-btn" @click="back">← 返回</button>
       </div>
       <div class="header-center">
         <h2>個案管理</h2>
@@ -32,6 +32,7 @@
                 {{ stageLabel(item.stage || 1) }}
               </span>
               <span v-if="item.stage === 6" class="closed-tag">已完成</span>
+              <span v-if="item.isDemo" class="demo-badge">示範</span>
               <span class="created-at">建立時間：{{ item.createdAt || "未提供" }}</span>
             </div>
           </div>
@@ -48,8 +49,10 @@
 <script setup>
 import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
+import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
+const back = () => goBack(router, "/");
 const cases = ref([]);
 
 const getToday = () => new Date().toISOString().slice(0, 10);
@@ -264,6 +267,16 @@ onMounted(() => {
 .created-at {
   font-size: 12px;
   color: #8d6e63;
+}
+
+.demo-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6d4c41;
+  background: #fff;
+  border: 1px dashed #a1887f;
+  border-radius: 999px;
+  padding: 1px 8px;
 }
 
 .closed-tag {

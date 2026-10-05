@@ -56,32 +56,13 @@
           </form>
           <div class="hero-chips">
             <button
+              v-for="chip in heroChips"
+              :key="chip.label"
               type="button"
               class="hero-chip"
-              @click="searchText = '健康促進'; handleSearch()"
+              @click="goExplore(chip.params)"
             >
-              健康促進
-            </button>
-            <button
-              type="button"
-              class="hero-chip"
-              @click="searchText = '共餐'; handleSearch()"
-            >
-              共餐活動
-            </button>
-            <button
-              type="button"
-              class="hero-chip"
-              @click="searchText = '心理支持'; handleSearch()"
-            >
-              心理支持
-            </button>
-            <button
-              type="button"
-              class="hero-chip"
-              @click="searchText = '長者運動'; handleSearch()"
-            >
-              長者運動
+              {{ chip.label }}
             </button>
           </div>
           <p class="hero-hint">
@@ -136,7 +117,7 @@
             :key="topic.label"
             type="button"
             class="quick-chip"
-            @click="quickSearch(topic.query)"
+            @click="goExplore({ tags: topic.tag })"
           >
             {{ topic.label }}
           </button>
@@ -146,16 +127,16 @@
             <i class="fa-solid fa-layer-group" aria-hidden="true"></i>
             目前已上架 <strong>{{ activeResourceCount }}</strong> 個社區資源
           </p>
-          <div class="hot-districts">
+          <div v-if="hotDistricts.length" class="hot-districts">
             <span class="hot-label">熱門行政區</span>
             <button
               v-for="d in hotDistricts"
-              :key="d"
+              :key="`${d.city}${d.district}`"
               type="button"
               class="hot-district-btn"
-              @click="selectHotDistrict(d)"
+              @click="goExplore({ city: d.city, district: d.district })"
             >
-              {{ d }}
+              {{ d.district }}
             </button>
           </div>
         </div>
@@ -225,9 +206,16 @@
             class="region-select"
             @change="handleRegionChange"
           >
-            <option v-for="d in districts" :key="d.value" :value="d.value">
-              {{ d.label }}
-            </option>
+            <option value="">全部行政區</option>
+            <optgroup v-for="group in regionGroups" :key="group.city" :label="group.city">
+              <option
+                v-for="d in group.districts"
+                :key="d.value"
+                :value="d.value"
+              >
+                {{ d.label }}
+              </option>
+            </optgroup>
           </select>
         </div>
       </div>
@@ -273,7 +261,7 @@
             <div class="faq-panel" :class="{ open: expandedFaq === index }">
               <div class="faq-panel-inner">
                 <p class="faq-answer">{{ item.answer }}</p>
-                <button type="button" class="faq-action" @click="handleInfoLink(item.question)">
+                <button type="button" class="faq-action" @click="goExplore(item.search)">
                   搜尋相關資源
                   <i class="fa-solid fa-arrow-right"></i>
                 </button>
@@ -291,16 +279,15 @@
         <div class="section-head">
           <p class="section-eyebrow">Select a Category</p>
           <h2>服務分類</h2>
-          <p>依類別篩選社區資源</p>
+          <p>依處方類型瀏覽社區資源</p>
         </div>
         <div class="category-grid">
           <button
             v-for="cat in categories"
-            :key="cat.name"
+            :key="cat.code"
             type="button"
             class="category-card"
-            :class="{ active: selectedCategory === cat.name }"
-            @click="selectCategory(cat.name)"
+            @click="goExplore({ type: cat.code })"
           >
             <span class="category-card-icon">
               <i class="fa-solid" :class="cat.icon"></i>
@@ -325,21 +312,21 @@
           <div>
             <p class="section-eyebrow">Featured Resources</p>
             <h2>精選資源</h2>
-            <p>{{ featuredSubtitle }}</p>
+            <p>精選已上架的社區服務與活動</p>
           </div>
           <button
-            v-if="hasActiveFilters"
+            v-if="activeResourceCount > featuredResources.length"
             type="button"
             class="text-link btn-link"
-            @click="clearFilters"
+            @click="goExplore()"
           >
-            清除篩選
+            查看全部 {{ activeResourceCount }} 個資源
           </button>
         </div>
 
         <div v-if="featuredResources.length === 0" class="empty-panel">
           <i class="fa-solid fa-folder-open"></i>
-          <p>{{ emptyResourcesMessage }}</p>
+          <p>目前尚無已上架資源，請稍後再來查看</p>
         </div>
 
         <div v-else class="featured-grid">
@@ -352,8 +339,8 @@
               <i class="fa-solid fa-image"></i>
             </div>
             <div class="featured-content">
-              <span v-if="res.tags?.length" class="featured-badge">
-                {{ res.tags[0] }}
+              <span v-if="res.needTags.length" class="featured-badge">
+                {{ getNeedTagLabel(res.needTags[0]) }}
               </span>
               <h3 class="featured-title">{{ res.name }}</h3>
               <p v-if="res.description" class="featured-desc">
@@ -365,15 +352,15 @@
               <ul class="featured-meta">
                 <li>
                   <i class="fa-solid fa-location-dot"></i>
-                  {{ res.region || "地區待確認" }}
+                  {{ regionText(res) }}
                 </li>
-                <li v-if="res.locationName || res.address">
+                <li v-if="res.placeName || res.address.detail">
                   <i class="fa-solid fa-building"></i>
-                  {{ res.locationName || res.address }}
+                  {{ res.placeName || res.address.detail }}
                 </li>
-                <li v-if="res.targetGroups?.length">
+                <li v-if="audienceText(res)">
                   <i class="fa-solid fa-user-group"></i>
-                  適用：{{ res.targetGroups.join("、") }}
+                  適用：{{ audienceText(res) }}
                 </li>
               </ul>
               <button type="button" class="btn-card" @click="goResource(res.id)">
@@ -411,20 +398,38 @@ import { useRouter } from "vue-router";
 import logo from "../assets/logo.png";
 import heroBg from "../assets/bg-community-brown.png";
 import { clearCurrentUser, getCurrentUser } from "../utils/auth.js";
+import { CITIES } from "../config/districts.js";
+import { getNeedTagLabel } from "../config/needTags.js";
+import { getRecommendableResources } from "../services/resourceService.js";
+import { countByDistrict } from "../services/resourceSearch.js";
+import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 
 const router = useRouter();
 const currentUser = ref(null);
 const searchText = ref("");
 const addressSearch = ref("");
-const selectedCategory = ref("");
 const selectedRegion = ref("");
+// 只顯示符合推薦規則的資源（探索頁情境），最近更新的排前面
 const allResources = ref([]);
 
-const DISTRICT_POOL = ["板橋區", "中和區", "新店區", "永和區", "信義區", "三重區"];
+const regionText = formatRegion;
+const audienceText = formatAudience;
 
-const districts = [
-  { value: "", label: "全部行政區" },
-  ...DISTRICT_POOL.map((d) => ({ value: d, label: d })),
+// 首頁的快捷入口都轉成探索頁的篩選條件（query），由探索頁統一篩選
+const heroChips = [
+  { label: "健康促進", params: { type: "health" } },
+  { label: "共餐活動", params: { keyword: "共餐" } },
+  { label: "心理支持", params: { tags: "mental" } },
+  { label: "長者運動", params: { tags: "exercise", age: "senior" } },
+];
+
+const quickTopics = [
+  { label: "社交陪伴", tag: "companionship" },
+  { label: "運動健身", tag: "exercise" },
+  { label: "心理支持", tag: "mental" },
+  { label: "照顧者支持", tag: "caregiver_support" },
+  { label: "飲食營養", tag: "nutrition" },
+  { label: "福利申請", tag: "welfare_application" },
 ];
 
 const usefulInfo = [
@@ -432,34 +437,42 @@ const usefulInfo = [
     question: "社區處方是什麼？",
     answer:
       "社區處方是透過社區資源連結，協助民眾改善健康、社交與生活支持需求。",
+    search: {},
   },
   {
     question: "如何尋找長者資源？",
     answer: "您可以透過行政區、分類或關鍵字搜尋附近適合的長者服務與活動。",
+    search: { age: "senior" },
   },
   {
     question: "社區共餐服務介紹",
     answer: "社區共餐提供長者與居民共同用餐與社交互動，降低孤立感並促進健康。",
+    search: { keyword: "共餐" },
   },
   {
     question: "如何申請照護補助？",
     answer: "可透過地方政府、長照中心或社福單位協助申請相關補助與資源。",
+    search: { tags: "welfare_application" },
   },
   {
     question: "社區據點參與方式",
     answer: "部分活動自由參加，部分需提前報名或由個管師轉介。",
+    search: { tags: "community" },
   },
   {
     question: "心理支持服務說明",
     answer: "提供心理諮詢、支持團體與情緒陪伴等社區服務。",
+    search: { tags: "mental" },
   },
   {
     question: "長者運動注意事項",
     answer: "建議依個人身體狀況參與，必要時可由專業人員陪同。",
+    search: { tags: "exercise", age: "senior" },
   },
   {
     question: "如何成為志工",
     answer: "可透過社區據點或合作單位報名參與志工服務。",
+    search: { tags: "volunteer" },
   },
 ];
 
@@ -469,137 +482,70 @@ const toggleFaq = (index) => {
   expandedFaq.value = expandedFaq.value === index ? null : index;
 };
 
+// 服務分類 = 規格第七節的五種處方類型
 const categories = [
   {
-    name: "運動健身",
-    icon: "fa-shoe-prints",
-    description: "長者健走、體適能與社區運動課程",
-  },
-  {
-    name: "社交陪伴",
-    icon: "fa-mug-hot",
-    description: "共餐、聚會與社區陪伴活動",
-  },
-  {
-    name: "心理支持",
-    icon: "fa-heart-pulse",
-    description: "心理諮詢、支持團體與情緒陪伴",
-  },
-  {
-    name: "教育學習",
-    icon: "fa-book",
-    description: "共學課程、數位學習與終身教育",
-  },
-  {
-    name: "長者照護",
+    code: "basic_support",
+    name: "基本生活支持",
     icon: "fa-hand-holding-heart",
-    description: "提供日照、陪伴與健康支持服務",
+    description: "經濟、居住、交通、照顧者與福利申請協助",
   },
   {
-    name: "營養健康",
-    icon: "fa-apple-whole",
-    description: "營養諮詢、共餐與健康促進活動",
+    code: "health",
+    name: "身心健康促進",
+    icon: "fa-heart-pulse",
+    description: "運動健身、飲食營養、認知健康與心理支持",
+  },
+  {
+    code: "social",
+    name: "社會連結",
+    icon: "fa-mug-hot",
+    description: "社交陪伴、藝術文化、自然綠活與靈性關懷",
+  },
+  {
+    code: "learning",
+    name: "學習與發展",
+    icon: "fa-book",
+    description: "教育學習、數位技能與健康自我管理",
+  },
+  {
+    code: "self_actualization",
+    name: "自我實現",
+    icon: "fa-seedling",
+    description: "志願服務、就業支持與社區參與",
   },
 ];
 
-const quickTopics = [
-  { label: "共餐", query: "共餐" },
-  { label: "運動", query: "運動" },
-  { label: "心理支持", query: "心理支持" },
-  { label: "長者照護", query: "長者照護" },
-];
+const districtCounts = computed(() => countByDistrict(allResources.value));
+const hotDistricts = computed(() => districtCounts.value.slice(0, 3));
 
-const hotDistricts = ["板橋區", "中和區", "新店區"];
+// 行政區選單：列出設定檔中的所有行政區，並附上目前可用的資源數
+const regionGroups = computed(() =>
+  CITIES.map((city) => ({
+    city: city.name,
+    districts: city.districts.map((d) => {
+      const count =
+        districtCounts.value.find((c) => c.city === city.name && c.district === d.name)?.count ?? 0;
+      return { value: `${city.name}|${d.name}`, label: count ? `${d.name}（${count}）` : d.name };
+    }),
+  }))
+);
 
 const activeResourceCount = computed(() => allResources.value.length);
+const featuredResources = computed(() => allResources.value.slice(0, 6));
 
 const goExplore = (params = {}) => {
   const query = Object.fromEntries(
-    Object.entries(params).filter(([, value]) => value !== "" && value !== null && value !== false)
+    Object.entries(params).filter(([, value]) => value !== "" && value !== null && value !== undefined && value !== false)
   );
   router.push({ path: "/explore", query });
 };
 
-const quickSearch = (query) => {
-  searchText.value = query;
-  goExplore({ keyword: query });
-};
-
-const selectHotDistrict = (district) => {
-  selectedRegion.value = district;
-  goExplore({ region: district });
-};
-
 onMounted(() => {
   currentUser.value = getCurrentUser();
-  const stored = JSON.parse(localStorage.getItem("resources") || "[]");
-  allResources.value = stored
-    .filter((r) => r.status === "active")
-    .map((r, i) => ({
-      ...r,
-      region: r.region || DISTRICT_POOL[i % DISTRICT_POOL.length],
-    }));
-});
-
-const filteredResources = computed(() => {
-  const keyword = searchText.value.trim().toLowerCase();
-  const addr = addressSearch.value.trim().toLowerCase();
-
-  return allResources.value.filter((res) => {
-    const matchKeyword =
-      !keyword ||
-      res.name?.toLowerCase().includes(keyword) ||
-      (res.tags || []).join(" ").toLowerCase().includes(keyword) ||
-      (res.targetGroups || []).join(" ").toLowerCase().includes(keyword) ||
-      (res.locationName || "").toLowerCase().includes(keyword) ||
-      (res.region || "").toLowerCase().includes(keyword);
-
-    const matchAddress =
-      !addr ||
-      (res.address || "").toLowerCase().includes(addr) ||
-      (res.locationName || "").toLowerCase().includes(addr) ||
-      (res.region || "").toLowerCase().includes(addr);
-
-    const cat = selectedCategory.value;
-    const tags = res.tags || [];
-    const matchCategory =
-      !cat ||
-      tags.includes(cat) ||
-      (cat === "心理支持" && tags.some((t) => String(t).includes("心理"))) ||
-      (cat === "長者照護" && (res.targetGroups || []).includes("長者")) ||
-      (cat === "營養健康" &&
-        tags.some((t) => String(t).includes("營養") || String(t).includes("共餐")));
-
-    const matchRegion =
-      !selectedRegion.value || res.region === selectedRegion.value;
-
-    return matchKeyword && matchAddress && matchCategory && matchRegion;
-  });
-});
-
-const featuredResources = computed(() => filteredResources.value.slice(0, 6));
-
-const hasActiveFilters = computed(
-  () =>
-    !!searchText.value.trim() ||
-    !!addressSearch.value.trim() ||
-    !!selectedCategory.value ||
-    !!selectedRegion.value
-);
-
-const featuredSubtitle = computed(() => {
-  if (selectedRegion.value) return `${selectedRegion.value}的社區資源`;
-  if (addressSearch.value.trim()) return `「${addressSearch.value.trim()}」附近服務`;
-  if (selectedCategory.value) return `「${selectedCategory.value}」相關資源`;
-  if (searchText.value.trim()) return `搜尋「${searchText.value.trim()}」的結果`;
-  return "精選已上架的社區服務與活動";
-});
-
-const emptyResourcesMessage = computed(() => {
-  if (hasActiveFilters.value) {
-    return "找不到符合條件的資源，試試其他關鍵字或篩選條件";
-  }
-  return "目前尚無已上架資源，請稍後再來查看";
+  allResources.value = getRecommendableResources("explore").sort((a, b) =>
+    String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""))
+  );
 });
 
 const scrollTo = (id) => {
@@ -608,18 +554,6 @@ const scrollTo = (id) => {
 
 const scrollToTop = () => {
   window.scrollTo({ top: 0, behavior: "smooth" });
-};
-
-const selectCategory = (name) => {
-  selectedCategory.value = selectedCategory.value === name ? "" : name;
-  goExplore({ category: selectedCategory.value || "" });
-};
-
-const clearFilters = () => {
-  searchText.value = "";
-  addressSearch.value = "";
-  selectedCategory.value = "";
-  selectedRegion.value = "";
 };
 
 const handleSearch = () => {
@@ -635,24 +569,8 @@ const useCurrentLocation = () => {
 };
 
 const handleRegionChange = () => {
-  goExplore({ region: selectedRegion.value || "" });
-};
-
-const infoSearchMap = {
-  "社區處方是什麼？": "社區",
-  如何尋找長者資源: "長者",
-  社區共餐服務介紹: "共餐",
-  如何申請照護補助: "照護",
-  社區據點參與方式: "社區",
-  心理支持服務說明: "心理支持",
-  長者運動注意事項: "運動",
-  如何成為志工: "志工",
-};
-
-const handleInfoLink = (title) => {
-  const keyword = infoSearchMap[title] ?? "";
-  searchText.value = keyword;
-  goExplore({ keyword });
+  const [city, district] = selectedRegion.value.split("|");
+  goExplore({ city, district });
 };
 
 const goList = () => router.push("/list");
@@ -660,9 +578,6 @@ const goForm = () => router.push("/form");
 const goCases = () => router.push("/cases");
 const goLogin = () => router.push("/login");
 const goRegister = () => router.push("/register");
-const goUser = () => {
-  goExplore();
-};
 const goResource = (id) => router.push(`/user/resources/${id}`);
 const logout = () => {
   clearCurrentUser();
