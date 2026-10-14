@@ -10,6 +10,10 @@ import ResourceDashboard from "../pages/ResourceDashboard.vue";
 import Login from "../pages/Login.vue";
 import Register from "../pages/Register.vue";
 import Explore from "../pages/Explore.vue";
+import AssessmentNew from "../pages/AssessmentNew.vue";
+import AssessmentList from "../pages/AssessmentList.vue";
+import AssessmentReview from "../pages/AssessmentReview.vue";
+import Todo from "../pages/Todo.vue";
 import { isAuthenticated } from "../utils/auth.js";
 
 const routes = [
@@ -17,6 +21,27 @@ const routes = [
   { path: "/explore", name: "explore", component: Explore },
   { path: "/login", name: "login", component: Login },
   { path: "/register", name: "register", component: Register },
+  // 評估填寫頁：由工作人員登入後把平板交給民眾填寫
+  {
+    path: "/assessment/new",
+    name: "assessment-new",
+    component: AssessmentNew,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/assessments",
+    name: "assessments",
+    component: AssessmentList,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/assessments/:id",
+    name: "assessment-review",
+    component: AssessmentReview,
+    meta: { requiresAuth: true },
+  },
+  // 待辦：依今天日期即時計算（doc/assessment-schema.md 第七節）
+  { path: "/todo", name: "todo", component: Todo, meta: { requiresAuth: true } },
   { path: "/list", name: "list", component: ResourceList, meta: { requiresAuth: true } },
   {
     path: "/resources",

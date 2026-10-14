@@ -1,23 +1,44 @@
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { DEMO_CASES } from "../src/services/demoCases.js";
-import { DEMO_RESOURCES } from "../src/services/demoResources.js";
-import { getLinkedResourceStatus } from "../src/services/referral.js";
+import { memoryStorage } from "./helpers/memoryStorage.js";
 
-const byId = Object.fromEntries(DEMO_CASES.map((c) => [c.id, c]));
+const session = memoryStorage();
+globalThis.localStorage = memoryStorage();
+globalThis.sessionStorage = session;
+
+const { DEMO_CASES } = await import("../src/services/demoCases.js");
+const { DEMO_RESOURCES } = await import("../src/services/demoResources.js");
+const { checkAdvance, getAllCases, isFirstContactOverdue } = await import("../src/services/caseService.js");
+const { getLinkedResourceStatus } = await import("../src/services/referral.js");
+const { addMonths } = await import("../src/utils/date.js");
+const { getDemoData } = await import("../src/services/demoService.js");
+
 const resourceByCode = Object.fromEntries(DEMO_RESOURCES.map((r) => [r.code, r]));
+const byName = (name) => DEMO_CASES.find((c) => c.person.name === name);
 const linkedTo = (code) =>
-  DEMO_CASES.filter((c) => String(c.linkage.resourceId) === String(resourceByCode[code].id));
+  DEMO_CASES.filter((c) => c.linkages.some((l) => l.resourceId === resourceByCode[code].id));
+const PREVIOUS_STAGE = { 2: 1, 3: 2, 4: 3, 5: 4, closed: 5 };
 
-test("id 不重複、都有示範標記、姓名明顯虛構", () => {
+beforeEach(() => {
+  session.data = {};
+});
+
+test("編碼 Case001～Case008、id 不重複、都有示範標記", () => {
+  assert.deepEqual(DEMO_CASES.map((c) => c.code), DEMO_CASES.map((_, i) => `Case${String(i + 1).padStart(3, "0")}`));
   assert.equal(new Set(DEMO_CASES.map((c) => c.id)).size, DEMO_CASES.length);
+  assert.ok(DEMO_CASES.every((c) => c.isDemo === true));
+});
+
+test("姓名、管理員、轉介者明顯虛構，電話為 0900-000 號段", () => {
   for (const c of DEMO_CASES) {
-    assert.equal(c.isDemo, true, c.id);
-    assert.match(c.basic.name, /示範|範例|示例|範本/, `${c.id} ${c.basic.name}`);
+    for (const name of [c.person.name, c.managerName, c.referral.referrerName].filter(Boolean)) {
+      assert.match(name, /示範|範例|示例|範本/, `${c.code} ${name}`);
+    }
+    assert.match(c.person.phone, /^0900-000-\d{3}$/, c.code);
   }
 });
 
-test("示範個案姓名不與示範資源的人名重複，避免展示時混淆", () => {
+test("示範個案姓名不與示範資源的人名重複", () => {
   const resourcePeople = new Set(
     DEMO_RESOURCES.flatMap((r) => [
       r.verifiedBy.name,
@@ -26,88 +47,97 @@ test("示範個案姓名不與示範資源的人名重複，避免展示時混�
       ...r.staff.map((s) => s.name),
     ]).filter(Boolean)
   );
-  for (const c of DEMO_CASES) assert.equal(resourcePeople.has(c.basic.name), false, c.basic.name);
+  for (const c of DEMO_CASES) assert.equal(resourcePeople.has(c.person.name), false, c.person.name);
 });
 
-test("階段分布：辨識、諮詢、已結案各一，連結兩筆，追蹤兩筆", () => {
+test("已是新格式：caseService 讀取時不需轉換，資料原樣讀出", () => {
+  session.data.cases = JSON.stringify(DEMO_CASES);
+  const cases = getAllCases();
+  assert.deepEqual(cases.map((c) => c.code), DEMO_CASES.map((c) => c.code));
+  assert.ok(cases.every((c) => !("legacy" in c)), "沒有經過舊格式轉換");
+  assert.deepEqual(cases[4], DEMO_CASES[4]);
+});
+
+test("階段分布：辨識、諮詢、已結案各一，連結三筆，追蹤兩筆", () => {
   const count = (stage) => DEMO_CASES.filter((c) => c.stage === stage).length;
-  assert.equal(count(1), 1);
-  assert.equal(count(2), 1);
-  assert.equal(count(3), 2);
-  assert.equal(count(4), 2);
-  assert.equal(count(6), 1);
+  assert.deepEqual([1, 2, 3, 4, "closed"].map(count), [1, 1, 3, 2, 1]);
 });
 
-test("各階段內容合理：諮詢後有需求評估、連結後有資源、追蹤後有紀錄、結案有原因", () => {
+test("每筆個案都符合進入目前階段的條件（依 caseService 的推進規則）", () => {
+  for (const c of DEMO_CASES.filter((x) => x.stage !== 1)) {
+    const before = { ...c, stage: PREVIOUS_STAGE[c.stage] };
+    const check = checkAdvance(before);
+    assert.equal(check.ok, true, `${c.code}：${check.reasons.join("、")}`);
+    assert.equal(check.nextStage, c.stage, c.code);
+  }
+});
+
+test("連結的資源都存在、名稱一致；追蹤排程從連結日起算 1、3、6 個月", () => {
   for (const c of DEMO_CASES) {
-    if (c.stage >= 3) {
-      const { needLevel, motivation, goal } = c.consultation;
-      assert.ok(needLevel && motivation && goal, `${c.id} 需求評估完整`);
-      assert.ok(c.linkage.resourceId && c.linkage.reason, `${c.id} 已連結資源`);
-    } else {
-      assert.equal(c.linkage.resourceId, null, `${c.id} 尚未連結`);
+    for (const l of c.linkages) {
+      const resource = DEMO_RESOURCES.find((r) => r.id === l.resourceId);
+      assert.ok(resource, `${c.code} 資源存在`);
+      assert.equal(l.resourceName, resource.name, c.code);
     }
-    if (c.stage >= 4) assert.ok(c.tracking.length > 0, `${c.id} 有追蹤紀錄`);
-    else assert.equal(c.tracking.length, 0, `${c.id} 尚無追蹤`);
-    if (c.stage === 6) assert.ok(c.closure.reason && c.closure.outcome, `${c.id} 結案原因`);
-    else assert.deepEqual(c.closure, { reason: "", outcome: "" }, `${c.id} 未結案`);
+    const latest = c.linkages.at(-1);
+    if (!latest) {
+      assert.deepEqual(c.followUps, [], `${c.code} 尚未連結就沒有追蹤`);
+      continue;
+    }
+    assert.deepEqual(
+      c.followUps.map((f) => [f.round, f.plannedAt]),
+      [1, 3, 6].map((m) => [m, addMonths(latest.linkedAt, m)]),
+      c.code
+    );
   }
 });
 
-test("歷程紀錄依日期排序、以「初始建立」開頭，且最後一筆的階段與目前階段相符", () => {
-  for (const c of DEMO_CASES) {
-    const dates = c.history.map((item) => item.date);
-    assert.deepEqual(dates, [...dates].sort(), `${c.id} 日期排序`);
-    assert.equal(c.history[0].note, "初始建立", c.id);
-    assert.equal(c.history[0].date, c.createdAt, c.id);
-    const lastStage = c.history.at(-1).stage;
-    assert.equal(lastStage, c.stage === 6 ? 5 : c.stage, `${c.id} 歷程階段`);
-  }
-});
+test("連結到黃燈 Res001 的個案需陪同；連到暫停中 Res004 的個案提示需重新選擇", () => {
+  const yellow = getLinkedResourceStatus(byName("呂示例").linkages[0].resourceId, DEMO_RESOURCES);
+  assert.ok(yellow.available && yellow.needsEscort);
+  assert.equal(byName("呂示例").linkages[0].escortNeeded, true);
 
-test("追蹤紀錄次序連續，且歷程中有對應的追蹤記錄", () => {
-  for (const c of DEMO_CASES) {
-    c.tracking.forEach((t, i) => {
-      assert.equal(t.step, i + 1, `${c.id} 第 ${i + 1} 次`);
-      assert.ok(
-        c.history.some((item) => item.note.includes(`第${t.step}次追蹤｜${t.status}｜${t.effect}`)),
-        `${c.id} 歷程有第 ${t.step} 次追蹤`
-      );
-    });
-  }
-});
-
-test("連結的資源都存在，資源名稱與當時連結的名稱一致", () => {
-  for (const c of DEMO_CASES.filter((x) => x.linkage.resourceId)) {
-    const resource = DEMO_RESOURCES.find((r) => r.id === c.linkage.resourceId);
-    assert.ok(resource, `${c.id} 資源存在`);
-    assert.equal(c.linkage.resourceName, resource.name, c.id);
-  }
-});
-
-test("連結階段兩筆：一筆連黃燈 Res001（需陪同），一筆連暫停中 Res004（需重新選擇）", () => {
-  const stage3 = DEMO_CASES.filter((c) => c.stage === 3);
-  const statuses = stage3.map((c) => getLinkedResourceStatus(c.linkage.resourceId, DEMO_RESOURCES));
-
-  const yellow = statuses.find((s) => s.resource.code === "Res001");
-  assert.ok(yellow?.available && yellow.needsEscort, "Res001 可轉介且需陪同");
-
-  const paused = statuses.find((s) => s.resource.code === "Res004");
-  assert.equal(paused?.available, false, "Res004 不可轉介");
+  const paused = getLinkedResourceStatus(byName("曾範本").linkages[0].resourceId, DEMO_RESOURCES);
+  assert.equal(paused.available, false);
   assert.deepEqual(paused.reasons, ["paused"]);
 });
 
-test("資源端後台：Res001、Res002 各有 2 筆以上轉介，且同時有待回報與成功", () => {
+test("資源端後台：Res001、Res002 各有 2 筆轉介，且同時有待回報與成功", () => {
   for (const code of ["Res001", "Res002"]) {
     const cases = linkedTo(code);
-    assert.ok(cases.length >= 2, `${code} 有 ${cases.length} 筆`);
-    const statuses = new Set(cases.map((c) => c.linkage.status || "待回報"));
-    assert.ok(statuses.has("待回報") && statuses.has("成功"), `${code} 狀態 ${[...statuses]}`);
+    assert.equal(cases.length, 2, code);
+    const statuses = new Set(cases.map((c) => c.linkages.at(-1).status));
+    assert.deepEqual([...statuses].sort(), ["pending", "success"], code);
   }
 });
 
-test("案例對照：展示導覽中提到的個案", () => {
-  assert.equal(byId.case_demo_03.basic.name, "呂示例");
-  assert.equal(byId.case_demo_04.basic.name, "曾範本");
-  assert.equal(byId.case_demo_07.stage, 6);
+test("逾期未聯繫：任何一天載入，都只有李示範（開案超過 72 小時尚未首次聯繫）", () => {
+  for (const today of ["2026-10-14", "2027-03-01", "2028-02-29"]) {
+    const now = new Date(`${today}T09:00:00+08:00`);
+    assert.deepEqual(
+      getDemoData(today).cases.filter((c) => isFirstContactOverdue(c, now)).map((c) => c.person.name),
+      ["李示範"],
+      today
+    );
+  }
+});
+
+test("歷程依日期排序、以建立個案開頭，最後一筆的階段與目前階段相符", () => {
+  for (const c of DEMO_CASES) {
+    const dates = c.history.map((h) => h.date);
+    assert.deepEqual(dates, [...dates].sort(), c.code);
+    assert.equal(c.history[0].action, "create", c.code);
+    assert.equal(c.history.at(-1).stage, c.stage, c.code);
+  }
+});
+
+test("追蹤紀錄：已完成的都有對應歷程；已結案的有結案原因與再入口說明", () => {
+  for (const c of DEMO_CASES) {
+    for (const f of c.followUps.filter((x) => x.doneAt)) {
+      assert.ok(c.history.some((h) => h.action === "follow_up" && h.note.startsWith(`${f.round} 個月追蹤`)), c.code);
+    }
+  }
+  const closed = byName("葉示例");
+  assert.equal(closed.closure.reason, "goal_met");
+  assert.equal(closed.closure.reentryExplained, true);
 });

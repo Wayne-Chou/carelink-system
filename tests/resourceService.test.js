@@ -3,9 +3,12 @@
 
 import { describe, test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { memoryStorage } from "./helpers/memoryStorage.js";
 
 let store;
-globalThis.localStorage = {
+// 資料存在 sessionStorage（storage.js 的 DATA_STORAGE）；localStorage 另外模擬，供清除舊資料使用
+globalThis.localStorage = memoryStorage();
+globalThis.sessionStorage = {
   getItem: (key) => (key in store ? store[key] : null),
   setItem: (key, value) => {
     store[key] = String(value);

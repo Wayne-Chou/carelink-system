@@ -4,141 +4,198 @@
       <div class="header-left">
         <button class="back-btn" @click="back">← 返回</button>
       </div>
-
       <div class="header-center">
         <h2>資源端管理面板</h2>
-        <p>目前登入資源：{{ currentResourceName }}</p>
+        <p v-if="resource">
+          目前登入資源：{{ resource.name }}
+          <span v-if="resource.code" class="code">{{ resource.code }}</span>
+        </p>
       </div>
-
       <div class="header-right"></div>
     </div>
 
     <div class="container main-content">
-      <div v-if="!currentResourceId" class="empty-state">
-        請先到「資源管理」選擇登入資源
+      <div v-if="!resource" class="empty-state">
+        請先到「資源管理」選擇要登入的資源
+        <button type="button" class="outline-btn" @click="$router.push('/list')">前往資源管理</button>
       </div>
 
-      <div v-else>
-        <div v-if="linkedCases.length === 0" class="empty-state">目前沒有待處理個案</div>
+      <template v-else>
+        <p v-if="isTerminated" class="terminated-notice" role="alert">
+          <i class="fa-solid fa-ban" aria-hidden="true"></i>
+          此資源已終止，只能查看過去的轉介紀錄，不能回報連結結果。
+        </p>
+        <p v-if="notice" class="notice" role="status">{{ notice }}</p>
 
-        <div v-else>
-          <div v-for="item in linkedCases" :key="item.id" class="case-card">
-            <h4>{{ item.basic?.name || item.name || "未命名個案" }}</h4>
-            <p>目前階段：{{ stageLabel(item.stage || 1) }}</p>
-            <p>連結狀態：{{ item.linkage?.status || "等待回報" }}</p>
+        <section class="summary">
+          <span>待回報 <strong>{{ pendingCount }}</strong> 筆</span>
+          <span>已回報 <strong>{{ rows.length - pendingCount }}</strong> 筆</span>
+        </section>
 
-            <div class="actions">
-              <button class="success" @click="updateStatus(item.id, '成功')">成功</button>
-              <button class="fail" @click="updateStatus(item.id, '失敗')">失敗</button>
-              <button class="stop" @click="updateStatus(item.id, '中斷')">中斷</button>
+        <div v-if="!rows.length" class="empty-state">目前沒有轉介到此資源的個案</div>
+
+        <article
+          v-for="row in rows"
+          :key="`${row.caseItem.id}-${row.index}`"
+          :class="['case-card', row.linkage.status]"
+        >
+          <div class="card-head">
+            <span class="case-code">{{ row.caseItem.code }}</span>
+            <h4>{{ row.caseItem.person.name || "未命名個案" }}</h4>
+            <span :class="['status-badge', row.linkage.status]">
+              {{ caseLabel(LINKAGE_STATUS_OPTIONS, row.linkage.status) }}
+            </span>
+            <span v-if="row.linkage.escortNeeded" class="escort-badge">首次需健康管理員陪同</span>
+          </div>
+          <p class="meta">
+            <span>轉介日 {{ row.linkage.linkedAt || "—" }}</span>
+            <span>個案階段 {{ stageShort(row.caseItem.stage) }}</span>
+            <span v-if="row.caseItem.managerName">健康管理員 {{ row.caseItem.managerName }}</span>
+          </p>
+          <p v-if="row.linkage.reason" class="text">轉介說明：{{ row.linkage.reason }}</p>
+
+          <!-- 已回報 -->
+          <p v-if="row.linkage.status !== 'pending'" class="text reported">
+            回報結果：{{ caseLabel(LINKAGE_STATUS_OPTIONS, row.linkage.status) }}
+            <template v-if="row.linkage.attendance">｜{{ caseLabel(ATTENDANCE_OPTIONS, row.linkage.attendance) }}</template>
+            <template v-if="row.linkage.providerNote">｜{{ row.linkage.providerNote }}</template>
+          </p>
+
+          <!-- 待回報：回報表單 -->
+          <div v-else-if="!isTerminated" class="report-form">
+            <div class="choice-row" role="radiogroup" :aria-label="`${row.caseItem.code} 連結結果`">
+              <label :class="['choice', 'success', { selected: formOf(row).status === 'success' }]">
+                <input v-model="formOf(row).status" type="radio" :name="`status-${row.key}`" value="success" />
+                成功：已開始參加
+              </label>
+              <label :class="['choice', 'failed', { selected: formOf(row).status === 'failed' }]">
+                <input v-model="formOf(row).status" type="radio" :name="`status-${row.key}`" value="failed" />
+                失敗：無法參加
+              </label>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-4">
+                <select v-model="formOf(row).attendance" :aria-label="`${row.caseItem.code} 出席情形`">
+                  <option value="">出席情形（選填）</option>
+                  <option v-for="o in ATTENDANCE_OPTIONS" :key="o.code" :value="o.code">{{ o.label }}</option>
+                </select>
+              </div>
+              <div class="col-md-8">
+                <input
+                  v-model.trim="formOf(row).providerNote"
+                  type="text"
+                  :placeholder="formOf(row).status === 'failed' ? '請說明無法參加的原因' : '說明（選填），例：已固定週二出席'"
+                  :aria-label="`${row.caseItem.code} 回報說明`"
+                />
+              </div>
+            </div>
+            <p v-if="formOf(row).error" class="field-error" role="alert">{{ formOf(row).error }}</p>
+            <div class="form-actions">
+              <button type="button" class="primary-btn" :disabled="!formOf(row).status" @click="submit(row)">
+                送出回報
+              </button>
             </div>
           </div>
-        </div>
-      </div>
+        </article>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
+import {
+  ATTENDANCE_OPTIONS,
+  LINKAGE_STATUS_OPTIONS,
+  caseLabel,
+  stageShort,
+} from "../config/caseLabels.js";
+import { getAllCases, getReferralsForResource, updateLinkageStatus } from "../services/caseService.js";
+import { getResourceById } from "../services/resourceService.js";
+import { clearCurrentResourceId, getCurrentResourceId } from "../utils/auth.js";
 import { goBack } from "../utils/navigation.js";
 
-const currentResourceId = ref("");
-const cases = ref([]);
-const resources = ref([]);
 const router = useRouter();
 const back = () => goBack(router, "/list");
 
-const loadData = () => {
-  const storedCases = JSON.parse(localStorage.getItem("cases") || "[]");
-  const storedResources = JSON.parse(localStorage.getItem("resources") || "[]");
-  cases.value = Array.isArray(storedCases) ? storedCases : [];
-  resources.value = Array.isArray(storedResources) ? storedResources : [];
-};
+// 資源端登入的資源由 auth.js 存放（測試階段為 sessionStorage，關閉瀏覽器即清除）
+const resource = ref(getResourceById(getCurrentResourceId()));
+if (!resource.value) clearCurrentResourceId();
 
-const linkedCases = computed(() =>
-  cases.value.filter((item) => {
-    const linkageId = item.linkage?.resourceId ?? item.resourceId ?? "";
-    return String(linkageId) === String(currentResourceId.value);
-  })
+const isTerminated = computed(() => resource.value?.status === "terminated");
+const cases = ref(getAllCases());
+const notice = ref("");
+const forms = reactive({});
+
+// 轉介到此資源的個案（規則見 caseService.getReferralsForResource）
+const rows = computed(() =>
+  resource.value ? getReferralsForResource(resource.value.id, cases.value) : []
 );
 
-const currentResourceName = computed(() => {
-  const matched = resources.value.find(
-    (item) => String(item.id) === String(currentResourceId.value)
+const pendingCount = computed(() => rows.value.filter((r) => r.linkage.status === "pending").length);
+
+// 每筆待回報的連結一份表單；列表變動時預先建立，避免在畫面渲染中新增響應式資料
+const emptyForm = () => ({ status: "", attendance: "", providerNote: "", error: "" });
+watch(
+  rows,
+  (list) => {
+    for (const row of list) {
+      if (row.linkage.status === "pending" && !forms[row.key]) forms[row.key] = emptyForm();
+    }
+  },
+  { immediate: true }
+);
+const formOf = (row) => forms[row.key] ?? emptyForm();
+
+// 回報結果寫入個案的連結與歷程（操作者為資源單位）；
+// 失敗時不自動退回第 2 階段，與個案頁相同：由健康管理員在個案頁決定退回或重新選擇資源
+const submit = (row) => {
+  const form = formOf(row);
+  form.error = form.status === "failed" && !form.providerNote ? "回報失敗時請說明原因，方便健康管理員後續處理" : "";
+  if (form.error) return;
+  updateLinkageStatus(
+    row.caseItem.id,
+    {
+      index: row.index,
+      status: form.status,
+      attendance: form.attendance || null,
+      providerNote: form.providerNote,
+    },
+    { actor: resource.value.organization || resource.value.name }
   );
-  return matched?.name || "尚未選擇資源";
-});
-
-const stageLabel = (stage) => {
-  const map = {
-    1: "1 辨識",
-    2: "2 諮詢",
-    3: "3 連結",
-    4: "4 追蹤",
-    5: "5 結案",
-    6: "已結案",
-  };
-  return map[stage] || "1 辨識";
+  notice.value =
+    form.status === "success"
+      ? `已回報 ${row.caseItem.code} 連結成功`
+      : `已回報 ${row.caseItem.code} 無法參加，健康管理員會在個案頁接續處理`;
+  delete forms[row.key];
+  cases.value = getAllCases();
 };
-
-const updateStatus = (caseId, status) => {
-  const target = cases.value.find((item) => String(item.id) === String(caseId));
-  if (!target) return;
-
-  target.linkage = {
-    ...(target.linkage || {}),
-    status,
-  };
-
-  if (status === "失敗") {
-    target.stage = 2;
-  }
-
-  localStorage.setItem("cases", JSON.stringify(cases.value));
-};
-
-onMounted(() => {
-  loadData();
-
-  const savedId = localStorage.getItem("currentResourceId");
-
-  const exists = resources.value.find((r) => String(r.id) === String(savedId));
-
-  if (!exists) {
-    currentResourceId.value = "";
-    localStorage.removeItem("currentResourceId");
-    return;
-  }
-
-  currentResourceId.value = savedId;
-});
 </script>
 
 <style scoped>
 .resource-dashboard-page {
   background: #fcfaf8;
   min-height: 100vh;
-  padding-bottom: 30px;
+  padding-bottom: 40px;
+  color: #3e2723;
 }
 
 .top-bar {
   background: #5d4037;
   color: white;
-  padding: 16px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
 }
-
 .header-left,
 .header-right {
   flex: 1;
 }
-
 .header-center {
   flex: 3;
   text-align: center;
 }
-
 .back-btn {
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.4);
@@ -148,71 +205,217 @@ onMounted(() => {
   cursor: pointer;
   font-size: 13px;
 }
-
 .top-bar h2 {
-  margin: 0 0 6px;
+  margin: 0 0 4px;
   font-size: 18px;
 }
-
 .top-bar p {
   margin: 0;
   font-size: 13px;
   opacity: 0.9;
 }
-
-.main-content {
-  margin-top: 16px;
-  padding: 0 15px;
+.code {
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  margin-left: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  padding: 1px 6px;
 }
 
+.main-content {
+  max-width: 860px;
+  margin-top: 18px;
+  padding: 0 15px;
+}
 .empty-state {
-  color: #bcaaa4;
+  text-align: center;
+  color: #8d6e63;
+  font-size: 15px;
+  padding: 50px 20px;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
+}
+.terminated-notice {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  color: #616161;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-weight: 600;
+}
+.notice {
+  background: #edf7ee;
+  border: 1px solid #b7dfb9;
+  color: #1b5e20;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-weight: 600;
   font-size: 14px;
+}
+.summary {
+  display: flex;
+  gap: 18px;
+  font-size: 14px;
+  color: #6d4c41;
+  margin-bottom: 12px;
 }
 
 .case-card {
   background: white;
-  padding: 12px;
-  border-radius: 10px;
+  border: 1px solid #f0e6e0;
+  border-left: 5px solid #bcaaa4;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 12px rgba(93, 64, 55, 0.05);
+}
+.case-card.pending {
+  border-left-color: #f9a825;
+}
+.case-card.success {
+  border-left-color: #2e7d32;
+}
+.case-card.failed {
+  border-left-color: #c62828;
+}
+.card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.case-code {
+  font-family: "Courier New", monospace;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f5f0ed;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.card-head h4 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+.status-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 10px;
+  border-radius: 999px;
+}
+.status-badge.pending {
+  background: #fff8e1;
+  color: #8a5a00;
+}
+.status-badge.success {
+  background: #edf7ee;
+  color: #1b5e20;
+}
+.status-badge.failed {
+  background: #fdecea;
+  color: #b71c1c;
+}
+.escort-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a5a00;
+  border: 1px solid #ffe082;
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 14px;
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #8d6e63;
+}
+.text {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: #5d4037;
+}
+.text.reported {
+  font-weight: 600;
+}
+
+.report-form {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #efe7dc;
+}
+.choice-row {
+  display: flex;
+  gap: 10px;
   margin-bottom: 10px;
 }
-
-.case-card h4 {
-  margin: 0 0 8px;
-  color: #3e2723;
-}
-
-.case-card p {
-  margin: 0 0 6px;
-  color: #6d4c41;
-  font-size: 13px;
-}
-
-.actions {
+.choice {
+  flex: 1;
   display: flex;
+  align-items: center;
   gap: 8px;
-  margin-top: 10px;
-}
-
-button {
-  border: none;
-  border-radius: 6px;
-  padding: 8px 10px;
+  border: 2px solid #e0d5cb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-weight: 700;
   cursor: pointer;
 }
-
-button.success {
-  background: #4caf50;
-  color: white;
+.choice.success.selected {
+  border-color: #2e7d32;
+  background: #edf7ee;
+}
+.choice.failed.selected {
+  border-color: #c62828;
+  background: #fdecea;
+}
+.choice input {
+  accent-color: #5d4037;
+}
+input[type="text"],
+select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #e0d5cb;
+  border-radius: 10px;
+  background: #fdfbf9;
+  font-size: 14px;
+}
+.field-error {
+  color: #c62828;
+  font-size: 13px;
+  margin: 6px 0 0;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.primary-btn {
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 20px;
+  font-weight: 700;
+}
+.primary-btn:disabled {
+  background: #c8c1bb;
+}
+.outline-btn {
+  background: #fff;
+  color: #5d4037;
+  border: 1px solid #d6ccc2;
+  border-radius: 10px;
+  padding: 8px 18px;
+  font-weight: 600;
 }
 
-button.fail {
-  background: #f44336;
-  color: white;
-}
-
-button.stop {
-  background: #ff9800;
-  color: white;
+@media (max-width: 576px) {
+  .choice-row {
+    flex-direction: column;
+  }
 }
 </style>

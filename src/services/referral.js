@@ -1,4 +1,4 @@
-// 個案轉介用的資源判斷：轉介選單與「已連結資源目前狀態」，純函式不讀寫 localStorage
+// 個案轉介用的資源判斷：轉介選單與「已連結資源目前狀態」，純函式不讀寫儲存區
 
 import { getVisibility, isRecommendable } from "../config/resourceRules.js";
 

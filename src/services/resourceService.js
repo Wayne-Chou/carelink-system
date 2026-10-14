@@ -1,5 +1,5 @@
 // 社區資源資料層：所有資源的讀寫集中在這裡（規格見 doc/resource-schema.md）
-// 讀取時會把舊格式資料在記憶體中轉成新格式；只有呼叫寫入函式時才會把整份新格式寫回 localStorage。
+// 讀取時會把舊格式資料在記憶體中轉成新格式；只有呼叫寫入函式時才會把整份新格式寫回儲存區（經 storage.js）。
 
 import { NEED_TAGS, derivePrescriptionTypes } from "../config/needTags.js";
 import { parseCityDistrict } from "../config/districts.js";
@@ -14,99 +14,21 @@ import {
   isRecommendable,
 } from "../config/resourceRules.js";
 import { DEMO_RESOURCES } from "./demoResources.js";
+import { readList, writeList } from "./storage.js";
+import { addMonths, formatDate, nowDateTime, todayString } from "../utils/date.js";
+import { generateId } from "../utils/id.js";
+import { deepMerge, isPlainObject } from "../utils/object.js";
+import { codePattern, formatCode, nextCode } from "../utils/sequenceCode.js";
 
 const STORAGE_KEY = "resources";
 
-// ── 基礎工具 ──────────────────────────────────────────────
-
-// crypto.randomUUID 只能在 HTTPS 或 localhost 使用；用區網 IP 測試時改用 getRandomValues 組出 UUID v4
-function generateId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  const bytes = new Uint8Array(16);
-  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
-    crypto.getRandomValues(bytes);
-  } else {
-    for (let i = 0; i < 16; i++) bytes[i] = Math.floor(Math.random() * 256);
-  }
-  bytes[6] = (bytes[6] & 0x0f) | 0x40;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  const hex = [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-const pad = (n) => String(n).padStart(2, "0");
-
-// 本地日期 YYYY-MM-DD（不用 toISOString，避免 UTC 換日誤差）
-function formatDate(date) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
-}
-
-function todayString() {
-  return formatDate(new Date());
-}
-
-// 含時區的本地時間，格式同規格範例：2026-10-01T09:00:00+08:00
-function nowDateTime() {
-  const d = new Date();
-  const offset = -d.getTimezoneOffset();
-  const sign = offset >= 0 ? "+" : "-";
-  const abs = Math.abs(offset);
-  return (
-    `${formatDate(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
-    `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`
-  );
-}
-
-function parseDate(value) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ""));
-  if (!match) return null;
-  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-}
-
-// 加月數；目標月份沒有該日時取月底（例：8/31 加 6 個月為 2/28）
-function addMonths(dateString, months) {
-  const date = parseDate(dateString);
-  if (!date) return "";
-  const day = date.getDate();
-  date.setDate(1);
-  date.setMonth(date.getMonth() + months);
-  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-  date.setDate(Math.min(day, lastDay));
-  return formatDate(date);
-}
-
-const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-
-// 深層合併：物件逐層合併，陣列與其他值（含 null）整個替換，patch 中為 undefined 的欄位忽略
-function deepMerge(target, patch) {
-  const result = { ...target };
-  for (const [key, value] of Object.entries(patch)) {
-    if (value === undefined) continue;
-    result[key] =
-      isPlainObject(value) && isPlainObject(target[key]) ? deepMerge(target[key], value) : value;
-  }
-  return result;
-}
 const toArray = (v) => (Array.isArray(v) ? v : []);
 const toNumberOrNull = (v) => (v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
-// ── localStorage ──────────────────────────────────────────
+// ── 儲存（經 storage.js）────────────────────────────────────
 
-function readRaw() {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.warn("[resourceService] 無法解析 localStorage 資源資料，以空陣列處理", error);
-    return [];
-  }
-}
-
-function writeAll(resources) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(resources));
-}
+const readRaw = () => readList(STORAGE_KEY);
+const writeAll = (resources) => writeList(STORAGE_KEY, resources);
 
 // ── 預設值 ────────────────────────────────────────────────
 
@@ -401,22 +323,16 @@ export function getRecommendableResources(context = "referral") {
 // 格式：Res 加三位數流水號（Res001），超過 999 時位數自動增加（Res1000）
 // 由系統在新增時產生，不可手動修改；流水號取目前最大編號加一
 
-export const RESOURCE_CODE_PATTERN = /^Res(\d{3,})$/;
+const CODE_PREFIX = "Res";
+export const RESOURCE_CODE_PATTERN = codePattern(CODE_PREFIX);
 
 export function formatResourceCode(number) {
-  return `Res${String(number).padStart(3, "0")}`;
-}
-
-function maxCodeNumber(resources) {
-  return (resources || []).reduce((max, r) => {
-    const match = RESOURCE_CODE_PATTERN.exec(String(r?.code ?? ""));
-    return match ? Math.max(max, Number(match[1])) : max;
-  }, 0);
+  return formatCode(CODE_PREFIX, number);
 }
 
 // 下一個可用的資源編碼（新增表單用來預覽）
 export function getNextResourceCode(resources = getAllResources()) {
-  return formatResourceCode(maxCodeNumber(resources) + 1);
+  return nextCode(CODE_PREFIX, resources);
 }
 
 // ── 寫入 ──────────────────────────────────────────────────
@@ -501,12 +417,13 @@ export const isDemoResource = (resource) => resource?.isDemo === true;
 //   示範資料的編碼（Res001～）若已被自建資源使用，改接在目前最大編號之後，避免重複
 // replace 為 true：清空所有資源（含使用者自建的）後只放示範資料
 // 回傳實際加入的筆數
-export function loadDemoResources({ replace = false } = {}) {
+// items：要載入的示範資源，預設為 DEMO_RESOURCES（demoService 會傳入依載入日期平移過的版本）
+export function loadDemoResources({ replace = false, items = DEMO_RESOURCES } = {}) {
   const existing = replace ? [] : getAllResources();
   const existingIds = new Set(existing.map((r) => String(r.id)));
   const usedCodes = new Set(existing.map((r) => r.code).filter(Boolean));
   const toAdd = [];
-  for (const demo of DEMO_RESOURCES.filter((r) => !existingIds.has(String(r.id)))) {
+  for (const demo of items.filter((r) => !existingIds.has(String(r.id)))) {
     const resource = mergeWithDefaults({ ...structuredClone(demo), isDemo: true });
     if (usedCodes.has(resource.code)) {
       resource.code = getNextResourceCode([...existing, ...toAdd]);

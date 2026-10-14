@@ -46,7 +46,7 @@
             <i class="fa-solid fa-flask" aria-hidden="true"></i> 載入示範資料
           </button>
           <button v-if="hasDemoData" type="button" class="demo-btn subtle" @click="removeDemo">
-            移除示範資料（資源 {{ counts.demoResources }}、個案 {{ counts.demoCases }}）
+            移除示範資料（資源 {{ counts.demoResources }}、個案 {{ counts.demoCases }}、評估 {{ counts.demoAssessments }}）
           </button>
         </div>
       </div>
@@ -56,18 +56,20 @@
       <form method="dialog">
         <h3 id="demo-dialog-title">載入示範資料</h3>
         <p>
-          示範資料包含 {{ DEMO_TOTALS.resources }} 筆虛構資源與 {{ DEMO_TOTALS.cases }} 筆虛構個案，
-          涵蓋資源的各種狀態與個案流程的各個階段，並標記為「示範」，之後可一鍵移除。
+          示範資料包含 {{ DEMO_TOTALS.resources }} 筆虛構資源、{{ DEMO_TOTALS.cases }} 筆虛構個案與
+          {{ DEMO_TOTALS.assessments }} 筆虛構評估，涵蓋資源的各種狀態、評估的各種燈號與個案流程的各個階段，
+          並標記為「示範」，之後可一鍵移除。
         </p>
         <div class="dialog-options">
           <button value="add" class="dialog-option">
             <strong>加入示範資料</strong>
-            <span>保留現有資源與個案，加入尚未載入的示範資料</span>
+            <span>保留現有資源、個案與評估，加入尚未載入的示範資料</span>
           </button>
           <button value="replace" class="dialog-option danger">
             <strong>清空後只放示範資料</strong>
             <span>
-              刪除目前全部 {{ counts.resources }} 筆資源與 {{ counts.cases }} 筆個案（含自建資料），無法復原
+              刪除目前全部 {{ counts.resources }} 筆資源、{{ counts.cases }} 筆個案與
+              {{ counts.assessments }} 筆評估（含自建資料），無法復原
             </span>
           </button>
         </div>
@@ -217,6 +219,7 @@ import {
   terminateResource,
 } from "../services/resourceService.js";
 import { DEMO_TOTALS, countData, loadDemoData, removeDemoData } from "../services/demoService.js";
+import { setCurrentResourceId } from "../utils/auth.js";
 import { consumeFlash } from "../utils/flash.js";
 
 const router = useRouter();
@@ -311,11 +314,13 @@ const removeResource = (item) => {
   reload();
 };
 
-// ── 示範資料（資源與個案一起處理）──
+// ── 示範資料（資源、個案與評估一起處理）──
 const demoDialog = ref(null);
 const actionNotice = ref("");
 const counts = ref(countData());
-const hasDemoData = computed(() => counts.value.demoResources + counts.value.demoCases > 0);
+const hasDemoData = computed(
+  () => counts.value.demoResources + counts.value.demoCases + counts.value.demoAssessments > 0
+);
 
 const reloadAll = () => {
   reload();
@@ -327,7 +332,7 @@ const openDemoDialog = () => {
   demoDialog.value?.showModal();
 };
 
-const summary = ({ resources: r, cases: c }) => `資源 ${r} 筆、個案 ${c} 筆`;
+const summary = ({ resources: r, cases: c, assessments: a }) => `資源 ${r} 筆、個案 ${c} 筆、評估 ${a} 筆`;
 
 // <dialog> 以按下的按鈕 value 作為 returnValue
 const onDemoDialogClose = () => {
@@ -336,16 +341,16 @@ const onDemoDialogClose = () => {
   if (choice === "add") {
     const added = loadDemoData();
     actionNotice.value =
-      added.resources + added.cases
+      added.resources + added.cases + added.assessments
         ? `已加入示範資料：${summary(added)}`
         : "示範資料都已載入，沒有新增";
   } else if (choice === "replace") {
     const ok = confirm(
-      `確定要刪除目前全部 ${counts.value.resources} 筆資源與 ${counts.value.cases} 筆個案，只保留示範資料？\n\n此動作無法復原。`
+      `確定要刪除目前全部 ${counts.value.resources} 筆資源、${counts.value.cases} 筆個案與 ${counts.value.assessments} 筆評估，只保留示範資料？\n\n此動作無法復原。`
     );
     if (!ok) return;
     const added = loadDemoData({ replace: true });
-    actionNotice.value = `已清空資源與個案，並載入示範資料：${summary(added)}`;
+    actionNotice.value = `已清空資源、個案與評估，並載入示範資料：${summary(added)}`;
   } else {
     return;
   }
@@ -356,7 +361,7 @@ const onDemoDialogClose = () => {
 
 const removeDemo = () => {
   const ok = confirm(
-    `確定要移除示範資料（資源 ${counts.value.demoResources} 筆、個案 ${counts.value.demoCases} 筆）？\n\n只會移除標記為「示範」的資料，自建的資源與個案不受影響。`
+    `確定要移除示範資料（資源 ${counts.value.demoResources} 筆、個案 ${counts.value.demoCases} 筆、評估 ${counts.value.demoAssessments} 筆）？\n\n只會移除標記為「示範」的資料，自建的資源、個案與評估不受影響。`
   );
   if (!ok) return;
   const removed = removeDemoData();
@@ -364,9 +369,9 @@ const removeDemo = () => {
   reloadAll();
 };
 
-// 資源端後台目前以 localStorage 記錄登入的資源（不屬於資源資料，維持原做法）
+// 資源端登入的資源屬於登入狀態，由 auth.js 存放（測試階段為 sessionStorage）
 const loginResource = (id) => {
-  localStorage.setItem("currentResourceId", id);
+  setCurrentResourceId(id);
   router.push("/resource-dashboard");
 };
 </script>

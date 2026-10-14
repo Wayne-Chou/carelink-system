@@ -906,6 +906,7 @@ import {
   updateResource,
 } from "../services/resourceService.js";
 import { DESCRIPTION_MAX_LENGTH, validateResource } from "../services/resourceValidation.js";
+import { deepClone } from "../utils/clone.js";
 import { setFlash } from "../utils/flash.js";
 import { goBack } from "../utils/navigation.js";
 import { formatDateTime } from "../utils/resourceFormat.js";
@@ -925,7 +926,7 @@ const notFound = isEdit && !original;
 
 const initialForm = () => {
   if (!original) return { ...createEmptyResource(), lastVerifiedAt: todayString() };
-  const data = structuredClone(original);
+  const data = deepClone(original);
   data.staff = data.staff.map((s) => ({ name: "", role: "", license: "", experience: "", ...s }));
   return data;
 };

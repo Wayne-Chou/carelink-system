@@ -10,607 +10,795 @@
       <div class="header-right"></div>
     </div>
 
-    <div class="container main-content">
-      <div v-if="!currentCase" class="empty-state">
+    <div v-if="!caseItem" class="container main-content">
+      <div class="empty-state">
         找不到個案資料
+        <button type="button" class="outline-btn" @click="$router.push('/cases')">回個案列表</button>
       </div>
+    </div>
 
-      <div v-else>
-        <div class="info-card">
-            <h3>{{ currentCase.basic?.name || currentCase.name || "未命名個案" }}</h3>
-          <p>目前階段：{{ stageText(currentCase.stage || 1) }}</p>
+    <div v-else class="container main-content">
+      <!-- 基本資料與提醒 -->
+      <section class="card summary-card">
+        <div class="summary-head">
+          <span class="case-code">{{ caseItem.code }}</span>
+          <span :class="['stage-badge', `stage-${caseItem.stage}`]">{{ stageShort(caseItem.stage) }}</span>
+          <span v-if="caseItem.isDemo" class="demo-badge">示範</span>
         </div>
+        <h1 class="person-name">{{ caseItem.person.name || "未命名個案" }}</h1>
+        <p class="person-meta">
+          <span v-if="caseItem.person.phone"><i class="fa-solid fa-phone" aria-hidden="true"></i> {{ caseItem.person.phone }}</span>
+          <span v-if="caseItem.person.livingAlone">獨居</span>
+          <span v-if="caseItem.person.nationalId">身分證 {{ maskNationalId(caseItem.person.nationalId) }}</span>
+          <span v-if="caseItem.managerName">健康管理員 {{ caseItem.managerName }}</span>
+          <span>開案 {{ toDateString(caseItem.createdAt) }}</span>
+        </p>
 
-        <!-- 已連結資源：各階段都顯示，並標示資源目前狀態 -->
-        <div
-          v-if="linkedStatus.linked"
-          :class="['linked-card', { warning: linkedStatus.deleted || !linkedStatus.available }]"
-        >
-          <div class="linked-head">
-            <span class="linked-label">已連結資源</span>
-            <span v-if="linkedStatus.deleted" class="state-badge off">已刪除</span>
-            <span v-else-if="!linkedStatus.available" class="state-badge off">
-              {{ reasonLabels(linkedStatus.reasons) }}
-            </span>
-            <span v-else class="state-badge on">可轉介</span>
-          </div>
-
-          <template v-if="linkedStatus.deleted">
-            <h5>{{ linkedResourceName || "（名稱不明）" }}</h5>
-            <p class="linked-warning">
-              此資源已從資源清單刪除，無法查看詳細資料。
-              <template v-if="currentCase.stage === 3">請重新選擇資源。</template>
-            </p>
-          </template>
-          <template v-else>
-            <h5>
-              {{ linkedStatus.resource.name || "未命名資源" }}
-              <router-link :to="`/resources/${linkedStatus.resource.id}`" class="detail-link">
-                查看資源
-              </router-link>
-            </h5>
-            <dl class="linked-info">
-              <div>
-                <dt>單位</dt>
-                <dd>{{ linkedStatus.resource.organization || "未填寫" }}</dd>
-              </div>
-              <div>
-                <dt>地址</dt>
-                <dd>{{ formatAddress(linkedStatus.resource.address) || "未填寫" }}</dd>
-              </div>
-              <div v-if="formatSchedule(linkedStatus.resource.schedule)">
-                <dt>時間</dt>
-                <dd>{{ formatSchedule(linkedStatus.resource.schedule) }}</dd>
-              </div>
-              <div v-if="linkedStatus.resource.publicContact.phone">
-                <dt>聯絡</dt>
-                <dd>
-                  {{ linkedStatus.resource.publicContact.name }}
-                  {{ linkedStatus.resource.publicContact.phone }}
-                </dd>
-              </div>
-            </dl>
-            <p v-if="linkedStatus.needsEscort" class="escort-note">
-              <i class="fa-solid fa-user-nurse" aria-hidden="true"></i> {{ ESCORT_NOTICE }}
-            </p>
-            <p v-if="!linkedStatus.available" class="linked-warning">
-              此資源目前{{ reasonLabels(linkedStatus.reasons) }}，已不在轉介選單中。
-              <template v-if="currentCase.stage === 3">請重新選擇可轉介的資源。</template>
-            </p>
-          </template>
-        </div>
-
-        <div class="flow-card">
-          <div class="flow-steps">
-            <template v-for="(step, index) in stageLabels" :key="step.stage">
-              <div
-                class="flow-step"
-                :class="{
-                  completed: (currentCase.stage || 1) > step.stage,
-                  active: (currentCase.stage || 1) === step.stage,
-                }"
-              >
-                {{ step.label }}
-              </div>
-              <span v-if="index < stageLabels.length - 1" class="flow-arrow">→</span>
-            </template>
-          </div>
-        </div>
-
-        <div class="action-row">
-          <button class="prev-btn" @click="goToStage((currentCase.stage || 1) - 1)" :disabled="(currentCase.stage || 1) <= 1 || (currentCase.stage || 1) >= 6">
-            返回上一步
-          </button>
-          <button
-            class="next-btn"
-            @click="nextStage"
-            :disabled="(currentCase.stage || 1) >= 6"
+        <ol class="stepper" aria-label="個案階段">
+          <li
+            v-for="s in STEPS"
+            :key="s.code"
+            :class="{ done: stageIndex(caseItem.stage) > stageIndex(s.code), current: caseItem.stage === s.code }"
+            :aria-current="caseItem.stage === s.code ? 'step' : undefined"
           >
-            下一步
+            {{ s.label }}
+          </li>
+        </ol>
+
+        <ul v-if="alerts.length" class="alert-list" role="status">
+          <li v-for="a in alerts" :key="a.text" :class="['alert', a.level]">
+            <i :class="a.icon" aria-hidden="true"></i> {{ a.text }}
+          </li>
+        </ul>
+      </section>
+
+      <p v-if="notice" class="notice" role="status">{{ notice }}</p>
+
+      <!-- 第 1 階段 轉介 -->
+      <section :class="['card', 'stage-card', stageState(1)]">
+        <header class="stage-head">
+          <h2><span class="step-no">1</span> 轉介</h2>
+          <span class="stage-state">{{ stageStateLabel(1) }}</span>
+        </header>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="field-label" for="person-name">姓名</label>
+            <input id="person-name" v-model.trim="draft.person.name" type="text" :disabled="readonly" />
+          </div>
+          <div class="col-md-6">
+            <label class="field-label" for="person-phone">電話</label>
+            <input id="person-phone" v-model.trim="draft.person.phone" type="tel" :disabled="readonly" />
+          </div>
+          <div class="col-md-6">
+            <label class="check-label">
+              <input v-model="draft.person.livingAlone" type="checkbox" :disabled="readonly" /> 獨居
+            </label>
+          </div>
+          <div class="col-md-6">
+            <label class="field-label" for="manager-name">健康管理員</label>
+            <input id="manager-name" v-model.trim="draft.managerName" type="text" :disabled="readonly" />
+          </div>
+
+          <div class="col-md-6">
+            <label class="field-label" for="referrer-type">轉介來源</label>
+            <select id="referrer-type" v-model="draft.referral.referrerType" :disabled="readonly || fromAssessment">
+              <option value="">請選擇</option>
+              <option v-for="o in REFERRER_TYPE_OPTIONS" :key="o.code" :value="o.code">{{ o.label }}</option>
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="field-label" for="referrer-name">轉介者</label>
+            <input id="referrer-name" v-model.trim="draft.referral.referrerName" type="text" :disabled="readonly" />
+          </div>
+          <div v-if="fromAssessment" class="col-12">
+            <p class="assessment-link">
+              <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+              由生活近況評估開案：
+              <router-link :to="`/assessments/${caseItem.referral.assessmentId}`">
+                {{ caseItem.referral.assessmentCode || "查看評估" }}（前往判讀頁）
+              </router-link>
+            </p>
+          </div>
+          <div class="col-12">
+            <label class="field-label" for="referral-reason">轉介原因（篩檢結果摘要）</label>
+            <textarea id="referral-reason" v-model="draft.referral.reason" rows="2" :disabled="readonly"></textarea>
+          </div>
+          <div class="col-12">
+            <label class="check-label strong">
+              <input v-model="draft.referral.consent" type="checkbox" :disabled="readonly" @change="onConsentChange" />
+              民眾同意轉介給健康管理員
+            </label>
+            <p v-if="draft.referral.consentAt" class="hint">同意時間：{{ formatDisplayTime(draft.referral.consentAt) }}</p>
+          </div>
+        </div>
+        <div v-if="!readonly" class="stage-actions">
+          <button type="button" class="outline-btn" @click="saveSection(1)">儲存</button>
+          <button v-if="caseItem.stage === 1" type="button" class="primary-btn" @click="advance(1)">
+            下一步：進入「諮詢」
           </button>
         </div>
+        <ul v-if="advanceErrors[1]" class="error-list" role="alert">
+          <li v-for="r in advanceErrors[1]" :key="r">{{ r }}</li>
+        </ul>
+      </section>
 
-        <div v-if="currentCase.stage === 1" class="section-card">
-          <h4>基本辨識</h4>
-          <input v-model="basicName" placeholder="姓名" />
-          <input v-model="basicAge" type="number" placeholder="年齡" />
-          <select v-model="basicSource">
-            <option value="">轉介來源</option>
-            <option value="醫療">醫療</option>
-            <option value="社區">社區</option>
-            <option value="自主">自主</option>
-          </select>
-          <select v-model="basicIdentity">
-            <option value="">請選擇身分別</option>
-            <option value="獨居長者">獨居長者</option>
-            <option value="慢性病患">慢性病患</option>
-            <option value="照顧者">照顧者</option>
-            <option value="身心障礙">身心障礙</option>
-            <option value="其他">其他</option>
-          </select>
-          <textarea v-model="basicProblem" placeholder="輸入主要問題"></textarea>
-        </div>
-
-        <div v-if="currentCase.stage === 2" class="section-card">
-          <h4>需求評估</h4>
-          <div class="section-title">需求與動機</div>
-          <select v-model="consultNeedLevel">
-            <option value="">請選擇需求程度</option>
-            <option value="低">低</option>
-            <option value="中">中</option>
-            <option value="高">高</option>
-          </select>
-          <select v-model="consultMotivation">
-            <option value="">請選擇參與動機</option>
-            <option value="低">低</option>
-            <option value="中">中</option>
-            <option value="高">高</option>
-          </select>
-          <input v-model="consultGoal" placeholder="輸入服務目標" />
-          <textarea v-model="consultNote" placeholder="輸入需求或訪談內容"></textarea>
-        </div>
-
-        <div v-if="currentCase.stage === 3" class="section-card">
-          <h4>資源連結</h4>
-          <p v-if="!linkedStatus.linked" class="linked-resource">尚未綁定資源</p>
-          <div class="status-box">
-            狀態：
-            <span :class="`status-${currentCase.linkage?.status || 'pending'}`">
-              {{ currentCase.linkage?.status || "等待回報" }}
-            </span>
-          </div>
-          <input v-model="linkageReason" placeholder="輸入連結原因" />
-
-          <p class="section-title">可轉介資源（{{ referralOptions.length }}）</p>
-          <div v-if="referralOptions.length === 0" class="empty-inline">
-            目前沒有可轉介的資源（只列出活躍、合作已確認、風險綠燈或黃燈的資源）
-          </div>
-          <div v-else class="resource-list">
-            <div
-              v-for="{ resource, needsEscort } in referralOptions"
-              :key="resource.id"
-              :class="['resource-card', { selected: isLinked(resource.id) }]"
-            >
-              <div class="resource-content">
-                <h5>{{ resource.name || "未命名資源" }}</h5>
-                <p class="resource-meta">
-                  {{ resource.organization }}｜{{ formatRegion(resource) }}
-                </p>
-                <div class="resource-tags">
-                  <span v-for="tag in resource.needTags.slice(0, 3)" :key="tag" class="resource-tag">
-                    {{ getNeedTagLabel(tag) }}
-                  </span>
-                </div>
-                <p v-if="needsEscort" class="escort-note">
-                  <i class="fa-solid fa-user-nurse" aria-hidden="true"></i> 🟡 {{ ESCORT_NOTICE }}
-                </p>
+      <!-- 第 2 階段 晤談 -->
+      <section :class="['card', 'stage-card', stageState(2)]">
+        <header class="stage-head">
+          <h2><span class="step-no">2</span> 晤談</h2>
+          <span class="stage-state">{{ stageStateLabel(2) }}</span>
+        </header>
+        <p v-if="stageState(2) === 'future'" class="muted">尚未進入此階段</p>
+        <template v-else>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="field-label" for="first-contact">首次聯繫時間</label>
+              <div class="inline-field">
+                <input id="first-contact" v-model="draft.firstContactLocal" type="datetime-local" :disabled="readonly" />
+                <button
+                  v-if="!readonly && !caseItem.consultation.firstContactAt"
+                  type="button"
+                  class="outline-btn small"
+                  @click="contactNow"
+                >
+                  記錄為現在
+                </button>
               </div>
-              <button
-                class="select-btn"
-                :disabled="isLinked(resource.id)"
-                @click="bindResource(resource.id)"
+            </div>
+            <div class="col-12">
+              <label class="field-label" for="what-matters">對我而言什麼最重要 <span class="required">*</span></label>
+              <textarea
+                id="what-matters"
+                v-model="draft.consultation.whatMatters"
+                rows="2"
+                placeholder="用民眾自己的話記錄，例：希望能再自己出門散步"
+                :disabled="readonly"
+              ></textarea>
+            </div>
+            <div class="col-12">
+              <p class="field-label">需求標籤</p>
+              <ChipSelect v-if="!readonly" v-model="draft.consultation.needTags" :options="needTagOptions" />
+              <p v-else class="muted">{{ draft.consultation.needTags.map(getNeedTagLabel).join("、") || "未設定" }}</p>
+            </div>
+            <div class="col-12">
+              <p class="field-label">共同目標 <span class="required">*</span></p>
+              <div v-for="(goal, i) in draft.consultation.goals" :key="i" class="goal-row">
+                <span class="goal-no">{{ i + 1 }}</span>
+                <input
+                  v-model="draft.consultation.goals[i]"
+                  type="text"
+                  :aria-label="`目標 ${i + 1}`"
+                  placeholder="例：每週參加一次團體運動"
+                  :disabled="readonly"
+                />
+                <button
+                  v-if="!readonly"
+                  type="button"
+                  class="icon-btn"
+                  :aria-label="`移除目標 ${i + 1}`"
+                  @click="draft.consultation.goals.splice(i, 1)"
+                >
+                  <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+              </div>
+              <button v-if="!readonly" type="button" class="text-btn" @click="draft.consultation.goals.push('')">
+                ＋ 新增目標
+              </button>
+            </div>
+            <div class="col-12">
+              <label class="field-label" for="consult-note">晤談紀錄</label>
+              <textarea id="consult-note" v-model="draft.consultation.note" rows="3" :disabled="readonly"></textarea>
+            </div>
+          </div>
+          <div v-if="!readonly" class="stage-actions">
+            <button type="button" class="outline-btn" @click="saveSection(2)">儲存</button>
+            <button v-if="caseItem.stage === 2" type="button" class="primary-btn" @click="advance(2)">
+              下一步：進入「連結」
+            </button>
+          </div>
+          <ul v-if="advanceErrors[2]" class="error-list" role="alert">
+            <li v-for="r in advanceErrors[2]" :key="r">{{ r }}</li>
+          </ul>
+        </template>
+      </section>
+
+      <!-- 第 3 階段 連結 -->
+      <section :class="['card', 'stage-card', stageState(3)]">
+        <header class="stage-head">
+          <h2><span class="step-no">3</span> 連結</h2>
+          <span class="stage-state">{{ stageStateLabel(3) }}</span>
+        </header>
+        <p v-if="stageState(3) === 'future'" class="muted">尚未進入此階段</p>
+        <template v-else>
+          <p v-if="!caseItem.linkages.length" class="muted">尚未建立連結</p>
+          <ol class="linkage-list">
+            <li
+              v-for="(l, i) in caseItem.linkages"
+              :key="i"
+              :class="['linkage-card', l.status, { latest: i === caseItem.linkages.length - 1 }]"
+            >
+              <div class="linkage-head">
+                <span class="linkage-no">第 {{ i + 1 }} 次</span>
+                <router-link :to="`/resources/${l.resourceId}`" class="linkage-name">
+                  {{ l.resourceName || "未知資源" }}
+                </router-link>
+                <span :class="['status-badge', l.status]">{{ caseLabel(LINKAGE_STATUS_OPTIONS, l.status) }}</span>
+                <span v-if="l.escortNeeded" class="escort-badge">需陪同</span>
+              </div>
+              <p class="linkage-meta">
+                連結日 {{ l.linkedAt || "—" }}
+                <template v-if="l.attendance">｜{{ caseLabel(ATTENDANCE_OPTIONS, l.attendance) }}</template>
+              </p>
+              <p v-if="l.reason" class="linkage-text">連結原因：{{ l.reason }}</p>
+              <p v-if="l.providerNote" class="linkage-text">回報：{{ l.providerNote }}</p>
+              <p
+                v-if="i === caseItem.linkages.length - 1 && l.status !== 'failed' && latestResource && !latestResource.available"
+                class="warning-text"
               >
-                {{ isLinked(resource.id) ? "已選擇" : linkedStatus.linked ? "改選這個" : "選擇" }}
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                {{ latestResource.deleted ? "此資源已從資源清單刪除" : `此資源目前${reasonLabels(latestResource.reasons)}，已不在轉介選單中` }}，請重新選擇資源
+              </p>
+            </li>
+          </ol>
+
+          <!-- 記錄資源點回報（最新一筆待回報、且資源仍可轉介時） -->
+          <div v-if="!readonly && latestLinkage?.status === 'pending' && latestResource?.available" class="sub-panel">
+            <p class="sub-title">記錄連結結果（資源點回報）</p>
+            <div class="row g-2">
+              <div class="col-md-4">
+                <select v-model="reportForm.status" aria-label="連結結果">
+                  <option value="">選擇結果</option>
+                  <option value="success">成功</option>
+                  <option value="failed">失敗</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <select v-model="reportForm.attendance" aria-label="出席情形">
+                  <option value="">出席情形（選填）</option>
+                  <option v-for="o in ATTENDANCE_OPTIONS" :key="o.code" :value="o.code">{{ o.label }}</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <button type="button" class="outline-btn full" :disabled="!reportForm.status" @click="submitReport">
+                  儲存結果
+                </button>
+              </div>
+              <div class="col-12">
+                <input v-model.trim="reportForm.providerNote" type="text" placeholder="回報說明（選填）" aria-label="回報說明" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 最新一筆連結失敗（含資源點回報）：由健康管理員決定退回第 2 階段或重新選擇資源 -->
+          <div v-if="!readonly && caseItem.stage === 3 && latestLinkage?.status === 'failed'" class="failed-panel">
+            <p>
+              <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+              最新一次連結失敗{{ latestLinkage.providerNote ? `（${latestLinkage.providerNote}）` : "" }}。
+              可以在下方重新選擇資源，或退回第 2 階段重新評估。
+            </p>
+            <button type="button" class="outline-btn small" @click="confirmReturn('連結失敗，退回諮詢重新評估')">
+              退回第 2 階段重新評估
+            </button>
+          </div>
+
+          <!-- 建立新連結 -->
+          <div v-if="canAddLinkage" class="sub-panel">
+            <p class="sub-title">
+              {{ caseItem.linkages.length ? "重新選擇資源" : "選擇資源" }}
+              <small>（只列出可推薦的資源，共 {{ referralOptions.length }} 筆）</small>
+            </p>
+            <p v-if="latestLinkage?.status === 'pending'" class="hint">
+              建立新連結時，原本的連結會記錄為「失敗：資源無法提供服務」，保留這次嘗試
+            </p>
+            <div v-if="!referralOptions.length" class="muted">目前沒有可推薦的資源</div>
+            <div class="resource-options">
+              <label
+                v-for="{ resource, needsEscort } in referralOptions"
+                :key="resource.id"
+                :class="['resource-option', { selected: linkForm.resourceId === resource.id }]"
+              >
+                <input v-model="linkForm.resourceId" type="radio" name="link-resource" :value="resource.id" />
+                <span>
+                  <strong>{{ resource.name }}</strong>
+                  <small>{{ resource.organization }}｜{{ formatRegion(resource) }}</small>
+                  <small class="tags">{{ resource.needTags.slice(0, 3).map(getNeedTagLabel).join("、") }}</small>
+                  <em v-if="needsEscort" class="escort-note">🟡 {{ ESCORT_NOTICE }}</em>
+                </span>
+              </label>
+            </div>
+            <label class="field-label" for="link-reason">連結原因</label>
+            <input id="link-reason" v-model.trim="linkForm.reason" type="text" placeholder="例：住家附近、免費" />
+            <div class="stage-actions">
+              <button type="button" class="primary-btn" :disabled="!linkForm.resourceId" @click="submitLinkage">
+                建立連結
               </button>
             </div>
           </div>
-        </div>
 
-        <div v-if="currentCase.stage === 4" class="section-card">
-          <h4>追蹤紀錄</h4>
-
-          <select v-model="trackingStatus">
-            <option value="">請選擇</option>
-            <option value="出席">出席</option>
-            <option value="未出席">未出席</option>
-          </select>
-          <select v-model="trackingEffect">
-            <option value="">成效評估</option>
-            <option value="改善">改善</option>
-            <option value="無變化">無變化</option>
-            <option value="惡化">惡化</option>
-          </select>
-          <textarea v-model="trackingNote" placeholder="輸入追蹤備註"></textarea>
-          <button class="select-btn" @click="addTrackingRecord">新增追蹤紀錄</button>
-          <ul class="history-list">
-            <li v-for="(item, index) in currentCase.tracking || []" :key="`tracking-${index}`">
-              第{{ item.step }}次｜{{ item.date }}｜{{ item.status }}｜{{ item.effect }}
-            </li>
+          <div v-if="!readonly && caseItem.stage === 3" class="stage-actions">
+            <button type="button" class="primary-btn" @click="advance(3)">下一步：進入「追蹤」</button>
+          </div>
+          <ul v-if="advanceErrors[3]" class="error-list" role="alert">
+            <li v-for="r in advanceErrors[3]" :key="r">{{ r }}</li>
           </ul>
-        </div>
+        </template>
+      </section>
 
-        <div v-if="currentCase.stage === 5" class="section-card">
-          <h4>結案資訊</h4>
-          <input v-model="closeReason" placeholder="輸入結案原因" />
-          <textarea v-model="closeOutcome" placeholder="輸入結案成果"></textarea>
-          <button class="reopen-btn" @click="reopenCase">重新開案</button>
+      <!-- 第 4 階段 追蹤 -->
+      <section :class="['card', 'stage-card', stageState(4)]">
+        <header class="stage-head">
+          <h2><span class="step-no">4</span> 追蹤</h2>
+          <span class="stage-state">{{ stageStateLabel(4) }}</span>
+        </header>
+        <p v-if="!caseItem.followUps.length" class="muted">建立連結後會自動產生 1、3、6 個月追蹤排程</p>
+        <p v-else-if="caseItem.stage === 3" class="hint follow-note">
+          <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+          以下為預定排程；連結成功、進入追蹤階段後才能填寫
+        </p>
+        <table v-else class="follow-table">
+          <thead>
+            <tr>
+              <th>追蹤</th>
+              <th>排程日</th>
+              <th>狀態</th>
+              <th>結果</th>
+              <th v-if="canRecordFollowUp"><span class="visually-hidden">操作</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="f in caseItem.followUps" :key="`${f.round}-${f.plannedAt}`">
+              <tr>
+                <td>{{ f.round }} 個月</td>
+                <td>{{ f.plannedAt || "—" }}</td>
+                <td>
+                  <span :class="['fu-badge', followUpStatus(f)]">{{ FOLLOW_UP_STATUS_LABELS[followUpStatus(f)] }}</span>
+                </td>
+                <td class="fu-result">
+                  <template v-if="f.doneAt">
+                    {{ f.doneAt }}｜{{ caseLabel(ATTENDANCE_OPTIONS, f.attendance) || "—" }}｜{{
+                      caseLabel(PARTICIPATION_OPTIONS, f.participation) || "—"
+                    }}｜<strong :class="['impact', f.impact]">{{ caseLabel(IMPACT_OPTIONS, f.impact) || "—" }}</strong>
+                    <small v-if="f.note">{{ f.note }}</small>
+                  </template>
+                </td>
+                <td v-if="canRecordFollowUp">
+                  <button
+                    v-if="!f.doneAt && followForm.round !== f.round"
+                    type="button"
+                    class="outline-btn small"
+                    @click="openFollowForm(f)"
+                  >
+                    填寫
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="followForm.round === f.round" class="follow-form-row">
+                <td :colspan="canRecordFollowUp ? 5 : 4">
+                  <div class="row g-2">
+                    <div class="col-md-3">
+                      <label class="field-label small" for="fu-date">追蹤日期</label>
+                      <input id="fu-date" v-model="followForm.doneAt" type="date" />
+                    </div>
+                    <div class="col-md-3">
+                      <label class="field-label small" for="fu-attendance">出席</label>
+                      <select id="fu-attendance" v-model="followForm.attendance">
+                        <option value="">請選擇</option>
+                        <option v-for="o in ATTENDANCE_OPTIONS" :key="o.code" :value="o.code">{{ o.label }}</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="field-label small" for="fu-participation">參與</label>
+                      <select id="fu-participation" v-model="followForm.participation">
+                        <option value="">請選擇</option>
+                        <option v-for="o in PARTICIPATION_OPTIONS" :key="o.code" :value="o.code">{{ o.label }}</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="field-label small" for="fu-impact">影響</label>
+                      <select id="fu-impact" v-model="followForm.impact">
+                        <option value="">請選擇</option>
+                        <option v-for="o in IMPACT_OPTIONS" :key="o.code" :value="o.code">{{ o.label }}</option>
+                      </select>
+                    </div>
+                    <div class="col-12">
+                      <input v-model.trim="followForm.note" type="text" placeholder="追蹤說明（選填）" aria-label="追蹤說明" />
+                    </div>
+                    <div class="col-12 form-buttons">
+                      <button type="button" class="outline-btn small" @click="closeFollowForm">取消</button>
+                      <button
+                        type="button"
+                        class="primary-btn small"
+                        :disabled="!followForm.attendance || !followForm.participation || !followForm.impact"
+                        @click="submitFollowUp"
+                      >
+                        儲存追蹤
+                      </button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+        <div v-if="!readonly && caseItem.stage === 4" class="stage-actions">
+          <button type="button" class="primary-btn" @click="advance(4)">下一步：進入「結案」</button>
         </div>
+        <ul v-if="advanceErrors[4]" class="error-list" role="alert">
+          <li v-for="r in advanceErrors[4]" :key="r">{{ r }}</li>
+        </ul>
+      </section>
 
-        <div class="section-card">
-          <h4>歷程紀錄</h4>
-          <ul class="history-list">
-            <li v-for="(item, index) in currentCase.history || []" :key="index">
-              階段 {{ item.stage }}｜{{ item.date }}｜{{ item.note }}
-            </li>
+      <!-- 第 5 階段 結案 -->
+      <section :class="['card', 'stage-card', stageState(5)]">
+        <header class="stage-head">
+          <h2><span class="step-no">5</span> 結案</h2>
+          <span class="stage-state">{{ stageStateLabel(5) }}</span>
+        </header>
+        <p v-if="stageState(5) === 'future'" class="muted">尚未進入此階段</p>
+        <template v-else>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="field-label" for="closure-reason">結案原因 <span class="required">*</span></label>
+              <select id="closure-reason" v-model="draft.closure.reason" :disabled="readonly">
+                <option value="">請選擇</option>
+                <option v-for="o in CLOSURE_REASON_OPTIONS" :key="o.code" :value="o.code">{{ o.label }}</option>
+              </select>
+            </div>
+            <div v-if="caseItem.closure.closedAt" class="col-md-6">
+              <p class="field-label">結案日期</p>
+              <p>{{ caseItem.closure.closedAt }}</p>
+            </div>
+            <div class="col-12">
+              <label class="field-label" for="closure-note">結案說明</label>
+              <textarea id="closure-note" v-model="draft.closure.note" rows="2" :disabled="readonly"></textarea>
+            </div>
+            <div class="col-12">
+              <label class="check-label">
+                <input v-model="draft.closure.returnedToMedical" type="checkbox" :disabled="readonly" />
+                已轉回醫療端執行結案評估
+              </label>
+              <label class="check-label strong">
+                <input v-model="draft.closure.reentryExplained" type="checkbox" :disabled="readonly" />
+                已向民眾說明再入口機制（日後有需要可再回來找我們） <span class="required">*</span>
+              </label>
+            </div>
+          </div>
+          <div v-if="!readonly" class="stage-actions">
+            <button type="button" class="outline-btn" @click="saveSection(5)">儲存</button>
+            <button type="button" class="primary-btn dark" @click="submitClose">結案</button>
+          </div>
+          <ul v-if="advanceErrors[5]" class="error-list" role="alert">
+            <li v-for="r in advanceErrors[5]" :key="r">{{ r }}</li>
           </ul>
-        </div>
-      </div>
+        </template>
+      </section>
+
+      <!-- 歷程 -->
+      <section class="card">
+        <h2 class="section-title">歷程紀錄</h2>
+        <ol class="history-list">
+          <li v-for="(item, i) in historyNewestFirst" :key="i">
+            <span class="history-date">{{ item.date }}</span>
+            <span class="history-stage">{{ stageLabel(item.stage) }}</span>
+            <span class="history-note">{{ item.note }}</span>
+            <span v-if="item.actor" class="history-actor">{{ item.actor }}</span>
+          </li>
+        </ol>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { goBack } from "../utils/navigation.js";
-import { getNeedTagLabel } from "../config/needTags.js";
-import { VISIBILITY_REASON_LABELS } from "../config/resourceOptions.js";
-import { getAllResources } from "../services/resourceService.js";
+import ChipSelect from "../components/ChipSelect.vue";
 import {
-  ESCORT_NOTICE,
-  getLinkedResourceName,
-  getLinkedResourceStatus,
-  getReferralOptions,
-} from "../services/referral.js";
-import { formatAddress, formatRegion, formatSchedule } from "../utils/resourceFormat.js";
+  ATTENDANCE_OPTIONS,
+  CLOSURE_REASON_OPTIONS,
+  IMPACT_OPTIONS,
+  LINKAGE_STATUS_OPTIONS,
+  PARTICIPATION_OPTIONS,
+  REFERRER_TYPE_OPTIONS,
+  STAGE_OPTIONS,
+  caseLabel,
+  stageLabel,
+  stageShort,
+} from "../config/caseLabels.js";
+import { NEED_TAGS, getNeedTagLabel } from "../config/needTags.js";
+import { VISIBILITY_REASON_LABELS } from "../config/resourceOptions.js";
+import {
+  addLinkage,
+  advanceStage,
+  closeCase,
+  getCaseById,
+  getFollowUpStatus,
+  getNextFollowUp,
+  isFirstContactOverdue,
+  isFollowUpDue,
+  recordFirstContact,
+  recordFollowUp,
+  returnToConsultation,
+  updateCase,
+  updateLinkageStatus,
+} from "../services/caseService.js";
+import { ESCORT_NOTICE, getLinkedResourceStatus, getReferralOptions } from "../services/referral.js";
+import { getAllResources } from "../services/resourceService.js";
+import { getCurrentUser } from "../utils/auth.js";
+import { deepClone } from "../utils/clone.js";
+import { formatDateTime, toDateString, todayString } from "../utils/date.js";
+import { maskNationalId } from "../utils/nationalId.js";
+import { goBack } from "../utils/navigation.js";
+import { formatDateTime as formatDisplayTime, formatRegion } from "../utils/resourceFormat.js";
 
 const route = useRoute();
 const router = useRouter();
 const back = () => goBack(router, "/cases");
 
-const cases = ref([]);
+const STEPS = STAGE_OPTIONS;
+const FOLLOW_UP_STATUS_LABELS = { done: "已完成", due: "已到期", upcoming: "未到期", unscheduled: "未排程" };
+const needTagOptions = NEED_TAGS.filter((t) => t.code !== "other");
+const actor = () => getCurrentUser()?.name ?? "";
+
+const caseItem = ref(null);
 const resources = ref([]);
-const currentCase = ref(null);
-const basicName = ref("");
-const basicAge = ref("");
-const basicSource = ref("");
-const basicIdentity = ref("");
-const basicProblem = ref("");
-const consultNeedLevel = ref("");
-const consultMotivation = ref("");
-const consultGoal = ref("");
-const consultNote = ref("");
-const linkageReason = ref("");
-const trackingStatus = ref("");
-const trackingEffect = ref("");
-const trackingNote = ref("");
-const closeReason = ref("");
-const closeOutcome = ref("");
+const notice = ref("");
+const advanceErrors = ref({});
 
-const stageLabels = [
-  { stage: 1, label: "辨識" },
-  { stage: 2, label: "諮詢" },
-  { stage: 3, label: "連結" },
-  { stage: 4, label: "追蹤" },
-  { stage: 5, label: "結案" },
-];
+// ── 草稿（各階段表單）──
+// datetime-local 需要 YYYY-MM-DDTHH:mm；儲存時轉回含時區的時間
+const toLocalInput = (value) => {
+  if (!value) return "";
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? "" : formatDateTime(d).slice(0, 16);
+};
+const fromLocalInput = (value) => (value ? formatDateTime(new Date(value)) : null);
 
-const stageText = (stage) => {
-  const matched = stageLabels.find((item) => item.stage === stage);
-  return matched ? `${matched.stage} ${matched.label}` : "1 辨識";
+const draft = reactive({
+  person: {},
+  managerName: "",
+  referral: {},
+  consultation: { goals: [], needTags: [] },
+  firstContactLocal: "",
+  closure: {},
+});
+const linkForm = reactive({ resourceId: "", reason: "" });
+const reportForm = reactive({ status: "", attendance: "", providerNote: "" });
+const followForm = reactive({ round: null, doneAt: "", attendance: "", participation: "", impact: "", note: "" });
+
+const fillDraft = (c) => {
+  const copy = deepClone(c);
+  draft.person = copy.person;
+  draft.managerName = copy.managerName;
+  draft.referral = copy.referral;
+  draft.consultation = copy.consultation;
+  draft.firstContactLocal = toLocalInput(copy.consultation.firstContactAt);
+  draft.closure = copy.closure;
 };
 
-const getToday = () => new Date().toISOString().slice(0, 10);
-const withRole = (content) => `[健康管理員] ${content}`;
-
-const loadCases = () => {
-  const stored = JSON.parse(localStorage.getItem("cases") || "[]");
-  cases.value = Array.isArray(stored) ? stored : [];
-};
-
-// 讀取全部資源（含不可推薦的），才能顯示已連結資源後來被暫停或終止的狀態
-const loadResources = () => {
+const load = (id) => {
+  caseItem.value = getCaseById(id);
   resources.value = getAllResources();
+  if (caseItem.value) fillDraft(caseItem.value);
 };
 
-// 轉介選單只列出可推薦資源（轉介情境）
+watch(
+  () => route.params.id,
+  (id) => {
+    notice.value = "";
+    advanceErrors.value = {};
+    load(id);
+  },
+  { immediate: true }
+);
+
+// 寫入後重新載入；各表單的草稿以儲存後的資料為準
+const refresh = (message) => {
+  load(caseItem.value.id);
+  if (message) notice.value = message;
+};
+
+// ── 階段狀態 ──
+const ORDER = STAGE_OPTIONS.map((o) => o.code);
+const stageIndex = (stage) => ORDER.indexOf(stage);
+const readonly = computed(() => caseItem.value?.stage === "closed");
+const fromAssessment = computed(() => !!caseItem.value?.referral.assessmentId);
+
+const stageState = (stage) => {
+  const current = stageIndex(caseItem.value.stage);
+  const target = stageIndex(stage);
+  if (target < current) return "done";
+  if (target === current) return "current";
+  return "future";
+};
+const stageStateLabel = (stage) => ({ done: "已完成", current: "目前階段", future: "尚未進入" })[stageState(stage)];
+
+// ── 提醒 ──
+const latestLinkage = computed(() => caseItem.value?.linkages.at(-1) ?? null);
+const latestResource = computed(() =>
+  latestLinkage.value ? getLinkedResourceStatus(latestLinkage.value.resourceId, resources.value) : null
+);
+const reasonLabels = (codes = []) => codes.map((c) => VISIBILITY_REASON_LABELS[c] ?? c).join("、");
+const followUpStatus = (f) => getFollowUpStatus(f);
+
+const alerts = computed(() => {
+  const c = caseItem.value;
+  if (!c || c.stage === "closed") return [];
+  const list = [];
+  if (isFirstContactOverdue(c)) {
+    list.push({ level: "danger", icon: "fa-solid fa-phone-slash", text: "開案已超過 72 小時，尚未首次聯繫" });
+  }
+  const next = getNextFollowUp(c);
+  if (next && isFollowUpDue(c)) {
+    list.push({
+      level: "warning",
+      icon: "fa-solid fa-calendar-check",
+      text: `${next.round} 個月追蹤已到期（排程 ${next.plannedAt}）`,
+    });
+  }
+  const latest = latestLinkage.value;
+  if (latest && latest.status !== "failed" && latestResource.value && !latestResource.value.available) {
+    list.push({
+      level: "danger",
+      icon: "fa-solid fa-triangle-exclamation",
+      text: latestResource.value.deleted
+        ? "連結的資源已被刪除，請重新選擇資源"
+        : `連結的資源目前${reasonLabels(latestResource.value.reasons)}，請重新選擇資源`,
+    });
+  }
+  if (latest?.status === "pending" && latestResource.value?.available) {
+    list.push({ level: "info", icon: "fa-solid fa-hourglass-half", text: `等待「${latest.resourceName}」回報連結結果` });
+  }
+  return list;
+});
+
+// ── 儲存與推進 ──
+const sectionPatch = (stage) => {
+  if (stage === 1) return { person: draft.person, managerName: draft.managerName, referral: draft.referral };
+  if (stage === 2) {
+    return {
+      consultation: {
+        ...draft.consultation,
+        firstContactAt: fromLocalInput(draft.firstContactLocal),
+        goals: draft.consultation.goals.map((g) => String(g).trim()).filter(Boolean),
+      },
+    };
+  }
+  if (stage === 5) return { closure: draft.closure };
+  return {};
+};
+
+const saveSection = (stage, { silent = false } = {}) => {
+  updateCase(caseItem.value.id, deepClone(sectionPatch(stage)));
+  refresh(silent ? "" : "已儲存");
+};
+
+// 勾選同意時記錄同意時間，取消勾選則清除
+const onConsentChange = () => {
+  draft.referral.consentAt = draft.referral.consent ? formatDateTime(new Date()) : null;
+};
+
+// 「下一步」：先儲存本階段，再用 caseService 的推進檢查；不符合條件時列出原因
+const advance = (stage) => {
+  advanceErrors.value = {};
+  saveSection(stage, { silent: true });
+  const result = advanceStage(caseItem.value.id, { actor: actor() });
+  if (!result.ok) {
+    advanceErrors.value = { [stage]: result.reasons };
+    return;
+  }
+  refresh(`已進入「${stageLabel(result.case.stage)}」階段`);
+};
+
+const contactNow = () => {
+  saveSection(2, { silent: true });
+  recordFirstContact(caseItem.value.id, { actor: actor() });
+  refresh("已記錄首次聯繫");
+};
+
+// ── 連結 ──
 const referralOptions = computed(() => getReferralOptions(resources.value));
 
-const linkedStatus = computed(() =>
-  getLinkedResourceStatus(currentCase.value?.linkage?.resourceId, resources.value)
-);
-const linkedResourceName = computed(() =>
-  getLinkedResourceName(currentCase.value?.linkage, currentCase.value?.history)
-);
-const isLinked = (resourceId) =>
-  String(currentCase.value?.linkage?.resourceId ?? "") === String(resourceId);
-const reasonLabels = (codes) =>
-  codes.map((code) => VISIBILITY_REASON_LABELS[code] ?? code).join("、");
-
-const loadCurrentCase = () => {
-  const found = cases.value.find((item) => String(item.id) === String(route.params.id)) || null;
-  if (!found) {
-    currentCase.value = null;
-    return;
-  }
-
-  currentCase.value = {
-    ...found,
-    basic: {
-      name: found.basic?.name || found.name || "",
-      age: found.basic?.age || "",
-      gender: found.basic?.gender || "",
-      identity: Array.isArray(found.basic?.identity) ? found.basic.identity : [],
-      source: found.basic?.source || "",
-      problem: found.basic?.problem || "",
-    },
-    consultation: {
-      needLevel: found.consultation?.needLevel || "",
-      motivation: found.consultation?.motivation || "",
-      goal: found.consultation?.goal || "",
-      note: found.consultation?.note || "",
-    },
-    linkage: {
-      resourceId: found.linkage?.resourceId ?? found.resourceId ?? null,
-      resourceName: found.linkage?.resourceName || "",
-      reason: found.linkage?.reason || "",
-      status: found.linkage?.status || "",
-    },
-    tracking: Array.isArray(found.tracking) ? found.tracking : [],
-    closure: {
-      reason: found.closure?.reason || "",
-      outcome: found.closure?.outcome || "",
-    },
-    history: Array.isArray(found.history) ? found.history : [],
-  };
-
-  basicName.value = currentCase.value.basic.name;
-  basicAge.value = currentCase.value.basic.age;
-  basicSource.value = currentCase.value.basic.source;
-  basicIdentity.value = currentCase.value.basic.identity[0] || "";
-  basicProblem.value = currentCase.value.basic.problem;
-  consultNeedLevel.value = currentCase.value.consultation.needLevel;
-  consultMotivation.value = currentCase.value.consultation.motivation;
-  consultGoal.value = currentCase.value.consultation.goal;
-  consultNote.value = currentCase.value.consultation.note;
-  linkageReason.value = currentCase.value.linkage.reason;
-  closeReason.value = currentCase.value.closure.reason;
-  closeOutcome.value = currentCase.value.closure.outcome;
-};
-
-const persistCases = () => {
-  localStorage.setItem("cases", JSON.stringify(cases.value));
-};
-
-const nextStage = () => {
-  if (!currentCase.value) return;
-  const currentStage = currentCase.value.stage || 1;
-  if (currentStage >= 6) return;
-
-  currentCase.value.history = Array.isArray(currentCase.value.history)
-    ? currentCase.value.history
-    : [];
-
-  if (currentStage === 1) {
-    currentCase.value.basic = {
-      ...currentCase.value.basic,
-      name: basicName.value,
-      age: basicAge.value,
-      source: basicSource.value,
-      identity: basicIdentity.value ? [basicIdentity.value] : [],
-      problem: basicProblem.value,
-    };
-  }
-
-  if (currentStage === 2) {
-    currentCase.value.consultation = {
-      ...currentCase.value.consultation,
-      needLevel: consultNeedLevel.value,
-      motivation: consultMotivation.value,
-      goal: consultGoal.value,
-      note: consultNote.value,
-    };
-  }
-
-  if (
-    currentStage === 2 &&
-    (!consultNeedLevel.value || !consultMotivation.value || !consultGoal.value)
-  ) {
-    alert("請完整填寫需求評估");
-    return;
-  }
-
-  if (currentStage === 3) {
-    if (!currentCase.value.linkage?.resourceId) {
-      alert("請先選擇資源");
-      return;
-    }
-    // 已連結的資源後來被刪除、暫停或終止時，須重新選擇才能進入追蹤
-    if (linkedStatus.value.deleted) {
-      alert("已連結的資源已被刪除，請重新選擇資源");
-      return;
-    }
-    if (!linkedStatus.value.available) {
-      alert(`已連結的資源目前無法轉介（${reasonLabels(linkedStatus.value.reasons)}），請重新選擇資源`);
-      return;
-    }
-
-    currentCase.value.linkage = {
-      ...currentCase.value.linkage,
-      reason: linkageReason.value,
-    };
-
-    currentCase.value.history.push({
-      stage: 3,
-      date: getToday(),
-      note: withRole("已完成資源連結"),
-    });
-  }
-
-  if (currentStage === 4 && (!currentCase.value.tracking || currentCase.value.tracking.length === 0)) {
-    alert("請至少新增一筆追蹤紀錄");
-    return;
-  }
-
-  if (currentStage === 5) {
-    if (!closeReason.value || !closeOutcome.value) {
-      alert("請填寫結案原因與成果");
-      return;
-    }
-
-    currentCase.value.closure = {
-      reason: closeReason.value,
-      outcome: closeOutcome.value,
-    };
-
-    currentCase.value.history.push({
-      stage: 5,
-      date: getToday(),
-      note: withRole(`${closeReason.value}｜${closeOutcome.value}`),
-    });
-
-    currentCase.value.stage = 6;
-
-    cases.value = cases.value.map((item) =>
-      String(item.id) === String(currentCase.value.id) ? { ...currentCase.value } : item
-    );
-
-    persistCases();
-    console.log(currentCase.value);
-    return;
-  }
-
-  if (currentStage === 2) {
-    currentCase.value.history.push({
-      stage: 2,
-      date: getToday(),
-      note: withRole(consultNote.value || "完成需求評估"),
-    });
-  }
-
-  const next = currentStage + 1;
-  currentCase.value.stage = next;
-  currentCase.value.history.push({
-    stage: next,
-    date: getToday(),
-    note: withRole("流程推進"),
-  });
-
-  cases.value = cases.value.map((item) =>
-    String(item.id) === String(currentCase.value.id) ? { ...currentCase.value } : item
-  );
-  persistCases();
-  console.log(currentCase.value);
-};
-
-const bindResource = (resourceId) => {
-  if (!currentCase.value) return;
-  currentCase.value.history = Array.isArray(currentCase.value.history)
-    ? currentCase.value.history
-    : [];
-  const resource = resources.value.find((r) => String(r.id) === String(resourceId));
-  // resourceName 存下連結當時的名稱，資源日後被刪除時個案頁仍可顯示
-  currentCase.value.linkage = {
-    ...currentCase.value.linkage,
-    resourceId: resourceId ?? null,
-    resourceName: resource?.name || "",
-    reason: linkageReason.value,
-  };
-  const escort = resource?.riskLevel === "yellow" ? `（${ESCORT_NOTICE}）` : "";
-  currentCase.value.history.push({
-    stage: 3,
-    date: getToday(),
-    note: withRole(`連結資源：${resource?.name || "未知資源"}${escort}`),
-  });
-
-  cases.value = cases.value.map((item) =>
-    String(item.id) === String(currentCase.value.id) ? { ...currentCase.value } : item
-  );
-  persistCases();
-};
-
-const addTrackingRecord = () => {
-  if (!currentCase.value) return;
-  if (!trackingStatus.value || !trackingEffect.value) {
-    alert("請填寫追蹤狀態與結果");
-    return;
-  }
-
-  currentCase.value.tracking = Array.isArray(currentCase.value.tracking)
-    ? currentCase.value.tracking
-    : [];
-
-  const record = {
-    status: trackingStatus.value,
-    effect: trackingEffect.value,
-    note: trackingNote.value || "",
-    date: getToday(),
-    step: (currentCase.value.tracking?.length || 0) + 1,
-  };
-
-  currentCase.value.tracking.push(record);
-  currentCase.value.history.push({
-    stage: 4,
-    date: getToday(),
-    note: withRole(`第${record.step}次追蹤｜${record.status}｜${record.effect}${record.note ? `｜${record.note}` : ""}`),
-  });
-
-  if (record.effect === "惡化") {
-    const shouldBack = confirm("個案狀況惡化，是否回到諮詢階段？");
-    if (shouldBack) {
-      currentCase.value.stage = 2;
-      currentCase.value.history.push({
-        stage: 4,
-        date: getToday(),
-        note: withRole("追蹤惡化，返回諮詢"),
-      });
-    }
-  }
-
-  trackingStatus.value = "";
-  trackingEffect.value = "";
-  trackingNote.value = "";
-
-  cases.value = cases.value.map((item) =>
-    String(item.id) === String(currentCase.value.id) ? { ...currentCase.value } : item
-  );
-  persistCases();
-};
-
-const reopenCase = () => {
-  if (!currentCase.value) return;
-
-  currentCase.value.history = Array.isArray(currentCase.value.history)
-    ? currentCase.value.history
-    : [];
-  currentCase.value.stage = 2;
-
-  currentCase.value.history.push({
-    stage: 5,
-    date: getToday(),
-    note: withRole("重新開案 → 回諮詢"),
-  });
-
-  cases.value = cases.value.map((item) =>
-    String(item.id) === String(currentCase.value.id) ? { ...currentCase.value } : item
-  );
-  persistCases();
-};
-
-const goToStage = (stage) => {
-  if (!currentCase.value) return;
-  if (stage < 1 || stage > 5) return;
-  currentCase.value.stage = stage;
-  cases.value = cases.value.map((item) =>
-    String(item.id) === String(currentCase.value.id) ? { ...currentCase.value } : item
-  );
-  persistCases();
-};
-
-onMounted(() => {
-  loadCases();
-  loadResources();
-  loadCurrentCase();
+// 第 3 階段可新增連結：尚無連結、最新一筆失敗，或最新一筆的資源已無法轉介（暫停、終止、刪除）
+const canAddLinkage = computed(() => {
+  if (readonly.value || caseItem.value.stage !== 3) return false;
+  const latest = latestLinkage.value;
+  return !latest || latest.status === "failed" || (latest.status === "pending" && !latestResource.value?.available);
 });
+
+const submitLinkage = () => {
+  // 原連結的資源已無法轉介：先記錄為失敗，保留這次嘗試
+  if (latestLinkage.value?.status === "pending") {
+    updateLinkageStatus(
+      caseItem.value.id,
+      { status: "failed", providerNote: "資源無法提供服務，改連結其他資源" },
+      { actor: actor() }
+    );
+  }
+  const resource = resources.value.find((r) => r.id === linkForm.resourceId);
+  addLinkage(caseItem.value.id, { resourceId: linkForm.resourceId, reason: linkForm.reason }, { actor: actor() });
+  linkForm.resourceId = "";
+  linkForm.reason = "";
+  refresh(`已連結「${resource?.name ?? ""}」，並排定 1、3、6 個月追蹤`);
+};
+
+// 連結失敗時詢問是否退回第 2 階段（不自動退回）
+const submitReport = () => {
+  const result = updateLinkageStatus(
+    caseItem.value.id,
+    { status: reportForm.status, attendance: reportForm.attendance || null, providerNote: reportForm.providerNote },
+    { actor: actor() }
+  );
+  Object.assign(reportForm, { status: "", attendance: "", providerNote: "" });
+  refresh("已記錄連結結果");
+  if (
+    result?.suggestReturnToConsultation &&
+    confirm("連結失敗，是否退回第 2 階段重新評估？\n\n選「取消」則留在連結階段，可以直接重新選擇資源。")
+  ) {
+    returnToConsultation(caseItem.value.id, { actor: actor(), note: "連結失敗，退回諮詢重新評估" });
+    refresh("已退回「諮詢」階段");
+  }
+};
+
+const confirmReturn = (note) => {
+  if (!confirm("確定要退回第 2 階段重新評估嗎？")) return;
+  returnToConsultation(caseItem.value.id, { actor: actor(), note });
+  refresh("已退回「諮詢」階段");
+};
+
+// ── 追蹤 ──
+// 只有第 4 階段（連結成功、進入追蹤後）才能填寫追蹤；第 3 階段只顯示排程
+const canRecordFollowUp = computed(() => !readonly.value && caseItem.value.stage === 4);
+
+const openFollowForm = (f) => {
+  Object.assign(followForm, {
+    round: f.round,
+    doneAt: todayString(),
+    attendance: "",
+    participation: "",
+    impact: "",
+    note: "",
+  });
+};
+const closeFollowForm = () => {
+  followForm.round = null;
+};
+
+// 影響為惡化時詢問是否退回第 2 階段（不自動退回）
+const submitFollowUp = () => {
+  const { round, ...entry } = followForm;
+  const result = recordFollowUp(caseItem.value.id, round, { ...entry }, { actor: actor() });
+  closeFollowForm();
+  refresh(`已記錄 ${round} 個月追蹤`);
+  if (result?.suggestReturnToConsultation && confirm("追蹤結果為「惡化」，是否退回第 2 階段重新評估？")) {
+    returnToConsultation(caseItem.value.id, { actor: actor(), note: "追蹤惡化，退回諮詢重新評估" });
+    refresh("已退回「諮詢」階段");
+  }
+};
+
+// ── 結案 ──
+const submitClose = () => {
+  advanceErrors.value = {};
+  const result = closeCase(caseItem.value.id, deepClone(draft.closure), { actor: actor() });
+  if (!result.ok) {
+    advanceErrors.value = { 5: result.reasons };
+    return;
+  }
+  refresh("已結案");
+};
+
+const historyNewestFirst = computed(() => [...(caseItem.value?.history || [])].reverse());
 </script>
 
 <style scoped>
 .case-detail-page {
   background: #fcfaf8;
   min-height: 100vh;
-  padding-bottom: 40px;
+  padding-bottom: 60px;
+  color: #3e2723;
 }
 
+/* Top Bar */
 .top-bar {
   background: #5d4037;
   color: white;
@@ -622,412 +810,649 @@ onMounted(() => {
   top: 0;
   z-index: 100;
 }
-
 .header-left,
 .header-right {
   flex: 1;
 }
-
 .header-center {
-  flex: 3;
+  flex: 2;
   text-align: center;
 }
-
 .header-center h2 {
-  margin: 0;
   font-size: 18px;
+  margin: 0;
   font-weight: 700;
 }
-
 .back-btn {
   background: none;
   border: 1px solid rgba(255, 255, 255, 0.4);
   color: white;
   padding: 5px 12px;
   border-radius: 6px;
-  cursor: pointer;
   font-size: 13px;
 }
 
 .main-content {
-  margin-top: 20px;
-  padding: 0 15px;
+  max-width: 960px;
+  padding-top: 20px;
 }
-
-.info-card,
-.flow-card,
-.section-card {
-  background: white;
-  border-radius: 14px;
-  border: 1px solid #f0e6e0;
-  box-shadow: 0 4px 12px rgba(93, 64, 55, 0.08);
-  padding: 16px;
-  margin-bottom: 15px;
-}
-
-.info-card h3 {
-  margin: 0 0 8px;
-  color: #3e2723;
-  font-size: 20px;
-}
-
-.info-card p {
-  margin: 0;
-  color: #8d6e63;
-  font-size: 14px;
-}
-
-.flow-steps {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.flow-step {
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 13px;
-  background: #ece7e2;
-  color: #a1887f;
-}
-
-.flow-step.completed {
-  background: #c2956e;
-  color: white;
-}
-
-.flow-step.active {
-  background: #5d4037;
-  color: white;
-  font-weight: 700;
-}
-
-.flow-arrow {
-  color: #bcaaa4;
-  font-size: 12px;
-}
-
-.action-row {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 15px;
-}
-
-.next-btn {
-  width: 100%;
-  border: none;
-  border-radius: 10px;
-  background: #5d4037;
-  color: white;
-  font-size: 15px;
-  font-weight: 700;
-  padding: 12px;
-  margin-bottom: 15px;
-  cursor: pointer;
-}
-
-.prev-btn {
-  border: 1px solid #d6ccc2;
-  border-radius: 10px;
-  background: white;
-  color: #6d4c41;
-  font-size: 14px;
-  font-weight: 700;
-  padding: 12px;
-  cursor: pointer;
-  min-width: 120px;
-}
-
-.prev-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.next-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.section-card h4 {
-  margin: 0 0 12px;
-  color: #3e2723;
-  font-size: 16px;
-}
-
-.section-title {
-  font-size: 13px;
-  color: #a1887f;
-  margin: 10px 0 6px;
-  font-weight: 600;
-}
-
-/* 已連結資源 */
-.linked-card {
+.card {
   background: #fff;
-  border: 1px solid #b7dfb9;
-  border-left: 5px solid #2e7d32;
-  border-radius: 12px;
-  padding: 16px 18px;
+  border: 1px solid #f0e6e0;
+  border-radius: 16px;
+  padding: 20px 22px;
   margin-bottom: 16px;
+  box-shadow: 0 4px 12px rgba(93, 64, 55, 0.05);
 }
-.linked-card.warning {
-  border-color: #f5c2c0;
-  border-left-color: #d32f2f;
-  background: #fffafa;
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #8d6e63;
+  display: grid;
+  gap: 14px;
+  justify-items: center;
 }
-.linked-head {
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* 基本資料 */
+.summary-head {
   display: flex;
-  justify-content: space-between;
+  gap: 8px;
   align-items: center;
   margin-bottom: 6px;
 }
-.linked-label {
-  font-size: 12px;
+.case-code {
+  font-family: "Courier New", monospace;
+  font-size: 13px;
   font-weight: 700;
+  background: #f5f0ed;
+  border-radius: 4px;
+  padding: 1px 8px;
+}
+.person-name {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+.person-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0 0 14px;
+  font-size: 14px;
   color: #8d6e63;
 }
-.state-badge {
+.stage-badge {
   font-size: 12px;
-  font-weight: 700;
   padding: 2px 10px;
   border-radius: 999px;
+  color: #fff;
+  font-weight: 600;
+  background: #9e9e9e;
 }
-.state-badge.on {
-  background: #edf7ee;
-  color: #1b5e20;
+.stage-2 {
+  background: #78909c;
 }
-.state-badge.off {
+.stage-3 {
+  background: #c2956e;
+}
+.stage-4 {
+  background: #6f8c72;
+}
+.stage-5 {
+  background: #5d4037;
+}
+.stage-closed {
+  background: #bdbdbd;
+}
+.demo-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6d4c41;
+  border: 1px dashed #a1887f;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+/* 階段進度 */
+.stepper {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  gap: 4px;
+}
+.stepper li {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 4px;
+  border-radius: 6px;
+  background: #f5f0ed;
+  color: #a1887f;
+}
+.stepper li.done {
+  background: #efe7dc;
+  color: #6d4c41;
+}
+.stepper li.current {
+  background: #5d4037;
+  color: #fff;
+}
+
+.alert-list {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+  display: grid;
+  gap: 6px;
+}
+.alert {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+.alert.danger {
   background: #fdecea;
   color: #b71c1c;
 }
-.linked-card h5 {
-  margin: 0 0 8px;
-  color: #3e2723;
-  font-size: 16px;
-  font-weight: 800;
+.alert.warning {
+  background: #fff3e0;
+  color: #bf360c;
 }
-.detail-link {
-  margin-left: 8px;
-  font-size: 12px;
+.alert.info {
+  background: #f5f0ed;
+  color: #5d4037;
+}
+.notice {
+  background: #edf7ee;
+  border: 1px solid #b7dfb9;
+  color: #1b5e20;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 14px;
   font-weight: 600;
+}
+
+/* 階段卡片 */
+.stage-card.current {
+  border-color: #c2956e;
+  box-shadow: 0 0 0 2px rgba(194, 149, 110, 0.25);
+}
+.stage-card.future {
+  background: #faf8f6;
+}
+.stage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.stage-head h2,
+.section-title {
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.section-title {
+  margin-bottom: 12px;
+}
+.step-no {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #5d4037;
+  color: #fff;
+  font-size: 14px;
+}
+.stage-card.future .step-no {
+  background: #bcaaa4;
+}
+.stage-state {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8d6e63;
+}
+.stage-card.current .stage-state {
   color: #b98158;
 }
-.linked-info {
-  margin: 0;
-  display: grid;
-  gap: 4px;
-  font-size: 13px;
+
+.field-label {
+  display: block;
+  font-weight: 700;
+  font-size: 14px;
+  margin: 0 0 6px;
 }
-.linked-info div {
+.field-label.small {
+  font-size: 12px;
+}
+.required {
+  color: #d32f2f;
+}
+input[type="text"],
+input[type="tel"],
+input[type="date"],
+input[type="datetime-local"],
+textarea,
+select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #e0d5cb;
+  border-radius: 10px;
+  background: #fdfbf9;
+  font-size: 15px;
+}
+input:disabled,
+textarea:disabled,
+select:disabled {
+  background: #f5f2ef;
+  color: #6d4c41;
+}
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: #5d4037;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+.check-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  margin: 4px 0;
+}
+.check-label.strong {
+  font-weight: 700;
+}
+.inline-field {
   display: flex;
   gap: 8px;
 }
-.linked-info dt {
-  flex-shrink: 0;
-  width: 32px;
-  color: #a1887f;
-  font-weight: 600;
-}
-.linked-info dd {
-  margin: 0;
-  color: #5d4037;
-}
-.linked-warning {
-  margin: 10px 0 0;
+.hint {
   font-size: 13px;
-  font-weight: 600;
+  color: #8d6e63;
+  margin: 6px 0 0;
+}
+.muted {
+  color: #a1887f;
+  font-size: 14px;
+  margin: 0;
+}
+.assessment-link {
+  margin: 0;
+  padding: 10px 12px;
+  background: #fdf8f4;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.assessment-link a {
+  font-weight: 700;
+  color: #b98158;
+}
+
+/* 目標 */
+.goal-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.goal-no {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #efe7dc;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #e0d5cb;
+  border-radius: 8px;
+  background: #fff;
+  color: #8d6e63;
+}
+
+/* 連結 */
+.linkage-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: grid;
+  gap: 8px;
+}
+.linkage-card {
+  border: 1px solid #efe7dc;
+  border-left: 4px solid #bcaaa4;
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+.linkage-card.success {
+  border-left-color: #2e7d32;
+}
+.linkage-card.failed {
+  border-left-color: #c62828;
+  background: #fafafa;
+}
+.linkage-card.pending {
+  border-left-color: #f9a825;
+}
+.linkage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.linkage-no {
+  font-size: 12px;
+  color: #8d6e63;
+}
+.linkage-name {
+  font-weight: 700;
+  color: #3e2723;
+}
+.linkage-meta,
+.linkage-text {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #6d4c41;
+}
+.status-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+.status-badge.pending {
+  background: #fff8e1;
+  color: #8a5a00;
+}
+.status-badge.success {
+  background: #edf7ee;
+  color: #1b5e20;
+}
+.status-badge.failed {
+  background: #fdecea;
   color: #b71c1c;
 }
+.escort-badge {
+  font-size: 12px;
+  font-weight: 700;
+  color: #8a5a00;
+  border: 1px solid #ffe082;
+  border-radius: 999px;
+  padding: 0 8px;
+}
+.warning-text {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: #b71c1c;
+}
+.failed-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  background: #fdecea;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: #b71c1c;
+}
+.failed-panel p {
+  margin: 0;
+  flex: 1;
+  min-width: 220px;
+}
+.sub-panel {
+  border: 1px dashed #d6ccc2;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.sub-title {
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+.sub-title small {
+  font-weight: 400;
+  color: #8d6e63;
+}
+.resource-options {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.resource-option {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid #e0d5cb;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.resource-option.selected {
+  border-color: #5d4037;
+  background: #f5ede6;
+}
+.resource-option input {
+  margin-top: 3px;
+}
+.resource-option strong,
+.resource-option small,
+.resource-option em {
+  display: block;
+}
+.resource-option small {
+  font-size: 12px;
+  color: #8d6e63;
+}
+.resource-option .tags {
+  color: #b98158;
+}
 .escort-note {
-  margin: 8px 0 0;
+  font-style: normal;
   font-size: 13px;
   font-weight: 600;
   color: #8a5a00;
-  background: #fff8e1;
-  border: 1px solid #ffe082;
-  border-radius: 8px;
-  padding: 4px 10px;
-  display: inline-block;
+  margin-top: 4px;
 }
 
-.linked-resource {
-  margin: 0 0 12px;
+/* 追蹤 */
+.follow-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.follow-table th {
+  text-align: left;
+  font-size: 12px;
   color: #8d6e63;
+  padding: 6px 8px;
+  border-bottom: 2px solid #efe7dc;
+}
+.follow-table td {
+  padding: 8px;
+  border-bottom: 1px solid #f3ece6;
+  vertical-align: top;
+}
+.fu-badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.fu-badge.done {
+  background: #edf7ee;
+  color: #1b5e20;
+}
+.fu-badge.due {
+  background: #fff3e0;
+  color: #bf360c;
+}
+.fu-badge.upcoming,
+.fu-badge.unscheduled {
+  background: #f5f0ed;
+  color: #8d6e63;
+}
+.fu-result small {
+  display: block;
+  color: #8d6e63;
+}
+.impact.worse {
+  color: #c62828;
+}
+.impact.improved {
+  color: #2e7d32;
+}
+.follow-note {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: #f5f0ed;
+  border-radius: 8px;
+}
+.follow-form-row td {
+  background: #fdf8f4;
+}
+.form-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 按鈕 */
+.stage-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.primary-btn {
+  background: #2e7d32;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 20px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.primary-btn.dark {
+  background: #5d4037;
+}
+.primary-btn:disabled {
+  background: #c8c1bb;
+}
+.outline-btn {
+  background: #fff;
+  color: #5d4037;
+  border: 1px solid #d6ccc2;
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.outline-btn.full {
+  width: 100%;
+}
+.outline-btn.small,
+.primary-btn.small {
+  padding: 5px 12px;
+  font-size: 13px;
+}
+.text-btn {
+  background: none;
+  border: none;
+  color: #b98158;
+  font-weight: 600;
+  padding: 4px 0;
+}
+.error-list {
+  margin: 10px 0 0;
+  padding: 10px 14px 10px 30px;
+  background: #fdecea;
+  border-radius: 8px;
+  color: #b71c1c;
   font-size: 14px;
 }
 
-.resource-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* 歷程 */
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
 }
-
-.resource-card {
-  border: 1px solid #efe7dc;
-  border-radius: 12px;
-  background: #fff;
-  padding: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.resource-card.selected {
-  border-color: #2e7d32;
-  background: #f6fbf6;
-}
-.resource-card {
-  gap: 12px;
-}
-.resource-meta {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: #8d6e63;
-}
-.resource-tags {
+.history-list li {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 4px 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #efe7dc;
 }
-.select-btn:disabled {
-  background: #a5d6a7;
-  cursor: default;
-}
-.resource-content h5 {
-  margin: 0 0 4px;
-  color: #3e2723;
-  font-size: 15px;
-}
-
-.resource-tag {
-  display: inline-block;
-  font-size: 12px;
+.history-date {
+  font-family: "Courier New", monospace;
   color: #8d6e63;
-  background: #fdf8f5;
-  border: 1px solid #efe7dc;
-  border-radius: 6px;
-  padding: 2px 8px;
+}
+.history-stage {
+  font-size: 12px;
+  font-weight: 700;
+  background: #f5f0ed;
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+.history-note {
+  flex: 1;
+  min-width: 200px;
+}
+.history-actor {
+  font-size: 12px;
+  color: #a1887f;
 }
 
-.select-btn {
-  background: #c2956e;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  cursor: pointer;
+@media (max-width: 576px) {
+  .stepper li {
+    font-size: 11px;
+    padding: 6px 2px;
+  }
+  .follow-table thead {
+    display: none;
+  }
+  .follow-table td {
+    display: block;
+    border: none;
+    padding: 2px 4px;
+  }
+  .follow-table tr {
+    display: block;
+    border-bottom: 1px solid #efe7dc;
+    padding: 6px 0;
+  }
 }
-
-.history-list {
-  margin: 0;
-  padding-left: 18px;
-  color: #6d4c41;
-  font-size: 13px;
-}
-
-.history-list li {
-  margin-bottom: 6px;
-  background: #fdf8f5;
-  border: 1px solid #efe7dc;
-  padding: 8px;
-  border-radius: 8px;
-}
-
-.empty-state,
-.empty-inline {
-  color: #bcaaa4;
-  font-size: 14px;
-}
-
-textarea,
-select {
-  width: 100%;
-  border: 1px solid #d6ccc2;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 14px;
-  background: #fdf8f5;
-  color: #3e2723;
-  outline: none;
-  transition: all 0.2s ease;
-  margin-top: 8px;
-  margin-bottom: 10px;
-}
-
-select {
-  cursor: pointer;
-}
-
-textarea {
-  min-height: 80px;
-  resize: vertical;
-}
-
-textarea:focus,
-select:focus {
-  border-color: #c2956e;
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(194, 149, 110, 0.15);
-}
-
-input,
-textarea,
-select {
-  width: 100%;
-  border: 1px solid #d6ccc2;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 14px;
-  background: #fdf8f5;
-  color: #3e2723;
-  margin-top: 8px;
-  margin-bottom: 10px;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  border-color: #c2956e;
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(194, 149, 110, 0.15);
-}
-
-.reopen-btn {
-  background: #e3f2fd;
-  border: 1px solid #90caf9;
-  color: #1565c0;
-  padding: 10px;
-  border-radius: 8px;
-  margin-top: 10px;
-  cursor: pointer;
-}
-
-.reopen-btn:hover {
-  background: #bbdefb;
-}
-
-.status-box {
-  background: #fdf8f5;
-  border: 1px solid #efe7dc;
-  padding: 10px;
-  border-radius: 8px;
-  margin-bottom: 10px;
-}
-
-.status-成功 {
-  color: #2e7d32;
-  font-weight: bold;
-}
-
-.status-失敗 {
-  color: #d32f2f;
-  font-weight: bold;
-}
-
-.status-pending {
-  color: #999;
-}
-
 </style>

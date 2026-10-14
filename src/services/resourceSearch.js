@@ -1,4 +1,4 @@
-// 民眾端（首頁、探索頁）的資源搜尋與篩選，純函式不讀寫 localStorage
+// 民眾端（首頁、探索頁）的資源搜尋與篩選，純函式不讀寫儲存區
 // 輸入的 resources 應已是 getRecommendableResources("explore") 的結果
 
 import { getNeedTagLabel, getPrescriptionTypeLabel } from "../config/needTags.js";

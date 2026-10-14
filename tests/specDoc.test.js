@@ -55,3 +55,30 @@ test("第十三節的待確認事項與第十一節一致，已確認的項目�
     "第十一節 [x] 的項目，第十三節應以 ✅ 標示"
   );
 });
+
+test("assessment-schema 第九節列出所有設定，且值與 assessmentRules.js 一致", async () => {
+  const assessmentRules = await import("../src/config/assessmentRules.js");
+  const text = readFileSync(new URL("../doc/assessment-schema.md", import.meta.url), "utf8");
+  const start = text.indexOf("## 九、設定開關");
+  const ninth = text.slice(start, text.indexOf("\n## ", start + 1));
+  // 文件中的底線與方括號有跳脫（FIRST\_CONTACT\_HOURS、\[1, 3, 6\]）
+  const unescape = (s) => s.replace(/\\/g, "");
+  const rows = Object.fromEntries(
+    [...ninth.matchAll(/^\| ([A-Z0-9\\_]+) \| ([^|]+?) \|/gm)].map(([, name, value]) => [
+      unescape(name),
+      unescape(value).replace(/\s/g, ""),
+    ])
+  );
+  // 程式中的設定：第九節的週期門檻與待確認假設（大寫常數且不是代碼表）
+  const settings = Object.fromEntries(
+    Object.entries(assessmentRules).filter(
+      ([name, value]) =>
+        /^[A-Z0-9_]+$/.test(name) &&
+        !(Array.isArray(value) && value.some((v) => typeof v === "string"))
+    )
+  );
+  assert.deepEqual(Object.keys(rows).sort(), Object.keys(settings).sort());
+  for (const [name, value] of Object.entries(settings)) {
+    assert.equal(rows[name], JSON.stringify(value), name);
+  }
+});

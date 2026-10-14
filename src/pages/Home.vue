@@ -87,6 +87,11 @@
             歡迎回來，<strong>{{ currentUser.name }}</strong>
           </p>
           <div class="provider-quick-actions">
+            <button type="button" class="provider-quick-btn" @click="goTodo">
+              <i class="fa-solid fa-bell" aria-hidden="true"></i>
+              待辦
+              <span v-if="overdueCount" class="todo-badge">逾期 {{ overdueCount }}</span>
+            </button>
             <button type="button" class="provider-quick-btn" @click="goList">
               <i class="fa-solid fa-list" aria-hidden="true"></i>
               管理資源
@@ -98,6 +103,14 @@
             <button type="button" class="provider-quick-btn" @click="goCases">
               <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
               個案管理
+            </button>
+            <button type="button" class="provider-quick-btn" @click="goAssessmentNew">
+              <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
+              填寫評估
+            </button>
+            <button type="button" class="provider-quick-btn" @click="goAssessments">
+              <i class="fa-solid fa-list-check" aria-hidden="true"></i>
+              評估列表
             </button>
           </div>
         </div>
@@ -402,10 +415,12 @@ import { CITIES } from "../config/districts.js";
 import { getNeedTagLabel } from "../config/needTags.js";
 import { getRecommendableResources } from "../services/resourceService.js";
 import { countByDistrict } from "../services/resourceSearch.js";
+import { computeTodos, countOverdue } from "../services/todoService.js";
 import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 
 const router = useRouter();
 const currentUser = ref(null);
+const overdueCount = ref(0);
 const searchText = ref("");
 const addressSearch = ref("");
 const selectedRegion = ref("");
@@ -543,6 +558,7 @@ const goExplore = (params = {}) => {
 
 onMounted(() => {
   currentUser.value = getCurrentUser();
+  if (currentUser.value) overdueCount.value = countOverdue(computeTodos());
   allResources.value = getRecommendableResources("explore").sort((a, b) =>
     String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""))
   );
@@ -573,9 +589,12 @@ const handleRegionChange = () => {
   goExplore({ city, district });
 };
 
+const goTodo = () => router.push("/todo");
 const goList = () => router.push("/list");
 const goForm = () => router.push("/form");
 const goCases = () => router.push("/cases");
+const goAssessmentNew = () => router.push("/assessment/new");
+const goAssessments = () => router.push("/assessments");
 const goLogin = () => router.push("/login");
 const goRegister = () => router.push("/register");
 const goResource = (id) => router.push(`/user/resources/${id}`);
@@ -1085,6 +1104,15 @@ const logout = () => {
   align-items: center;
   gap: 8px;
   transition: var(--card-transition);
+}
+
+.todo-badge {
+  background: #c62828;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
 }
 
 .provider-quick-btn:hover {

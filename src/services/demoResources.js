@@ -1,6 +1,7 @@
 // 示範資料：6 筆虛構資源，供展示與測試使用（第 1 筆改寫自 doc/resource-schema.md 第十節）
 // 機構、人名、電話、網址皆為虛構：名稱含「示範／範例」、電話為 0000 號段、網址為 example.com
 // 每筆帶 isDemo: true，可由 resourceService.removeDemoResources() 一鍵移除
+// 日期以 2026-10-14 為「載入當天」撰寫，經 demoService 載入時依實際日期平移（見 DEMO_BASE_DATE）
 //
 // 組成（tests/demoResources.test.js 會逐項檢查）：
 //   探索頁顯示 3 筆：黃燈（板橋）、綠燈（中和）、綠燈（臺北大安），分屬不同行政區
@@ -190,7 +191,7 @@ export const DEMO_RESOURCES = [
       { name: "吳示範", role: "協同帶領者", license: "社會工作師", experience: "長照個案管理 4 年" },
     ],
     capacity: { type: "limited", limit: 12 },
-    availability: { type: "full", slots: 0, nextBatch: "2027 年 1 月第二梯次，12 月開放報名" },
+    availability: { type: "full", slots: 0, nextBatch: "下一梯次約三個月後開課，開課前一個月開放報名" },
     schedule: {
       type: "batch",
       startDate: "2026-10-03",
@@ -382,19 +383,20 @@ export const DEMO_RESOURCES = [
   },
 
   // 6. 臺北文山｜綠燈｜合作尚未確認｜單次性｜社區活動引導 → 探索頁不顯示（合作未確認）
+  //    新資源三個月驗證已過期 10 天（待辦「資源待驗證」）
   {
     id: "d3a1f0b2-1c4e-4a6b-8d2f-0a1b2c3d4e09",
     isDemo: true,
     code: "Res006",
     verifiedBy: { type: "team", name: "林示例" },
-    lastVerifiedAt: "2026-09-01",
-    nextVerifyAt: "2026-12-01",
+    lastVerifiedAt: "2026-07-04",
+    nextVerifyAt: "2026-10-04",
     status: "active",
     pauseReason: null,
     resumeAt: null,
     seasonalNote: null,
-    createdAt: "2026-09-01T10:00:00+08:00",
-    updatedAt: "2026-09-01T10:00:00+08:00",
+    createdAt: "2026-07-04T10:00:00+08:00",
+    updatedAt: "2026-07-04T10:00:00+08:00",
 
     name: "範例森林療癒散步",
     organization: "範例自然生態學會",

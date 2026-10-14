@@ -8,6 +8,7 @@ import {
   SHOW_STAFF_TO_PUBLIC,
   getVisibility,
 } from "../config/resourceRules.js";
+import { deepClone } from "../utils/clone.js";
 
 /**
  * 民眾是否可以查看這筆資源；不可查看時提供給民眾的說明（不透露風險或合作等後台原因）
@@ -42,7 +43,7 @@ export function getPublicAvailability(resource) {
 // 只保留民眾可見欄位；不可查看的資源回傳 null
 export function toPublicResource(resource) {
   if (!getPublicAvailability(resource).available) return null;
-  const r = structuredClone(resource);
+  const r = deepClone(resource);
   return {
     id: r.id,
     name: r.name,
