@@ -411,7 +411,9 @@
                 <label>縣市 <FieldMark /></label>
                 <select v-model="form.address.city" :class="{ invalid: err('address.city') }">
                   <option value="" disabled>請選擇縣市</option>
-                  <option v-for="city in cityNames" :key="city" :value="city">{{ city }}</option>
+                  <optgroup v-for="group in cityGroups" :key="group.type" :label="group.type">
+                    <option v-for="city in group.cities" :key="city" :value="city">{{ city }}</option>
+                  </optgroup>
                 </select>
                 <p v-if="err('address.city')" class="field-error">{{ err("address.city") }}</p>
               </div>
@@ -454,6 +456,53 @@
                 />
                 <p v-if="err('address.detail')" class="field-error">{{ err("address.detail") }}</p>
                 <button type="button" class="btn-geo" @click="openMap">🗺️ 在地圖中確認地址</button>
+              </div>
+
+              <!-- 座標（選填）：探索頁「使用目前位置」依此計算距離 -->
+              <div class="col-12">
+                <label for="map-link">座標 <span class="optional-hint">選填，用於民眾端「附近資源」距離排序</span></label>
+                <div class="map-link-row">
+                  <input
+                    id="map-link"
+                    v-model.trim="mapLink"
+                    type="text"
+                    placeholder="貼上 Google 地圖連結，自動帶入經緯度"
+                    @paste="onMapLinkPaste"
+                    @keydown.enter.prevent="applyMapLink"
+                  />
+                  <button type="button" class="btn-apply-link" @click="applyMapLink">帶入</button>
+                </div>
+                <p v-if="mapLinkMessage" :class="['geo-message', mapLinkOk ? 'ok' : 'field-error']">
+                  {{ mapLinkMessage }}
+                </p>
+              </div>
+              <div class="col-md-6">
+                <label for="geo-lat">緯度</label>
+                <input
+                  id="geo-lat"
+                  v-model.trim="geoLat"
+                  type="text"
+                  inputmode="decimal"
+                  placeholder="例：25.0143"
+                  :class="{ invalid: err('geo') }"
+                />
+              </div>
+              <div class="col-md-6">
+                <label for="geo-lng">經度</label>
+                <input
+                  id="geo-lng"
+                  v-model.trim="geoLng"
+                  type="text"
+                  inputmode="decimal"
+                  placeholder="例：121.4635"
+                  :class="{ invalid: err('geo') }"
+                />
+              </div>
+              <div v-if="err('geo')" class="col-12">
+                <p class="field-error">{{ err("geo") }}</p>
+              </div>
+              <div v-else-if="geoLat || geoLng" class="col-12">
+                <button type="button" class="btn-link-geo" @click="openGeo">在地圖上查看這個座標</button>
               </div>
             </div>
           </div>
@@ -866,7 +915,8 @@ import {
   getNeedTagsByType,
   getPrescriptionTypeLabel,
 } from "../config/needTags.js";
-import { getCityNames, getDistricts, getZipCode } from "../config/districts.js";
+import { getCityGroups, getDistricts, getZipCode } from "../config/districts.js";
+import { checkGeo, parseMapLink } from "../utils/geo.js";
 import {
   ACCESSIBILITY_OPTIONS,
   AGE_GROUPS,
@@ -945,7 +995,7 @@ const nextVerifyManual = ref(false);
 
 const RISK_ICON = { green: "🟢", yellow: "🟡", red: "🔴" };
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({ code: i + 1, label: `${i + 1} 日` }));
-const cityNames = getCityNames();
+const cityGroups = getCityGroups();
 const isManualRisk = OVERALL_RISK_STRATEGY !== "worst";
 
 const tagGroups = PRESCRIPTION_TYPES.map((t) => ({ ...t, tags: getNeedTagsByType(t.code) })).filter(
@@ -959,20 +1009,19 @@ const derivedTypes = computed(() => derivePrescriptionTypes(form.needTags));
 const districtOptions = computed(() => getDistricts(form.address.city));
 
 // ── 地址連動 ──
+// 縣市或行政區任一變動都重新以「縣市＋行政區」查郵遞區號：
+//   不同縣市有同名行政區（例：新竹市東區 300、嘉義市東區 600），只換縣市時行政區名稱不變，也要更新郵遞區號
+//   郵遞區號已是同一區的 5 碼或 6 碼（前 3 碼相同）時保留，不覆蓋成 3 碼
 watch(
-  () => form.address.city,
-  () => {
-    if (!districtOptions.value.some((d) => d.name === form.address.district)) {
-      form.address.district = "";
+  () => [form.address.city, form.address.district],
+  ([city, district]) => {
+    if (!districtOptions.value.some((d) => d.name === district)) {
+      if (district) form.address.district = "";
       form.address.zip = "";
+      return;
     }
-  }
-);
-watch(
-  () => form.address.district,
-  (district) => {
-    const zip = getZipCode(form.address.city, district);
-    if (zip) form.address.zip = zip;
+    const zip = getZipCode(city, district);
+    if (zip && !String(form.address.zip ?? "").startsWith(zip)) form.address.zip = zip;
   }
 );
 
@@ -1055,6 +1104,46 @@ const openMap = () => {
   );
 };
 
+// ── 座標 ──
+// 貼上 Google 地圖連結自動帶入經緯度；也可手動填寫。只在表單內解析，不連線查詢
+const geoLat = ref(original?.geo ? String(original.geo.lat) : "");
+const geoLng = ref(original?.geo ? String(original.geo.lng) : "");
+const mapLink = ref("");
+const mapLinkMessage = ref("");
+const mapLinkOk = ref(false);
+
+const applyMapLink = () => {
+  if (!mapLink.value) return;
+  const result = parseMapLink(mapLink.value);
+  mapLinkOk.value = result.ok;
+  if (result.ok) {
+    geoLat.value = String(result.geo.lat);
+    geoLng.value = String(result.geo.lng);
+    mapLinkMessage.value = `已帶入座標：${result.geo.lat}, ${result.geo.lng}`;
+  } else {
+    mapLinkMessage.value = result.error;
+  }
+};
+// 貼上後等輸入框更新再解析
+const onMapLinkPaste = () => setTimeout(applyMapLink);
+
+const openGeo = () => {
+  const geo = checkGeo(geoLat.value, geoLng.value);
+  if (!geo.ok || !geo.geo) return;
+  window.open(
+    `https://www.google.com/maps/search/?api=1&query=${geo.geo.lat},${geo.geo.lng}`,
+    "_blank",
+    "noopener"
+  );
+};
+
+// 兩欄皆空白為 null；格式正確轉成數字；格式錯誤保留原字串，交由 validateResource 顯示錯誤
+const buildGeo = () => {
+  const result = checkGeo(geoLat.value, geoLng.value);
+  if (result.ok) return result.geo;
+  return { lat: geoLat.value, lng: geoLng.value };
+};
+
 // ── 送出 ──
 const toNumberOrNull = (v) => (v === "" || v === null || !Number.isFinite(Number(v)) ? null : Number(v));
 const textOrNull = (v) => (String(v ?? "").trim() ? String(v).trim() : null);
@@ -1099,6 +1188,7 @@ const buildPayload = () => {
     other: has(data.transport, "other") ? textOrNull(data.transportNote.other) : null,
   };
   if (!has(data.accessibility, "other")) data.accessibilityOther = null;
+  data.geo = buildGeo();
   if (data.fee.type === "free") data.fee.detail = null;
   if (!has(data.followUpMethods, "other")) data.followUpOther = null;
 
@@ -1119,7 +1209,7 @@ const validate = () => validateResource(buildPayload(), { original });
 
 // 第一次送出後即時重新檢核，修正一項就消失一項
 watch(
-  [form, keywordsText, linksText],
+  [form, keywordsText, linksText, geoLat, geoLng],
   () => {
     if (submitted.value) errors.value = validate().errors;
   },
@@ -1505,6 +1595,48 @@ select:disabled {
   color: #5d4037;
   font-size: 14px;
   font-weight: 600;
+  cursor: pointer;
+}
+
+.optional-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: #8d6e63;
+  margin-left: 6px;
+}
+.map-link-row {
+  display: flex;
+  gap: 8px;
+}
+.map-link-row input {
+  flex: 1;
+  min-width: 0;
+}
+.btn-apply-link {
+  flex-shrink: 0;
+  background: #5d4037;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0 18px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.geo-message {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+.geo-message.ok {
+  color: #2e7d32;
+}
+.btn-link-geo {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #b98158;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
   cursor: pointer;
 }
 

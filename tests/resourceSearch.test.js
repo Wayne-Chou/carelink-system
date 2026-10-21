@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { collectCodes, countByDistrict, filterResources } from "../src/services/resourceSearch.js";
+import {
+  cityOptionGroups,
+  collectCodes,
+  countByDistrict,
+  districtOptions,
+  filterResources,
+} from "../src/services/resourceSearch.js";
 
 const make = (id, patch = {}) => ({
   id,
@@ -66,4 +72,24 @@ test("countByDistrict 依數量排序，略過沒有行政區的資源", () => {
 
 test("collectCodes 只列出有用到的代碼並依指定順序", () => {
   assert.deepEqual(collectCodes(list, "needTags", ["mental", "food", "exercise", "legal"]), ["mental", "food", "exercise"]);
+});
+
+test("地區兩層選單：縣市依直轄市、市、縣分組並附資源數", () => {
+  const groups = cityOptionGroups([...list, make("d", { address: { city: "台中市", district: "", detail: "" } })]);
+  assert.deepEqual(groups.map((g) => [g.type, g.cities.length]), [["直轄市", 6], ["市", 3], ["縣", 13]]);
+  const city = (name) => groups.flatMap((g) => g.cities).find((c) => c.name === name);
+  assert.equal(city("臺北市").label, "臺北市（1）");
+  assert.equal(city("新北市").label, "新北市（2）");
+  assert.equal(city("臺中市").count, 1, "台／臺視為同一字；只填縣市的資源也計入縣市");
+  assert.equal(city("嘉義市").label, "嘉義市", "沒有資源時不顯示數字");
+});
+
+test("地區兩層選單：行政區只列出所選縣市的，同名行政區不互相計數", () => {
+  assert.deepEqual(districtOptions(list, ""), []);
+  const newTaipei = districtOptions(list, "新北市");
+  assert.equal(newTaipei.length, 29);
+  assert.equal(newTaipei.find((d) => d.name === "板橋區").label, "板橋區（1）");
+  const taichung = districtOptions(list, "臺中市");
+  assert.equal(taichung.find((d) => d.name === "大安區").count, 0, "臺北市大安區的資源不算在臺中市大安區");
+  assert.equal(districtOptions(list, "台北市").find((d) => d.name === "大安區").count, 1);
 });

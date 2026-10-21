@@ -54,6 +54,10 @@
             />
             <button type="submit">搜尋</button>
           </form>
+          <button type="button" class="hero-nearby-btn" @click="useCurrentLocation">
+            <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>
+            找我附近的資源
+          </button>
           <div class="hero-chips">
             <button
               v-for="chip in heroChips"
@@ -162,7 +166,7 @@
         <div class="section-head">
           <p class="section-eyebrow">What's near me?</p>
           <h2>尋找附近的社區服務</h2>
-          <p>輸入地址或地標，快速找到離您最近的資源與據點</p>
+          <p>輸入地址或地標搜尋，或用目前位置依距離由近到遠排列；位置只在您的瀏覽器中計算，不會儲存或傳送</p>
         </div>
         <div class="near-grid">
           <div class="near-form">
@@ -181,7 +185,7 @@
               </button>
               <button type="button" class="btn-secondary" @click="useCurrentLocation">
                 <i class="fa-solid fa-location-crosshairs"></i>
-                使用目前位置
+                找我附近的資源
               </button>
             </div>
           </div>
@@ -211,25 +215,35 @@
           <h2>選擇行政區</h2>
           <p>依所在區域瀏覽已上架的社區資源</p>
         </div>
+        <!-- 先選縣市、再選行政區；選好行政區即帶著兩個條件前往探索頁 -->
         <div class="region-control">
-          <label class="field-label" for="region-select">行政區</label>
-          <select
-            id="region-select"
-            v-model="selectedRegion"
-            class="region-select"
-            @change="handleRegionChange"
-          >
-            <option value="">全部行政區</option>
-            <optgroup v-for="group in regionGroups" :key="group.city" :label="group.city">
-              <option
-                v-for="d in group.districts"
-                :key="d.value"
-                :value="d.value"
+          <div class="region-fields">
+            <div>
+              <label class="field-label" for="region-city">縣市</label>
+              <select id="region-city" v-model="selectedCity" class="region-select" @change="selectedDistrict = ''">
+                <option value="">請選擇縣市</option>
+                <optgroup v-for="group in cityGroups" :key="group.type" :label="group.type">
+                  <option v-for="c in group.cities" :key="c.name" :value="c.name">{{ c.label }}</option>
+                </optgroup>
+              </select>
+            </div>
+            <div>
+              <label class="field-label" for="region-district">行政區</label>
+              <select
+                id="region-district"
+                v-model="selectedDistrict"
+                class="region-select"
+                :disabled="!selectedCity"
+                @change="handleRegionChange"
               >
-                {{ d.label }}
-              </option>
-            </optgroup>
-          </select>
+                <option value="">{{ selectedCity ? "請選擇行政區" : "請先選擇縣市" }}</option>
+                <option v-for="d in regionDistricts" :key="d.name" :value="d.name">{{ d.label }}</option>
+              </select>
+            </div>
+          </div>
+          <button v-if="selectedCity" type="button" class="region-city-link" @click="goExplore({ city: selectedCity })">
+            查看{{ selectedCity }}全部資源 <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+          </button>
         </div>
       </div>
     </section>
@@ -411,10 +425,9 @@ import { useRouter } from "vue-router";
 import logo from "../assets/logo.png";
 import heroBg from "../assets/bg-community-brown.png";
 import { clearCurrentUser, getCurrentUser } from "../utils/auth.js";
-import { CITIES } from "../config/districts.js";
 import { getNeedTagLabel } from "../config/needTags.js";
 import { getRecommendableResources } from "../services/resourceService.js";
-import { countByDistrict } from "../services/resourceSearch.js";
+import { cityOptionGroups, countByDistrict, districtOptions } from "../services/resourceSearch.js";
 import { computeTodos, countOverdue } from "../services/todoService.js";
 import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 
@@ -423,7 +436,8 @@ const currentUser = ref(null);
 const overdueCount = ref(0);
 const searchText = ref("");
 const addressSearch = ref("");
-const selectedRegion = ref("");
+const selectedCity = ref("");
+const selectedDistrict = ref("");
 // 只顯示符合推薦規則的資源（探索頁情境），最近更新的排前面
 const allResources = ref([]);
 
@@ -534,17 +548,9 @@ const categories = [
 const districtCounts = computed(() => countByDistrict(allResources.value));
 const hotDistricts = computed(() => districtCounts.value.slice(0, 3));
 
-// 行政區選單：列出設定檔中的所有行政區，並附上目前可用的資源數
-const regionGroups = computed(() =>
-  CITIES.map((city) => ({
-    city: city.name,
-    districts: city.districts.map((d) => {
-      const count =
-        districtCounts.value.find((c) => c.city === city.name && c.district === d.name)?.count ?? 0;
-      return { value: `${city.name}|${d.name}`, label: count ? `${d.name}（${count}）` : d.name };
-    }),
-  }))
-);
+// 地區兩層選單（與探索頁相同）：縣市依直轄市、市、縣分組，附上目前可用的資源數
+const cityGroups = computed(() => cityOptionGroups(allResources.value));
+const regionDistricts = computed(() => districtOptions(allResources.value, selectedCity.value));
 
 const activeResourceCount = computed(() => allResources.value.length);
 const featuredResources = computed(() => allResources.value.slice(0, 6));
@@ -580,13 +586,13 @@ const handleAddressSearch = () => {
   goExplore({ address: addressSearch.value.trim() });
 };
 
+// 前往探索頁並啟動定位（探索頁看到 nearby=true 會向瀏覽器要求位置）
 const useCurrentLocation = () => {
   goExplore({ nearby: "true" });
 };
 
 const handleRegionChange = () => {
-  const [city, district] = selectedRegion.value.split("|");
-  goExplore({ city, district });
+  if (selectedDistrict.value) goExplore({ city: selectedCity.value, district: selectedDistrict.value });
 };
 
 const goTodo = () => router.push("/todo");
@@ -865,6 +871,26 @@ const logout = () => {
 
 .hero-search button:hover {
   background: #a06f4a;
+}
+
+.hero-nearby-btn {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.92);
+  color: #5d4037;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.hero-nearby-btn:hover {
+  background: #fff;
 }
 
 .hero-chips {
@@ -1475,6 +1501,38 @@ const logout = () => {
   font-weight: 600;
   box-shadow: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.region-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-1);
+}
+
+.region-select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.region-city-link {
+  margin-top: var(--space-1);
+  padding: 0;
+  border: none;
+  background: none;
+  color: #b98158;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.region-city-link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 576px) {
+  .region-fields {
+    grid-template-columns: 1fr;
+  }
 }
 
 .region-select:hover {

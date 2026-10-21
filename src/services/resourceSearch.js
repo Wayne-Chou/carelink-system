@@ -2,7 +2,7 @@
 // 輸入的 resources 應已是 getRecommendableResources("explore") 的結果
 
 import { getNeedTagLabel, getPrescriptionTypeLabel } from "../config/needTags.js";
-import { normalizeCityName } from "../config/districts.js";
+import { CITIES, CITY_TYPES, getDistricts, normalizeCityName } from "../config/districts.js";
 
 const lower = (v) => String(v ?? "").toLowerCase();
 
@@ -80,6 +80,35 @@ export function countByDistrict(resources) {
       return { city: c, district: d, count };
     })
     .sort((a, b) => b.count - a.count);
+}
+
+// ── 地區兩層選單（首頁與探索頁共用）：先選縣市、再選行政區，標籤附上資源數 ──
+const withCount = (name, count) => (count ? `${name}（${count}）` : name);
+
+// 縣市選單：依直轄市、市、縣分組 → [{ type, cities: [{ name, label, count }] }]
+export function cityOptionGroups(resources) {
+  const counts = new Map();
+  for (const r of resources || []) {
+    const city = normalizeCityName(r.address?.city);
+    if (city) counts.set(city, (counts.get(city) || 0) + 1);
+  }
+  return CITY_TYPES.map((type) => ({
+    type,
+    cities: CITIES.filter((c) => c.type === type).map((c) => {
+      const count = counts.get(c.name) || 0;
+      return { name: c.name, label: withCount(c.name, count), count };
+    }),
+  }));
+}
+
+// 行政區選單：只列出所選縣市的行政區 → [{ name, label, count }]；未選縣市時為空陣列
+export function districtOptions(resources, city) {
+  const target = normalizeCityName(city);
+  const counts = countByDistrict(resources).filter((x) => x.city === target);
+  return getDistricts(target).map((d) => {
+    const count = counts.find((x) => x.district === d.name)?.count ?? 0;
+    return { name: d.name, label: withCount(d.name, count), count };
+  });
 }
 
 // 列出資源實際用到的代碼（依 order 排序），讓篩選選項只顯示有結果的項目

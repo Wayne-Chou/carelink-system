@@ -9,6 +9,7 @@ import {
   STRICT_VALIDATION,
   computeOverallRisk,
 } from "../config/resourceRules.js";
+import { checkGeo } from "../utils/geo.js";
 
 export const DESCRIPTION_MAX_LENGTH = 100;
 
@@ -155,6 +156,11 @@ export function validateResource(resource, { original = null, strict = STRICT_VA
     !isBlank(r.address?.zip) && !/^\d{3}(\d{2,3})?$/.test(String(r.address.zip).trim()),
     "郵遞區號需為 3、5 或 6 碼數字"
   );
+  // 座標選填；有填時需成對、為數字、在臺灣範圍內（任何模式都阻擋）
+  if (r.geo !== null && r.geo !== undefined) {
+    const geo = checkGeo(r.geo.lat, r.geo.lng);
+    format("geo", !geo.ok, geo.error);
+  }
 
   // 三、安全與風險
   for (const key of RISK_CRITERIA_KEYS) {

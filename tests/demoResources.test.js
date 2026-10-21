@@ -92,3 +92,22 @@ test("示範資料的資源編碼為 Res001 起的連續流水號", () => {
     DEMO_RESOURCES.map((_, i) => `Res${String(i + 1).padStart(3, "0")}`)
   );
 });
+
+// 各行政區的保守範圍（取行政區內部、避開邊界），確認示範座標落在各自填寫的行政區內
+const DISTRICT_BOUNDS = {
+  "新北市板橋區": { lat: [24.995, 25.035], lng: [121.445, 121.475] },
+  "新北市中和區": { lat: [24.98, 25.005], lng: [121.48, 121.515] },
+  "臺北市大安區": { lat: [25.015, 25.04], lng: [121.53, 121.555] },
+  "臺北市文山區": { lat: [24.975, 25.0], lng: [121.55, 121.59] },
+};
+
+test("示範資源都有座標，且落在各自填寫的行政區內", () => {
+  for (const r of DEMO_RESOURCES) {
+    const key = `${r.address.city}${r.address.district}`;
+    const bounds = DISTRICT_BOUNDS[key];
+    assert.ok(bounds, `${r.code} 的行政區 ${key} 需補上範圍`);
+    assert.ok(r.geo, `${r.code} 沒有座標`);
+    assert.ok(r.geo.lat >= bounds.lat[0] && r.geo.lat <= bounds.lat[1], `${r.code} 緯度 ${r.geo.lat} 不在 ${key}`);
+    assert.ok(r.geo.lng >= bounds.lng[0] && r.geo.lng <= bounds.lng[1], `${r.code} 經度 ${r.geo.lng} 不在 ${key}`);
+  }
+});

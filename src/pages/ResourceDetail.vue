@@ -193,6 +193,18 @@
                   </a>
                 </dd>
               </div>
+              <div class="data-row full">
+                <dt>座標</dt>
+                <dd>
+                  <template v-if="hasGeo(resource.geo)">
+                    {{ resource.geo.lat }}, {{ resource.geo.lng }}
+                    <a :href="geoLink" target="_blank" rel="noopener" class="map-link">
+                      <i class="fa-solid fa-location-dot" aria-hidden="true"></i> 在地圖上查看座標
+                    </a>
+                  </template>
+                  <span v-else class="geo-missing">尚未提供（民眾端「附近資源」會排在最後）</span>
+                </dd>
+              </div>
             </dl>
 
             <h4 class="sub-title">人力配置</h4>
@@ -457,6 +469,7 @@ import { getVisibility } from "../config/resourceRules.js";
 import { getResourceById, isVerifyOverdue } from "../services/resourceService.js";
 import { consumeFlash } from "../utils/flash.js";
 import { goBack } from "../utils/navigation.js";
+import { hasGeo } from "../utils/geo.js";
 import {
   formatAddress,
   formatCapacity,
@@ -560,6 +573,12 @@ const mapLink = computed(
     `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
       `${resource.value.address.city}${resource.value.address.district}${resource.value.address.detail}`
     )}`
+);
+
+const geoLink = computed(() =>
+  hasGeo(resource.value?.geo)
+    ? `https://www.google.com/maps/search/?api=1&query=${resource.value.geo.lat},${resource.value.geo.lng}`
+    : ""
 );
 </script>
 
@@ -912,6 +931,10 @@ const mapLink = computed(
   color: #b98158;
   text-decoration: none;
 }
+.geo-missing {
+  color: #9e9e9e;
+}
+
 .map-link:hover {
   text-decoration: underline;
 }

@@ -52,15 +52,27 @@
             </button>
           </div>
 
+          <!-- 地區：先選縣市、再選行政區；括號內為目前可查詢的資源數 -->
           <div class="filter-block">
-            <label for="region-filter">行政區</label>
-            <select id="region-filter" :value="regionValue" @change="setRegion($event.target.value)">
-              <option value="">全部行政區</option>
-              <optgroup v-for="group in regionGroups" :key="group.city" :label="group.city">
-                <option v-for="d in group.districts" :key="d.value" :value="d.value">
-                  {{ d.label }}
-                </option>
+            <label for="city-filter">縣市</label>
+            <select id="city-filter" :value="filters.city" @change="setCity($event.target.value)">
+              <option value="">全部縣市</option>
+              <optgroup v-for="group in cityGroups" :key="group.type" :label="group.type">
+                <option v-for="c in group.cities" :key="c.name" :value="c.name">{{ c.label }}</option>
               </optgroup>
+            </select>
+          </div>
+
+          <div class="filter-block">
+            <label for="district-filter">行政區</label>
+            <select
+              id="district-filter"
+              :value="filters.district"
+              :disabled="!filters.city"
+              @change="setFilter('district', $event.target.value)"
+            >
+              <option value="">{{ filters.city ? "全部行政區" : "請先選擇縣市" }}</option>
+              <option v-for="d in districtOptionList" :key="d.name" :value="d.name">{{ d.label }}</option>
             </select>
           </div>
 
@@ -128,24 +140,67 @@
 
         <div class="results-panel">
           <div class="results-head">
-            <p>找到 {{ filteredResources.length }} 個符合的社區資源</p>
+            <p>找到 {{ rankedResults.length }} 個符合的社區資源</p>
           </div>
 
-          <div class="map-placeholder">
+          <!-- 使用目前位置：位置只存在這個頁面的記憶體中，不儲存、不傳送 -->
+          <div v-if="filters.nearby" :class="['nearby-panel', geoState.status]" role="status" aria-live="polite">
+            <template v-if="geoState.status === 'locating'">
+              <p>
+                <i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>
+                正在取得您的位置⋯ 請在瀏覽器詢問時選擇「允許」。
+              </p>
+            </template>
+            <template v-else-if="geoState.status === 'located'">
+              <p class="nearby-title">
+                <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>
+                已依您目前的位置，由近到遠排列
+              </p>
+              <small>距離為直線距離，實際路程可能較遠。位置只在您的瀏覽器中計算，不會儲存或傳送。</small>
+              <div class="radius-chips" role="group" aria-label="距離範圍">
+                <span class="radius-label">距離範圍</span>
+                <button
+                  v-for="option in radiusOptions"
+                  :key="option.value"
+                  type="button"
+                  :class="['chip', { active: radiusValue === option.value }]"
+                  :aria-pressed="radiusValue === option.value"
+                  @click="setFilter('radius', option.value)"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+              <button type="button" class="nearby-stop" @click="stopNearby">不使用位置</button>
+            </template>
+            <template v-else-if="geoState.status === 'error'">
+              <p class="nearby-title">
+                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                無法使用目前位置
+              </p>
+              <p>{{ geoState.message }}</p>
+              <p>您可以改用左側的「縣市」、「行政區」篩選，找出所在地區的資源。</p>
+              <div class="nearby-actions">
+                <button type="button" class="btn-secondary" @click="focusRegion">改用縣市行政區篩選</button>
+                <button type="button" class="nearby-stop" @click="locate">再試一次</button>
+              </div>
+            </template>
+          </div>
+
+          <div v-else class="map-placeholder">
             <i class="fa-solid fa-map-location-dot"></i>
             <p>Map Preview Area</p>
-            <small v-if="filters.nearby">「附近」搜尋需要資源座標，目前尚未提供，先列出全部結果</small>
-            <small v-else>地圖功能即將推出</small>
+            <small>地圖功能即將推出</small>
           </div>
 
-          <div v-if="filteredResources.length === 0" class="empty-panel">
+          <div v-if="rankedResults.length === 0" class="empty-panel">
             <i class="fa-solid fa-folder-open"></i>
             <p v-if="allResources.length === 0">目前尚無已上架資源，請稍後再來查看</p>
+            <p v-else-if="radiusKm">{{ radiusKm }} 公里內沒有符合條件的資源，請放寬距離範圍</p>
             <p v-else>目前沒有符合條件的資源，請調整搜尋條件</p>
           </div>
 
           <div v-else class="result-grid">
-            <article v-for="res in filteredResources" :key="res.id" class="result-card">
+            <article v-for="{ resource: res, distanceKm } in rankedResults" :key="res.id" class="result-card">
               <div class="result-media" aria-hidden="true">
                 <i class="fa-solid fa-image"></i>
               </div>
@@ -154,6 +209,10 @@
                   {{ getNeedTagLabel(res.needTags[0]) }}
                 </span>
                 <h3 class="result-title">{{ res.name }}</h3>
+                <p v-if="geoState.status === 'located'" :class="['result-distance', { unknown: distanceKm === null }]">
+                  <i class="fa-solid fa-route" aria-hidden="true"></i>
+                  {{ distanceKm === null ? "未提供位置" : formatDistance(distanceKm) }}
+                </p>
                 <p class="result-desc">
                   {{ res.description || "社區資源據點，提供在地健康、社交與支持服務。" }}
                 </p>
@@ -187,11 +246,18 @@
 <script setup>
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { CITIES } from "../config/districts.js";
+import { normalizeCityName } from "../config/districts.js";
+import { GEOLOCATION_MAX_AGE_MS, GEOLOCATION_TIMEOUT_MS, NEARBY_RADIUS_OPTIONS } from "../config/location.js";
+import { formatDistance, geolocationErrorMessage, rankByDistance } from "../utils/geo.js";
 import { NEED_TAGS, PRESCRIPTION_TYPES, getNeedTagLabel } from "../config/needTags.js";
 import { AGE_GROUPS, IDENTITIES } from "../config/resourceOptions.js";
 import { getRecommendableResources } from "../services/resourceService.js";
-import { collectCodes, countByDistrict, filterResources } from "../services/resourceSearch.js";
+import {
+  cityOptionGroups,
+  collectCodes,
+  districtOptions,
+  filterResources,
+} from "../services/resourceSearch.js";
 import { goBack } from "../utils/navigation.js";
 import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 
@@ -208,13 +274,14 @@ const splitList = (value) => String(value || "").split(",").filter(Boolean);
 const filters = computed(() => ({
   keyword: String(route.query.keyword || ""),
   address: String(route.query.address || ""),
-  city: String(route.query.city || ""),
+  city: route.query.city ? normalizeCityName(route.query.city) : "",
   district: String(route.query.district || ""),
   type: String(route.query.type || ""),
   tags: splitList(route.query.tags),
   ageGroups: splitList(route.query.age),
   identities: splitList(route.query.identity),
   nearby: String(route.query.nearby || "") === "true",
+  radius: String(route.query.radius || ""),
 }));
 
 // 搜尋框可自由輸入，按下搜尋才寫入 query
@@ -242,7 +309,8 @@ const hasFilters = computed(() => {
     f.tags.length ||
     f.ageGroups.length ||
     f.identities.length ||
-    f.nearby
+    f.nearby ||
+    f.radius
   );
 });
 
@@ -258,20 +326,9 @@ const tagOptions = computed(() => {
   return [...used, ...selected].filter((t) => t !== "other");
 });
 
-const districtCounts = computed(() => countByDistrict(allResources.value));
-const regionGroups = computed(() =>
-  CITIES.map((city) => ({
-    city: city.name,
-    districts: city.districts.map((d) => {
-      const count =
-        districtCounts.value.find((c) => c.city === city.name && c.district === d.name)?.count ?? 0;
-      return { value: `${city.name}|${d.name}`, label: count ? `${d.name}（${count}）` : d.name };
-    }),
-  }))
-);
-const regionValue = computed(() =>
-  filters.value.city && filters.value.district ? `${filters.value.city}|${filters.value.district}` : ""
-);
+// 地區兩層選單：縣市依直轄市、市、縣分組；行政區只列出所選縣市的
+const cityGroups = computed(() => cityOptionGroups(allResources.value));
+const districtOptionList = computed(() => districtOptions(allResources.value, filters.value.city));
 
 // ── 更新 query ──
 // 搜尋與篩選一律用 replace：探索頁在瀏覽器歷史中只占一筆，「返回」才會回到進入探索頁之前的頁面
@@ -290,10 +347,8 @@ const submitSearch = () =>
 
 const setFilter = (key, value) => updateQuery({ [key]: value });
 
-const setRegion = (value) => {
-  const [city = "", district = ""] = value.split("|");
-  updateQuery({ city, district });
-};
+// 換縣市時清除行政區（不同縣市有同名行政區，不能沿用）
+const setCity = (city) => updateQuery({ city, district: "" });
 
 const toggleFilter = (key, code) => {
   const current = filters.value[key];
@@ -301,7 +356,67 @@ const toggleFilter = (key, code) => {
   updateQuery({ [QUERY_KEYS[key]]: next.join(",") });
 };
 
-const useNearby = () => updateQuery({ nearby: "true" });
+// ── 使用目前位置 ──
+// 用瀏覽器定位取得民眾位置，只存在這個頁面的記憶體中，不寫入網址、不儲存、不傳送
+const geoState = ref({ status: "idle", position: null, message: "" });
+
+const locate = () => {
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    geoState.value = { status: "error", position: null, message: geolocationErrorMessage("unsupported") };
+    return;
+  }
+  if (typeof window !== "undefined" && window.isSecureContext === false) {
+    geoState.value = { status: "error", position: null, message: geolocationErrorMessage("insecure") };
+    return;
+  }
+  geoState.value = { status: "locating", position: null, message: "" };
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => {
+      geoState.value = { status: "located", position: { lat: coords.latitude, lng: coords.longitude }, message: "" };
+    },
+    (error) => {
+      geoState.value = { status: "error", position: null, message: geolocationErrorMessage(error.code) };
+    },
+    { enableHighAccuracy: false, timeout: GEOLOCATION_TIMEOUT_MS, maximumAge: GEOLOCATION_MAX_AGE_MS }
+  );
+};
+
+// 網址帶 nearby=true（含首頁「找我附近的資源」）時啟動定位；取消時清除位置
+watch(
+  () => filters.value.nearby,
+  (nearby) => {
+    if (nearby) locate();
+    else geoState.value = { status: "idle", position: null, message: "" };
+  },
+  { immediate: true }
+);
+
+const useNearby = () => (filters.value.nearby ? locate() : updateQuery({ nearby: "true" }));
+const stopNearby = () => updateQuery({ nearby: "", radius: "" });
+
+const radiusOptions = [
+  ...NEARBY_RADIUS_OPTIONS.map((km) => ({ value: String(km), label: `${km} 公里` })),
+  { value: "", label: "不限" },
+];
+const radiusValue = computed(() =>
+  NEARBY_RADIUS_OPTIONS.map(String).includes(filters.value.radius) ? filters.value.radius : ""
+);
+const radiusKm = computed(() =>
+  geoState.value.status === "located" && radiusValue.value ? Number(radiusValue.value) : null
+);
+
+// 定位成功時依距離排序（可再限制範圍），其他篩選條件照常套用；沒有座標的資源排在最後
+const rankedResults = computed(() =>
+  geoState.value.status === "located"
+    ? rankByDistance(filteredResources.value, geoState.value.position, { radiusKm: radiusKm.value })
+    : filteredResources.value.map((resource) => ({ resource, distanceKm: null }))
+);
+
+const focusRegion = () => {
+  const select = document.getElementById("city-filter");
+  select?.scrollIntoView({ behavior: "smooth", block: "center" });
+  select?.focus();
+};
 
 const clearFilters = () => router.replace({ path: "/explore" });
 
@@ -457,6 +572,89 @@ const goResource = (id) => router.push(`/user/resources/${id}`);
 .filters-panel h2 {
   margin: 0 0 14px;
   font-size: 20px;
+}
+
+.nearby-panel {
+  margin-bottom: 20px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: #f5f0eb;
+  border: 1px solid rgba(194, 149, 110, 0.35);
+  color: #5d4037;
+  font-size: 14px;
+}
+
+.nearby-panel p {
+  margin: 0 0 6px;
+}
+
+.nearby-panel small {
+  display: block;
+  color: #8d6e63;
+}
+
+.nearby-panel.error {
+  background: #fff8f2;
+  border-color: #ffb74d;
+}
+
+.nearby-title {
+  font-weight: 700;
+}
+
+.radius-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.radius-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+.nearby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.nearby-stop {
+  margin-top: 10px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #b98158;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.nearby-actions .nearby-stop {
+  margin-top: 0;
+}
+
+.result-distance {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2e7d32;
+}
+
+.result-distance.unknown {
+  color: #9e9e9e;
+  font-weight: 600;
+}
+
+.filter-block select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .filter-block + .filter-block {

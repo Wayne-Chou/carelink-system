@@ -168,11 +168,22 @@ describe("格式錯誤在兩種模式都阻擋", () => {
   });
 });
 
-test("經緯度不在表單中，任何值都不檢核", () => {
+test("座標選填：沒填不列為必填或建議", () => {
   for (const mode of [true, false]) {
     const { errors, missing } = validateResource({ ...valid(), geo: null }, { strict: mode });
     assert.deepEqual(errors, {});
     assert.deepEqual(missing, {});
+  }
+});
+
+test("座標有填時檢查格式，任何模式都阻擋", () => {
+  for (const mode of [true, false]) {
+    const check = (geo) => validateResource({ ...valid(), geo }, { strict: mode }).errors.geo;
+    assert.equal(check({ lat: 25.0143, lng: 121.4635 }), undefined);
+    assert.equal(check({ lat: "25.0143", lng: "121.4635" }), undefined, "表單送出的字串也可以");
+    assert.match(check({ lat: "25.0143", lng: "" }), /一起填寫/);
+    assert.match(check({ lat: "abc", lng: "121.46" }), /數字/);
+    assert.match(check({ lat: 121.4635, lng: 25.0143 }), /臺灣範圍/);
   }
 });
 

@@ -54,7 +54,7 @@ export const DEMO_RESOURCES = [
     },
     placeName: "河濱公園入口",
     address: { zip: "220", city: "新北市", district: "板橋區", detail: "示範路 1 號旁" },
-    geo: { lat: 25.0, lng: 121.45 },
+    geo: { lat: 25.0205, lng: 121.4575 },
 
     riskLevel: "yellow",
     riskCriteria: {
