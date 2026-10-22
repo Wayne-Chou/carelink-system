@@ -10,6 +10,7 @@
       <div class="header-right">
         <button class="add-btn" @click="$router.push('/cases')">👤 個人端</button>
         <button class="add-btn" @click="$router.push('/form')">＋ 新增</button>
+        <UserMenu />
       </div>
     </div>
 
@@ -41,43 +42,11 @@
           <i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i>
           共 {{ overdueCount }} 筆資源已超過預計驗證日期
         </p>
-        <div class="demo-tools">
-          <button type="button" class="demo-btn" @click="openDemoDialog">
-            <i class="fa-solid fa-flask" aria-hidden="true"></i> 載入示範資料
-          </button>
-          <button v-if="hasDemoData" type="button" class="demo-btn subtle" @click="removeDemo">
-            移除示範資料（資源 {{ counts.demoResources }}、個案 {{ counts.demoCases }}、評估 {{ counts.demoAssessments }}）
-          </button>
-        </div>
       </div>
+      <!-- 示範情境：只保留「載入示範情境」，載入時清空所有資源、評估、個案 -->
+      <ScenarioLoader class="scenario-tools" @loaded="onScenarioLoaded" />
     </div>
 
-    <dialog ref="demoDialog" class="demo-dialog" aria-labelledby="demo-dialog-title" @close="onDemoDialogClose">
-      <form method="dialog">
-        <h3 id="demo-dialog-title">載入示範資料</h3>
-        <p>
-          示範資料包含 {{ DEMO_TOTALS.resources }} 筆虛構資源、{{ DEMO_TOTALS.cases }} 筆虛構個案與
-          {{ DEMO_TOTALS.assessments }} 筆虛構評估，涵蓋資源的各種狀態、評估的各種燈號與個案流程的各個階段，
-          並標記為「示範」，之後可一鍵移除。
-        </p>
-        <div class="dialog-options">
-          <button value="add" class="dialog-option">
-            <strong>加入示範資料</strong>
-            <span>保留現有資源、個案與評估，加入尚未載入的示範資料</span>
-          </button>
-          <button value="replace" class="dialog-option danger">
-            <strong>清空後只放示範資料</strong>
-            <span>
-              刪除目前全部 {{ counts.resources }} 筆資源、{{ counts.cases }} 筆個案與
-              {{ counts.assessments }} 筆評估（含自建資料），無法復原
-            </span>
-          </button>
-        </div>
-        <div class="dialog-footer">
-          <button value="cancel" class="dialog-cancel">取消</button>
-        </div>
-      </form>
-    </dialog>
 
     <div class="container main-list">
       <div v-if="actionNotice" class="saved-banner" role="status">
@@ -199,6 +168,7 @@
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { goBack } from "../utils/navigation.js";
@@ -218,7 +188,7 @@ import {
   isVerifyOverdue,
   terminateResource,
 } from "../services/resourceService.js";
-import { DEMO_TOTALS, countData, loadDemoData, removeDemoData } from "../services/demoService.js";
+import ScenarioLoader from "../components/ScenarioLoader.vue";
 import { setCurrentResourceId } from "../utils/auth.js";
 import { consumeFlash } from "../utils/flash.js";
 
@@ -314,59 +284,13 @@ const removeResource = (item) => {
   reload();
 };
 
-// ── 示範資料（資源、個案與評估一起處理）──
-const demoDialog = ref(null);
+// ── 示範情境 ──
 const actionNotice = ref("");
-const counts = ref(countData());
-const hasDemoData = computed(
-  () => counts.value.demoResources + counts.value.demoCases + counts.value.demoAssessments > 0
-);
-
-const reloadAll = () => {
-  reload();
-  counts.value = countData();
-};
-
-const openDemoDialog = () => {
-  counts.value = countData();
-  demoDialog.value?.showModal();
-};
-
-const summary = ({ resources: r, cases: c, assessments: a }) => `資源 ${r} 筆、個案 ${c} 筆、評估 ${a} 筆`;
-
-// <dialog> 以按下的按鈕 value 作為 returnValue
-const onDemoDialogClose = () => {
-  const choice = demoDialog.value?.returnValue;
-  demoDialog.value.returnValue = "";
-  if (choice === "add") {
-    const added = loadDemoData();
-    actionNotice.value =
-      added.resources + added.cases + added.assessments
-        ? `已加入示範資料：${summary(added)}`
-        : "示範資料都已載入，沒有新增";
-  } else if (choice === "replace") {
-    const ok = confirm(
-      `確定要刪除目前全部 ${counts.value.resources} 筆資源、${counts.value.cases} 筆個案與 ${counts.value.assessments} 筆評估，只保留示範資料？\n\n此動作無法復原。`
-    );
-    if (!ok) return;
-    const added = loadDemoData({ replace: true });
-    actionNotice.value = `已清空資源、個案與評估，並載入示範資料：${summary(added)}`;
-  } else {
-    return;
-  }
+const onScenarioLoaded = (result) => {
+  actionNotice.value = `已載入示範情境（從第 ${result.step} 步開始）：資源 ${result.resources} 筆、評估 ${result.assessments} 筆、個案 ${result.cases} 筆`;
   savedNotice.value = null;
   currentTab.value = "all";
-  reloadAll();
-};
-
-const removeDemo = () => {
-  const ok = confirm(
-    `確定要移除示範資料（資源 ${counts.value.demoResources} 筆、個案 ${counts.value.demoCases} 筆、評估 ${counts.value.demoAssessments} 筆）？\n\n只會移除標記為「示範」的資料，自建的資源、個案與評估不受影響。`
-  );
-  if (!ok) return;
-  const removed = removeDemoData();
-  actionNotice.value = `已移除示範資料：${summary(removed)}`;
-  reloadAll();
+  reload();
 };
 
 // 資源端登入的資源屬於登入狀態，由 auth.js 存放（測試階段為 sessionStorage）
@@ -483,27 +407,10 @@ const loginResource = (id) => {
   color: #bf360c;
   font-weight: 600;
 }
-.demo-tools {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
+.scenario-tools {
+  margin-top: 12px;
 }
-.demo-btn {
-  background: #fff;
-  border: 1px dashed #a1887f;
-  color: #5d4037;
-  border-radius: 8px;
-  padding: 5px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.demo-btn.subtle {
-  border-style: solid;
-  border-color: #d6ccc2;
-  color: #8d6e63;
-  font-weight: 400;
-}
+
 .demo-badge {
   font-size: 11px;
   font-weight: 700;
@@ -512,75 +419,6 @@ const loginResource = (id) => {
   border: 1px dashed #a1887f;
   border-radius: 999px;
   padding: 1px 8px;
-}
-
-/* 示範資料對話框 */
-.demo-dialog {
-  border: none;
-  border-radius: 16px;
-  padding: 24px;
-  width: min(440px, calc(100vw - 32px));
-  box-shadow: 0 20px 40px rgba(62, 39, 35, 0.25);
-  color: #3e2723;
-}
-.demo-dialog::backdrop {
-  background: rgba(62, 39, 35, 0.45);
-}
-.demo-dialog h3 {
-  font-size: 18px;
-  font-weight: 800;
-  margin: 0 0 8px;
-}
-.demo-dialog p {
-  font-size: 14px;
-  color: #6d4c41;
-  line-height: 1.6;
-  margin: 0 0 16px;
-}
-.dialog-options {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.dialog-option {
-  text-align: left;
-  background: #fdf8f5;
-  border: 1px solid #e0d5cb;
-  border-radius: 12px;
-  padding: 12px 14px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  color: #3e2723;
-}
-.dialog-option:hover {
-  border-color: #c2956e;
-  background: #f8efe7;
-}
-.dialog-option span {
-  font-size: 12px;
-  color: #8d6e63;
-}
-.dialog-option.danger strong {
-  color: #b71c1c;
-}
-.dialog-option.danger:hover {
-  border-color: #ef9a9a;
-  background: #fff5f5;
-}
-.dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 14px;
-}
-.dialog-cancel {
-  background: none;
-  border: 1px solid #d6ccc2;
-  border-radius: 8px;
-  padding: 6px 16px;
-  color: #6d4c41;
-  cursor: pointer;
 }
 
 /* Resource Card */
@@ -869,5 +707,13 @@ const loginResource = (id) => {
   .footer-right {
     justify-content: flex-start;
   }
+}
+
+/* 登入者與登出（UserMenu）靠右 */
+.top-bar .header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 </style>

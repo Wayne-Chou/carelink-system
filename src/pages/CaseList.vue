@@ -9,6 +9,7 @@
       </div>
       <div class="header-right">
         <button class="add-btn" @click="addCase">＋新增個案</button>
+        <UserMenu />
       </div>
     </div>
 
@@ -91,6 +92,7 @@
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { FIRST_CONTACT_HOURS } from "../config/assessmentRules.js";
@@ -439,5 +441,13 @@ const removeCase = (item) => {
   text-align: center;
   padding: 60px 20px;
   color: #bcaaa4;
+}
+
+/* 登入者與登出（UserMenu）靠右 */
+.top-bar .header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 </style>

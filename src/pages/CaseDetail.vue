@@ -7,7 +7,7 @@
       <div class="header-center">
         <h2>個案詳情</h2>
       </div>
-      <div class="header-right"></div>
+      <div class="header-right"><UserMenu /></div>
     </div>
 
     <div v-if="!caseItem" class="container main-content">
@@ -490,6 +490,7 @@
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import ChipSelect from "../components/ChipSelect.vue";
@@ -1454,5 +1455,13 @@ input[type="radio"] {
     border-bottom: 1px solid #efe7dc;
     padding: 6px 0;
   }
+}
+
+/* 登入者與登出（UserMenu）靠右 */
+.top-bar .header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 </style>

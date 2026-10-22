@@ -321,7 +321,7 @@ describe("資源編碼 Res001", () => {
   test("載入示範資料後，新增的資源接在示範資料之後", async () => {
     const { loadDemoResources } = await import("../src/services/resourceService.js");
     loadDemoResources({ replace: true });
-    assert.equal(createResource({ name: "新資源" }).code, "Res007");
+    assert.equal(createResource({ name: "新資源" }).code, "Res005");
   });
 
   test("示範資料的編碼已被自建資源使用時，改用不重複的編號", async () => {

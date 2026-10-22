@@ -16,20 +16,15 @@
             <button type="button" class="btn-auth-link" @click="goLogin">登入</button>
             <button type="button" class="btn-admin" @click="goRegister">註冊</button>
           </template>
-          <template v-else>
-            <span class="header-user-name">{{ currentUser.name }}</span>
-            <button
-              v-if="currentUser.role === 'admin'"
-              type="button"
-              class="btn-admin"
-              @click="goList"
-            >
-              資源管理
-            </button>
-            <button type="button" class="btn-auth-link" @click="logout">登出</button>
-          </template>
+          <!-- 登入後 header 一律只顯示姓名、角色與登出；功能入口都在下方「登入後快捷區」 -->
+          <UserMenu v-else variant="light" @logout="onLogout" />
         </nav>
       </div>
+      <p v-if="deniedNotice" class="denied-notice container" role="alert">
+        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+        {{ deniedNotice }}
+        <button type="button" aria-label="關閉提示" @click="deniedNotice = ''">×</button>
+      </p>
     </header>
 
     <!-- Hero -->
@@ -89,34 +84,25 @@
         <div class="provider-quick-panel">
           <p class="provider-quick-greeting">
             歡迎回來，<strong>{{ currentUser.name }}</strong>
+            <span v-if="roleLabel" class="role-chip">{{ roleLabel }}</span>
           </p>
-          <div class="provider-quick-actions">
-            <button type="button" class="provider-quick-btn" @click="goTodo">
-              <i class="fa-solid fa-bell" aria-hidden="true"></i>
-              待辦
-              <span v-if="overdueCount" class="todo-badge">逾期 {{ overdueCount }}</span>
-            </button>
-            <button type="button" class="provider-quick-btn" @click="goList">
-              <i class="fa-solid fa-list" aria-hidden="true"></i>
-              管理資源
-            </button>
-            <button type="button" class="provider-quick-btn" @click="goForm">
-              <i class="fa-solid fa-plus" aria-hidden="true"></i>
-              新增資源
-            </button>
-            <button type="button" class="provider-quick-btn" @click="goCases">
-              <i class="fa-solid fa-folder-open" aria-hidden="true"></i>
-              個案管理
-            </button>
-            <button type="button" class="provider-quick-btn" @click="goAssessmentNew">
-              <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
-              填寫評估
-            </button>
-            <button type="button" class="provider-quick-btn" @click="goAssessments">
-              <i class="fa-solid fa-list-check" aria-hidden="true"></i>
-              評估列表
+          <!-- 只列出該角色可以使用的入口（services/accessControl.js 的 shortcutsFor） -->
+          <div v-if="shortcuts.length" class="provider-quick-actions">
+            <button
+              v-for="s in shortcuts"
+              :key="s.key"
+              type="button"
+              class="provider-quick-btn"
+              @click="go(s.path)"
+            >
+              <i :class="['fa-solid', s.icon]" aria-hidden="true"></i>
+              {{ s.label }}
+              <span v-if="s.key === 'todo' && overdueCount" class="todo-badge">逾期 {{ overdueCount }}</span>
             </button>
           </div>
+          <p v-else class="no-role-note">
+            這個帳號尚未設定角色，目前只能查看公開頁面（首頁、探索頁、資源介紹）。如需使用工作功能，請聯絡系統管理員。
+          </p>
         </div>
       </div>
     </section>
@@ -420,11 +406,19 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { getRoleLabel } from "../config/roles.js";
+import {
+  NO_PERMISSION_MESSAGE,
+  filterTodosFor,
+  shortcutsFor,
+  todoScopeFor,
+} from "../services/accessControl.js";
 import logo from "../assets/logo.png";
 import heroBg from "../assets/bg-community-brown.png";
-import { clearCurrentUser, getCurrentUser } from "../utils/auth.js";
+import { getCurrentUser } from "../utils/auth.js";
+import UserMenu from "../components/UserMenu.vue";
 import { getNeedTagLabel } from "../config/needTags.js";
 import { getRecommendableResources } from "../services/resourceService.js";
 import { cityOptionGroups, countByDistrict, districtOptions } from "../services/resourceSearch.js";
@@ -434,6 +428,24 @@ import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 const router = useRouter();
 const currentUser = ref(null);
 const overdueCount = ref(0);
+const route = useRoute();
+
+const roleLabel = computed(() => getRoleLabel(currentUser.value?.role));
+const shortcuts = computed(() => shortcutsFor(currentUser.value));
+const go = (path) => router.push(path);
+
+// 沒有權限時路由導回首頁並帶 denied=1；顯示提示後把參數移除（停留在首頁時也能再次顯示）
+const deniedNotice = ref("");
+watch(
+  () => route.query.denied,
+  (denied) => {
+    if (!denied) return;
+    deniedNotice.value = NO_PERMISSION_MESSAGE;
+    const { denied: _removed, ...query } = route.query;
+    router.replace({ query });
+  },
+  { immediate: true }
+);
 const searchText = ref("");
 const addressSearch = ref("");
 const selectedCity = ref("");
@@ -564,7 +576,10 @@ const goExplore = (params = {}) => {
 
 onMounted(() => {
   currentUser.value = getCurrentUser();
-  if (currentUser.value) overdueCount.value = countOverdue(computeTodos());
+  // 逾期數只算自己角色的待辦（系統管理員為「管理員」項目）
+  if (currentUser.value && todoScopeFor(currentUser.value).own) {
+    overdueCount.value = countOverdue(filterTodosFor(currentUser.value, computeTodos()));
+  }
   allResources.value = getRecommendableResources("explore").sort((a, b) =>
     String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""))
   );
@@ -595,19 +610,13 @@ const handleRegionChange = () => {
   if (selectedDistrict.value) goExplore({ city: selectedCity.value, district: selectedDistrict.value });
 };
 
-const goTodo = () => router.push("/todo");
-const goList = () => router.push("/list");
-const goForm = () => router.push("/form");
-const goCases = () => router.push("/cases");
-const goAssessmentNew = () => router.push("/assessment/new");
-const goAssessments = () => router.push("/assessments");
 const goLogin = () => router.push("/login");
 const goRegister = () => router.push("/register");
 const goResource = (id) => router.push(`/user/resources/${id}`);
-const logout = () => {
-  clearCurrentUser();
+// UserMenu 已清除登入狀態；首頁仍停在原頁，這裡清除畫面上的登入者與待辦數
+const onLogout = () => {
   currentUser.value = null;
-  router.push("/");
+  overdueCount.value = 0;
 };
 </script>
 
@@ -735,12 +744,6 @@ const logout = () => {
   color: #b98158;
 }
 
-.header-user-name {
-  font-size: 14px;
-  font-weight: 600;
-  color: #3e2723;
-  white-space: nowrap;
-}
 
 /* Hero */
 .hero-section {
@@ -1130,6 +1133,45 @@ const logout = () => {
   align-items: center;
   gap: 8px;
   transition: var(--card-transition);
+}
+
+
+.role-chip {
+  margin-left: 8px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #f5ebe3;
+  color: #8a5a3c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.no-role-note {
+  margin: 0;
+  font-size: 14px;
+  color: #8d6e63;
+}
+
+.denied-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px auto 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fdecea;
+  color: #b71c1c;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.denied-notice button {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  cursor: pointer;
 }
 
 .todo-badge {

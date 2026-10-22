@@ -5,9 +5,12 @@
         <button class="back-btn" @click="back">
           <i class="fa-solid fa-chevron-left me-2" aria-hidden="true"></i>返回
         </button>
-        <button v-if="resource" class="edit-btn" @click="$router.push(`/form/${resource.id}`)">
-          <i class="fa-solid fa-pen-to-square me-2" aria-hidden="true"></i>編輯
-        </button>
+        <div class="nav-actions">
+          <button v-if="resource && canEdit" class="edit-btn" @click="$router.push(`/form/${resource.id}`)">
+            <i class="fa-solid fa-pen-to-square me-2" aria-hidden="true"></i>編輯
+          </button>
+          <UserMenu variant="light" />
+        </div>
       </nav>
 
       <div v-if="resource && savedNotice" class="saved-banner" role="status">
@@ -435,13 +438,14 @@
       <div v-else class="not-found">
         <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
         <p>找不到這筆資源，可能已被刪除。</p>
-        <button class="back-btn" @click="$router.push('/list')">返回清單</button>
+        <button v-if="canEdit" class="back-btn" @click="$router.push('/list')">返回清單</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import FieldValue from "../components/FieldValue.vue";
@@ -470,6 +474,8 @@ import { getResourceById, isVerifyOverdue } from "../services/resourceService.js
 import { consumeFlash } from "../utils/flash.js";
 import { goBack } from "../utils/navigation.js";
 import { hasGeo } from "../utils/geo.js";
+import { getCurrentUser } from "../utils/auth.js";
+import { canManageResources, homePathFor } from "../services/accessControl.js";
 import {
   formatAddress,
   formatCapacity,
@@ -480,7 +486,10 @@ import {
 const route = useRoute();
 const router = useRouter();
 const resource = ref(null);
-const back = () => goBack(router, "/list");
+// 角色權限（原型階段）：只有系統管理員可編輯；判讀人員、健康管理員、資源點唯讀
+const currentUser = getCurrentUser();
+const canEdit = canManageResources(currentUser);
+const back = () => goBack(router, canEdit ? "/list" : homePathFor(currentUser));
 
 // 從編輯頁儲存後回來時的一次性提示（只顯示屬於這筆資源的）
 const flash = consumeFlash("resource-saved");
@@ -1149,5 +1158,11 @@ const geoLink = computed(() =>
   .content-section {
     padding: 22px 16px;
   }
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 </style>

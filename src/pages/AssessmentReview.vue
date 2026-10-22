@@ -7,13 +7,13 @@
       <div class="header-center">
         <h2>評估判讀</h2>
       </div>
-      <div class="header-right"></div>
+      <div class="header-right"><UserMenu /></div>
     </div>
 
     <div v-if="!assessment" class="container main">
       <div class="empty-state">
         <p>找不到這筆評估紀錄。</p>
-        <button type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+        <button v-if="canList" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
       </div>
     </div>
 
@@ -42,7 +42,7 @@
           <div><dt>操作者</dt><dd>{{ assessment.voidedBy || "未記錄" }}</dd></div>
         </dl>
         <p class="hint">已作廢的評估保留原始資料供查詢，不列入待辦提醒與下次確認日期</p>
-        <button type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+        <button v-if="canList" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
       </section>
 
       <!-- 已判讀：結果摘要 -->
@@ -54,10 +54,12 @@
         <ul class="result-list">
           <li v-if="result.case" class="case-created">
             已建立個案
-            <router-link :to="`/case/${result.case.id}`" class="case-link">
+            <!-- 沒有個案頁權限的角色（判讀人員）只顯示編碼，不顯示連結 -->
+            <router-link v-if="canOpenCaseLink" :to="`/case/${result.case.id}`" class="case-link">
               {{ result.case.code }}
               <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
             </router-link>
+            <strong v-else class="case-code">{{ result.case.code }}</strong>
             <span class="hint inline">已直接進入第 2 階段諮詢，由健康管理員接續</span>
           </li>
           <li v-else-if="result.assessment.caseId">已開案，但找不到對應的個案資料</li>
@@ -68,7 +70,7 @@
             <template v-if="providedResourceItems.length">
               <ul class="provided-result">
                 <li v-for="item in providedResourceItems" :key="item.id">
-                  <router-link v-if="item.exists" :to="`/resources/${item.id}`">{{ item.name }}</router-link>
+                  <router-link v-if="item.exists && canViewResource(currentUser, item.id)" :to="`/resources/${item.id}`">{{ item.name }}</router-link>
                   <span v-else>{{ item.name }}</span>
                   <small v-if="item.phone">（{{ item.contact }} {{ item.phone }}）</small>
                 </li>
@@ -87,17 +89,22 @@
           </li>
         </ul>
         <div class="result-actions">
-          <button v-if="nextPendingId" type="button" class="primary-btn" @click="goNextPending">
+          <button v-if="canReview && nextPendingId" type="button" class="primary-btn" @click="goNextPending">
             下一筆未判讀
           </button>
-          <button type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
-          <button v-if="!result.assessment.caseId && !editing" type="button" class="text-btn" @click="startEdit">
+          <button v-if="canList" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+          <button v-if="canReview && !result.assessment.caseId && !editing" type="button" class="text-btn" @click="startEdit">
             修改判讀
           </button>
         </div>
       </section>
 
-      <template v-if="editing">
+      <p v-if="!canReview" class="readonly-note">
+        <i class="fa-solid fa-eye" aria-hidden="true"></i>
+        唯讀：您可以查看這筆已開案評估的判讀結果，修改判讀與作廢需由判讀人員處理。
+      </p>
+
+      <template v-if="editing && canReview">
         <!-- 判讀人員 -->
         <section class="card">
           <h2 class="section-title">判讀人員</h2>
@@ -469,7 +476,7 @@
       </template>
 
       <!-- 作廢（頁面最下方） -->
-      <section v-if="!isVoided(assessment)" class="card void-card">
+      <section v-if="canReview && !isVoided(assessment)" class="card void-card">
         <h2 class="section-title small">作廢這筆評估</h2>
         <template v-if="!voidCheck.ok">
           <p class="hint">
@@ -501,6 +508,7 @@
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { FILL_MODE_OPTIONS, QUESTIONS, Q12_TEXT, getQ11Label } from "../config/assessmentForm.js";
@@ -540,13 +548,20 @@ import { getCaseById } from "../services/caseService.js";
 import { getRecommendableResources, getResourceById } from "../services/resourceService.js";
 import { filterResources } from "../services/resourceSearch.js";
 import { getCurrentUser } from "../utils/auth.js";
+import { can, canOpenCase, canReviewAssessment, canViewResource } from "../services/accessControl.js";
 import { deepClone } from "../utils/clone.js";
 import { goBack } from "../utils/navigation.js";
 import { formatDateTime, formatRegion, formatSchedule } from "../utils/resourceFormat.js";
 
 const route = useRoute();
 const router = useRouter();
-const back = () => goBack(router, "/assessments");
+// 角色權限（原型階段）：健康管理員只能唯讀查看已開案的評估；判讀人員沒有個案頁權限
+const currentUser = getCurrentUser();
+const canReview = canReviewAssessment(currentUser);
+const canList = can(currentUser, "assessment.list");
+const canOpenCaseLink = canOpenCase(currentUser);
+
+const back = () => goBack(router, canList ? "/assessments" : "/");
 
 const assessment = ref(null);
 
@@ -556,7 +571,9 @@ const initialDraft = (a) => {
   const review = deepClone(a.review);
   return {
     ...review,
-    readerName: review.readerName || getCurrentUser()?.name || "",
+    // 判讀人員姓名與類別由登入帳號帶入（例：示範帳號郭範例為醫師）
+    readerName: review.readerName || currentUser?.name || "",
+    readerType: review.readerType || currentUser?.readerType || "",
     consent: review.consent === true,
     redReasons: [...review.redReasons],
     extraAssessments: [...review.extraAssessments],
@@ -636,7 +653,7 @@ const load = (id) => {
         caseDeferred: isPendingCaseOpening(assessment.value),
       }
     : null;
-  editing.value = !reviewed;
+  editing.value = !reviewed && canReview;
 
   // 初次判讀：預先勾選 Q11 來源的建議標籤（民眾自己指認的需求）
   if (!reviewed && !draft.confirmedTags.length) {
@@ -1005,6 +1022,18 @@ const goNextPending = () => router.replace(`/assessments/${nextPendingId.value}`
 .hint.strong-ok {
   color: #1b5e20;
   font-weight: 700;
+}
+.case-code {
+  margin-left: 4px;
+  font-family: "Courier New", monospace;
+}
+.readonly-note {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f5f0ed;
+  color: #5d4037;
+  font-size: 14px;
 }
 .case-link {
   font-weight: 800;
@@ -1656,5 +1685,13 @@ input[type="radio"] {
   .step-head {
     flex-wrap: wrap;
   }
+}
+
+/* 登入者與登出（UserMenu）靠右 */
+.top-bar .header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 </style>

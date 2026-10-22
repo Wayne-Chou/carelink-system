@@ -7,7 +7,7 @@
       <div class="header-center">
         <h2>{{ isEdit ? "編輯社區資源" : "新增社區資源" }}</h2>
       </div>
-      <div class="header-right"></div>
+      <div class="header-right"><UserMenu /></div>
     </div>
 
     <div class="container main-content">
@@ -905,6 +905,7 @@
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import ChipSelect from "../components/ChipSelect.vue";
@@ -1735,5 +1736,13 @@ select:disabled {
     margin-top: 36px;
     padding-top: 20px;
   }
+}
+
+/* 登入者與登出（UserMenu）靠右 */
+.top-bar .header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 </style>

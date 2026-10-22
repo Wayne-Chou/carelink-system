@@ -39,6 +39,24 @@
             </button>
           </div>
         </label>
+        <label class="field">
+          <span>角色</span>
+          <select v-model="role" required>
+            <option value="" disabled>請選擇角色</option>
+            <option v-for="r in roleOptions" :key="r.code" :value="r.code">{{ r.label }}</option>
+          </select>
+          <small v-if="selectedRole" class="field-hint">{{ selectedRole.description }}</small>
+        </label>
+        <label v-if="role === 'provider'" class="field">
+          <span>綁定的資源</span>
+          <select v-model="resourceId" required :disabled="!resources.length">
+            <option value="" disabled>{{ resources.length ? "請選擇資源" : "目前沒有資源" }}</option>
+            <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.code }} {{ r.name }}</option>
+          </select>
+          <small v-if="!resources.length" class="field-hint">
+            目前沒有可綁定的資源，請先由系統管理員建立資源或載入示範資料
+          </small>
+        </label>
         <p v-if="error" class="error-msg" role="alert">{{ error }}</p>
         <button type="submit" class="btn-primary">註冊</button>
       </form>
@@ -52,11 +70,14 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { goBack } from "../utils/navigation.js";
 import logo from "../assets/logo.png";
 import { register } from "../utils/auth.js";
+import { REGISTERABLE_ROLES, ROLES } from "../config/roles.js";
+import { homePathFor } from "../services/accessControl.js";
+import { getAllResources } from "../services/resourceService.js";
 
 const router = useRouter();
 const back = () => goBack(router, "/");
@@ -65,6 +86,13 @@ const email = ref("");
 const password = ref("");
 const showPassword = ref(false);
 const error = ref("");
+// 不開放自行註冊為系統管理員（config/roles.js 的 REGISTERABLE_ROLES）
+const roleOptions = ROLES.filter((r) => REGISTERABLE_ROLES.includes(r.code));
+const role = ref("");
+const selectedRole = computed(() => roleOptions.find((r) => r.code === role.value) ?? null);
+// 資源點綁定的資源：列出目前全部資源（含暫停、未推薦的），依資源編碼排序
+const resources = getAllResources().sort((a, b) => String(a.code).localeCompare(String(b.code)));
+const resourceId = ref("");
 
 const goHome = () => router.push("/");
 
@@ -74,12 +102,14 @@ const handleSubmit = () => {
     name: name.value,
     email: email.value,
     password: password.value,
+    role: role.value,
+    resourceId: role.value === "provider" ? resourceId.value : "",
   });
   if (!result.ok) {
     error.value = result.error;
     return;
   }
-  router.push("/");
+  router.replace(homePathFor(result.user));
 };
 </script>
 
@@ -168,6 +198,21 @@ const handleSubmit = () => {
   font-size: 14px;
   font-weight: 600;
   color: #5d4037;
+}
+
+.field select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #e0d4c8;
+  background: #fff;
+  font-size: 15px;
+  color: #3e2723;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: #8d6e63;
 }
 
 .field input {

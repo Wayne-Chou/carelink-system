@@ -15,7 +15,7 @@ local.data.users = JSON.stringify([{ id: 1, email: "keep@example.com" }]);
 
 const storage = await import("../src/services/storage.js");
 const { getAllResources, createResource } = await import("../src/services/resourceService.js");
-const { autoLoadDemoIfEmpty, DEMO_TOTALS } = await import("../src/services/demoService.js");
+const { autoLoadDemoIfEmpty } = await import("../src/services/demoService.js");
 const { getUsers, register } = await import("../src/utils/auth.js");
 
 // 模擬關閉瀏覽器：sessionStorage 清空，localStorage 保留
@@ -31,7 +31,13 @@ describe("第一次讀取（改版前的殘留資料）", () => {
     for (const key of ["resources", "cases", "assessments"]) {
       assert.equal(key in local.data, false, `清除 ${key}`);
     }
-    assert.equal(JSON.parse(local.data.users).length, 1, "帳號清單保留");
+    assert.equal(JSON.parse(local.data.users).length, 1, "資料清除不影響帳號清單");
+  });
+
+  test("第一次讀取帳號清單時，清掉 localStorage 殘留的 users", () => {
+    assert.ok(local.data.users, "測試前提：殘留的帳號清單存在");
+    assert.deepEqual(getUsers(), [], "不讀到舊帳號");
+    assert.equal("users" in local.data, false, "清除殘留的 users");
   });
 });
 
@@ -41,9 +47,9 @@ describe("一般讀寫", () => {
     session.data = {};
   });
 
-  test("設定值：資料存 sessionStorage，預設不自動載入示範資料", () => {
+  test("設定值：資料存 sessionStorage，沒有資料時自動載入示範情境", () => {
     assert.equal(storage.DATA_STORAGE, "session");
-    assert.equal(storage.AUTO_LOAD_DEMO, false);
+    assert.equal(storage.AUTO_LOAD_DEMO, true, "沒有資料時自動載入示範情境第 1 步");
   });
 
   test("資料寫入 sessionStorage，不寫入 localStorage；關閉瀏覽器後清除", () => {
@@ -54,12 +60,20 @@ describe("一般讀寫", () => {
     assert.deepEqual(getAllResources(), []);
   });
 
-  test("帳號清單存 localStorage，關閉瀏覽器後仍在", () => {
-    register({ name: "王示範", email: "w@example.com", password: "x" });
-    assert.equal(JSON.parse(local.data.users).length, 1);
-    assert.equal("users" in session.data, false);
+  test("帳號清單存 sessionStorage，關閉瀏覽器後清除", () => {
+    assert.equal(storage.ACCOUNT_STORAGE, "session");
+    register({ name: "王示範", email: "w@example.com", password: "x", role: "reader" });
+    assert.equal(JSON.parse(session.data.users).length, 1);
+    assert.equal("users" in local.data, false);
     closeBrowser();
-    assert.equal(getUsers().length, 1);
+    assert.equal(getUsers().length, 0);
+  });
+
+  test("資料、帳號與畫面偏好都不寫入 localStorage", () => {
+    createResource({ name: "測試資源" });
+    register({ name: "王示範", email: "w@example.com", password: "x", role: "reader" });
+    storage.writePreference("storyBar.collapsed", true);
+    assert.deepEqual(local.data, {});
   });
 
   test("isDataEmpty：resources、cases、assessments 都沒有資料才算空", () => {
@@ -68,10 +82,11 @@ describe("一般讀寫", () => {
     assert.equal(storage.isDataEmpty(), false);
   });
 
-  test("AUTO_LOAD_DEMO：開啟且沒有資料時自動載入示範資源與個案", () => {
+  test("AUTO_LOAD_DEMO：開啟且沒有資料時自動載入示範情境第 1 步（只有資源）", () => {
     assert.equal(autoLoadDemoIfEmpty({ enabled: true }), true);
-    assert.equal(JSON.parse(session.data.resources).length, DEMO_TOTALS.resources);
-    assert.equal(JSON.parse(session.data.cases).length, DEMO_TOTALS.cases);
+    assert.equal(JSON.parse(session.data.resources).length, 4);
+    assert.deepEqual(JSON.parse(session.data.cases), []);
+    assert.deepEqual(JSON.parse(session.data.assessments), []);
   });
 
   test("AUTO_LOAD_DEMO：已有資料時不載入，關閉時不載入", () => {
@@ -80,7 +95,7 @@ describe("一般讀寫", () => {
     assert.equal(getAllResources().length, 1);
 
     session.data = {};
-    assert.equal(autoLoadDemoIfEmpty(), false, "預設 AUTO_LOAD_DEMO = false");
+    assert.equal(autoLoadDemoIfEmpty({ enabled: false }), false, "關閉時不載入");
     assert.equal(storage.isDataEmpty(), true);
   });
 

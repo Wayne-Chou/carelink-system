@@ -23,8 +23,10 @@ const { DEMO_RESOURCES } = await import("../src/services/demoResources.js");
 const { FOLLOW_UP_START } = await import("../src/config/assessmentRules.js");
 const { addMonths, todayString } = await import("../src/utils/date.js");
 
-const WALKING = DEMO_RESOURCES.find((r) => r.code === "Res001"); // 黃燈
+const WALKING = DEMO_RESOURCES.find((r) => r.code === "Res003"); // 黃燈（示範關懷據點歌唱班）
 const MEAL = DEMO_RESOURCES.find((r) => r.code === "Res002");
+// 舊個案資料（tests/fixtures/legacyCases.js）連結的是改版前的示範資源
+const LEGACY_WALKING = { id: "7c1e2a40-5b3d-4f1a-9e2c-1a2b3c4d5e6f", name: "湳興河濱長者健走班" };
 
 const newCase = (patch = {}) => svc.createCase({ person: { name: "測試個案" }, ...patch });
 
@@ -111,8 +113,8 @@ describe("舊個案轉換（以改版前的 7 筆示範個案為例）", () => {
     const yellow = byName(cases, "呂示例");
     assert.equal(yellow.linkages.length, 1);
     assert.deepEqual(yellow.linkages[0], {
-      resourceId: WALKING.id,
-      resourceName: WALKING.name,
+      resourceId: LEGACY_WALKING.id,
+      resourceName: LEGACY_WALKING.name,
       reason: yellow.linkages[0].reason,
       linkedAt: "2026-09-24",
       escortNeeded: true,
@@ -393,13 +395,14 @@ test("追蹤到期只計算第 4 階段的個案", () => {
 });
 
 describe("資源端後台", () => {
-  test("以示範個案為例：Res001、Res002 各列出 2 筆，待回報排前面", async () => {
-    const { DEMO_CASES } = await import("../src/services/demoCases.js");
-    store.cases = JSON.stringify(DEMO_CASES);
-    const walking = svc.getReferralsForResource(WALKING.id);
-    assert.deepEqual(walking.map((r) => [r.caseItem.code, r.linkage.status]), [["Case003", "pending"], ["Case007", "success"]]);
-    const meal = svc.getReferralsForResource(MEAL.id);
-    assert.deepEqual(meal.map((r) => [r.caseItem.code, r.linkage.status]), [["Case006", "pending"], ["Case005", "success"]]);
+  test("同一資源有待回報與已回報的個案：待回報排前面", () => {
+    const done = newCase({ stage: 3 });
+    svc.addLinkage(done.id, { resourceId: MEAL.id });
+    svc.updateLinkageStatus(done.id, { status: "success" });
+    const pending = newCase({ stage: 3 });
+    svc.addLinkage(pending.id, { resourceId: MEAL.id });
+    const rows = svc.getReferralsForResource(MEAL.id);
+    assert.deepEqual(rows.map((r) => [r.caseItem.id, r.linkage.status]), [[pending.id, "pending"], [done.id, "success"]]);
   });
 
   test("個案已改連其他資源：舊資源只在舊連結仍待回報時列出", () => {

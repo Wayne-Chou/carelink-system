@@ -7,17 +7,24 @@
       <div class="header-center">
         <h2>資源端管理面板</h2>
         <p v-if="resource">
-          目前登入資源：{{ resource.name }}
+          目前登入資源：
+          <router-link :to="`/resources/${resource.id}`" class="resource-link">{{ resource.name }}</router-link>
           <span v-if="resource.code" class="code">{{ resource.code }}</span>
         </p>
       </div>
-      <div class="header-right"></div>
+      <div class="header-right"><UserMenu /></div>
     </div>
 
     <div class="container main-content">
       <div v-if="!resource" class="empty-state">
-        請先到「資源管理」選擇要登入的資源
-        <button type="button" class="outline-btn" @click="$router.push('/list')">前往資源管理</button>
+        <template v-if="canPickAny">
+          請先到「資源管理」選擇要登入的資源
+          <button type="button" class="outline-btn" @click="$router.push('/list')">前往資源管理</button>
+        </template>
+        <!-- 資源點：綁定的資源不存在（例如示範資料尚未載入或資源已刪除） -->
+        <template v-else>
+          找不到您帳號綁定的資源，可能尚未建立或已被刪除。請聯絡系統管理員確認。
+        </template>
       </div>
 
       <template v-else>
@@ -103,6 +110,7 @@
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
@@ -113,15 +121,19 @@ import {
 } from "../config/caseLabels.js";
 import { getAllCases, getReferralsForResource, updateLinkageStatus } from "../services/caseService.js";
 import { getResourceById } from "../services/resourceService.js";
-import { clearCurrentResourceId, getCurrentResourceId } from "../utils/auth.js";
+import { clearCurrentResourceId, getCurrentResourceId, getCurrentUser } from "../utils/auth.js";
+import { can, dashboardResourceId } from "../services/accessControl.js";
 import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
-const back = () => goBack(router, "/list");
+// 角色權限（原型階段）：系統管理員可從資源管理選擇任何資源進入；資源點固定為自己綁定的資源
+const currentUser = getCurrentUser();
+const canPickAny = can(currentUser, "resource.dashboardAny");
+const back = () => goBack(router, canPickAny ? "/list" : "/");
 
-// 資源端登入的資源由 auth.js 存放（測試階段為 sessionStorage，關閉瀏覽器即清除）
-const resource = ref(getResourceById(getCurrentResourceId()));
-if (!resource.value) clearCurrentResourceId();
+// 系統管理員選擇的資源由 auth.js 存放（測試階段為 sessionStorage，關閉瀏覽器即清除）
+const resource = ref(getResourceById(dashboardResourceId(currentUser, getCurrentResourceId())));
+if (!resource.value && canPickAny) clearCurrentResourceId();
 
 const isTerminated = computed(() => resource.value?.status === "terminated");
 const cases = ref(getAllCases());
@@ -214,6 +226,11 @@ const submit = (row) => {
   font-size: 13px;
   opacity: 0.9;
 }
+.resource-link {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .code {
   font-family: "Courier New", monospace;
   font-size: 12px;
@@ -417,5 +434,13 @@ select {
   .choice-row {
     flex-direction: column;
   }
+}
+
+/* 登入者與登出（UserMenu）靠右 */
+.top-bar .header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 </style>

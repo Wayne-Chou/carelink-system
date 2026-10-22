@@ -14,7 +14,13 @@ import AssessmentNew from "../pages/AssessmentNew.vue";
 import AssessmentList from "../pages/AssessmentList.vue";
 import AssessmentReview from "../pages/AssessmentReview.vue";
 import Todo from "../pages/Todo.vue";
-import { isAuthenticated } from "../utils/auth.js";
+import { getAssessmentById } from "../services/assessmentService.js";
+import { checkRouteAccess } from "../services/accessControl.js";
+import { getCurrentUser } from "../utils/auth.js";
+import { routeMeta } from "./access.js";
+
+// 權限（原型階段，正式版需由後端處理）：各路由需要的功能寫在 router/access.js；沒有列出的是公開頁
+const meta = (name) => ({ name, meta: routeMeta(name) });
 
 const routes = [
   { path: "/", name: "home", component: Home },
@@ -22,60 +28,27 @@ const routes = [
   { path: "/login", name: "login", component: Login },
   { path: "/register", name: "register", component: Register },
   // 評估填寫頁：由工作人員登入後把平板交給民眾填寫
-  {
-    path: "/assessment/new",
-    name: "assessment-new",
-    component: AssessmentNew,
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/assessments",
-    name: "assessments",
-    component: AssessmentList,
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/assessments/:id",
-    name: "assessment-review",
-    component: AssessmentReview,
-    meta: { requiresAuth: true },
-  },
-  // 待辦：依今天日期即時計算（doc/assessment-schema.md 第七節）
-  { path: "/todo", name: "todo", component: Todo, meta: { requiresAuth: true } },
-  { path: "/list", name: "list", component: ResourceList, meta: { requiresAuth: true } },
-  {
-    path: "/resources",
-    name: "resources-list",
-    component: ResourceList,
-    meta: { requiresAuth: true },
-  },
-  { path: "/form", name: "form", component: ResourceForm, meta: { requiresAuth: true } },
-  {
-    path: "/form/:id",
-    name: "form-edit",
-    component: ResourceForm,
-    meta: { requiresAuth: true },
-  },
+  { path: "/assessment/new", ...meta("assessment-new"), component: AssessmentNew },
+  { path: "/assessments", ...meta("assessments"), component: AssessmentList },
+  // 判讀頁：判讀人員、系統管理員可判讀；健康管理員只能唯讀查看已開案的評估
+  { path: "/assessments/:id", ...meta("assessment-review"), component: AssessmentReview },
+  // 待辦：依今天日期即時計算（doc/assessment-schema.md 第七節），依角色只顯示自己的項目
+  { path: "/todo", ...meta("todo"), component: Todo },
+  { path: "/list", ...meta("list"), component: ResourceList },
+  { path: "/resources", ...meta("resources-list"), component: ResourceList },
+  { path: "/form", ...meta("form"), component: ResourceForm },
+  { path: "/form/:id", ...meta("form-edit"), component: ResourceForm },
   {
     path: "/user/resources/:id",
-    name: "user-resource-detail",
+    ...meta("user-resource-detail"),
     component: () => import("../pages/ResourceUserDetail.vue"),
   },
-  { path: "/success", name: "success", component: SuccessView },
-  {
-    path: "/resources/:id",
-    name: "resource-detail",
-    component: ResourceDetail,
-    meta: { requiresAuth: true },
-  },
-  {
-    path: "/resource-dashboard",
-    name: "resource-dashboard",
-    component: ResourceDashboard,
-    meta: { requiresAuth: true },
-  },
-  { path: "/cases", name: "cases", component: CaseList, meta: { requiresAuth: true } },
-  { path: "/case/:id", name: "case-detail", component: CaseDetail, meta: { requiresAuth: true } },
+  { path: "/success", ...meta("success"), component: SuccessView },
+  // 資源詳細頁（後台）：系統管理員可編輯；其他角色唯讀，資源點只限自己綁定的資源
+  { path: "/resources/:id", ...meta("resource-detail"), component: ResourceDetail },
+  { path: "/resource-dashboard", ...meta("resource-dashboard"), component: ResourceDashboard },
+  { path: "/cases", ...meta("cases"), component: CaseList },
+  { path: "/case/:id", ...meta("case-detail"), component: CaseDetail },
 ];
 
 const router = createRouter({
@@ -84,10 +57,12 @@ const router = createRouter({
 });
 
 router.beforeEach((to) => {
-  if (to.meta.requiresAuth && !isAuthenticated()) {
-    return { name: "login" };
-  }
-  return true;
+  const result = checkRouteAccess(to, getCurrentUser(), { findAssessment: getAssessmentById });
+  if (result.ok) return true;
+  // 未登入：登入後回到原本要去的頁面
+  if (result.reason === "login") return { name: "login", query: { redirect: to.fullPath } };
+  // 沒有權限：導回首頁並提示（首頁看到 denied 參數顯示提示後移除）
+  return { name: "home", query: { denied: "1" } };
 });
 
 export default router;

@@ -9,6 +9,7 @@
       </div>
       <div class="header-right">
         <button class="add-btn" @click="$router.push('/assessment/new')">＋ 填寫評估</button>
+        <UserMenu />
       </div>
     </div>
 
@@ -84,6 +85,7 @@
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { STATUS_LABELS, formatLight } from "../config/assessmentLabels.js";
@@ -410,5 +412,13 @@ const open = (item) => router.push(`/assessments/${item.id}`);
   .card-action {
     display: none;
   }
+}
+
+/* 登入者與登出（UserMenu）靠右 */
+.top-bar .header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 </style>

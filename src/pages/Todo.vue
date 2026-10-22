@@ -7,11 +7,15 @@
       <div class="header-center">
         <h2>待辦</h2>
       </div>
-      <div class="header-right"></div>
+      <div class="header-right"><UserMenu /></div>
     </div>
 
     <div class="filter-container">
-      <div class="filter-tabs" role="tablist" aria-label="依給誰篩選">
+      <!-- 系統管理員可切換「給誰」；其他角色只看自己的項目 -->
+      <p v-if="!scope.canViewAll" class="scope-note">
+        顯示給「{{ AUDIENCE_LABELS[scope.own] }}」的待辦
+      </p>
+      <div v-else class="filter-tabs" role="tablist" aria-label="依給誰篩選">
         <button
           v-for="tab in audienceTabs"
           :key="tab.code"
@@ -79,11 +83,14 @@
 </template>
 
 <script setup>
+import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { AUDIENCES, TODO_TYPES, computeTodos } from "../services/todoService.js";
 import { todayString } from "../utils/date.js";
 import { goBack } from "../utils/navigation.js";
+import { getCurrentUser } from "../utils/auth.js";
+import { filterTodosFor, todoScopeFor } from "../services/accessControl.js";
 
 const router = useRouter();
 const back = () => goBack(router, "/");
@@ -91,8 +98,12 @@ const back = () => goBack(router, "/");
 const AUDIENCE_LABELS = Object.fromEntries(AUDIENCES.map((a) => [a.code, a.label]));
 
 const today = todayString();
-const todos = computeTodos({ today });
-const audience = ref("all");
+// 角色權限（原型階段）：依登入角色只顯示自己的項目，系統管理員預設看「管理員」項目並可切換全部
+const currentUser = getCurrentUser();
+const scope = todoScopeFor(currentUser);
+const allTodos = computeTodos({ today });
+const todos = filterTodosFor(currentUser, allTodos, "all");
+const audience = ref(scope.own ?? "all");
 const typeFilter = ref("");
 
 const audienceTabs = computed(() => [
@@ -100,9 +111,7 @@ const audienceTabs = computed(() => [
   ...AUDIENCES.map((a) => ({ ...a, count: todos.filter((t) => t.audience === a.code).length })),
 ]);
 
-const byAudience = computed(() =>
-  audience.value === "all" ? todos : todos.filter((t) => t.audience === audience.value)
-);
+const byAudience = computed(() => filterTodosFor(currentUser, allTodos, audience.value));
 
 // 目前篩選下各類型筆數（只列有待辦的類型）
 const typeCounts = computed(() =>
@@ -204,6 +213,12 @@ const open = (item) => router.push(item.link);
   background: #5d4037;
   color: white;
   border-color: #5d4037;
+}
+.scope-note {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #5d4037;
 }
 .tab-count {
   margin-left: 4px;
@@ -358,5 +373,13 @@ const open = (item) => router.push(item.link);
   .card-arrow {
     display: none;
   }
+}
+
+/* 登入者與登出（UserMenu）靠右 */
+.top-bar .header-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 </style>

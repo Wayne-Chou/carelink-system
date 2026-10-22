@@ -17,7 +17,7 @@ test("轉介選單只列出可推薦資源，黃燈標記需陪同", () => {
   );
   assert.deepEqual(
     options.filter((o) => o.needsEscort).map((o) => o.resource.code),
-    ["Res001"]
+    ["Res003"]
   );
 });
 

@@ -38,6 +38,29 @@
         <p v-if="error" class="error-msg" role="alert">{{ error }}</p>
         <button type="submit" class="btn-primary">登入</button>
       </form>
+      <!-- 示範帳號：點一下帶入 Email 與密碼 -->
+      <section class="demo-accounts" aria-labelledby="demo-accounts-title">
+        <h2 id="demo-accounts-title">示範帳號</h2>
+        <p class="demo-note">示範帳號僅供展示，點一下即可帶入；密碼皆為 {{ DEMO_PASSWORD }}</p>
+        <!-- 依角色分組：系統管理員、判讀人員、健康管理員、資源點（標示各自綁定的資源） -->
+        <div v-for="group in demoGroups" :key="group.role" class="demo-group">
+          <h3>{{ group.label }}<span v-if="group.accounts.length > 1">（{{ group.accounts.length }} 個）</span></h3>
+          <ul>
+            <li v-for="account in group.accounts" :key="account.email">
+              <button
+                type="button"
+                :class="['demo-account', { selected: email === account.email }]"
+                @click="useDemo(account)"
+              >
+                <span>{{ account.email }}</span>
+                <small>{{ demoDescription(account) }}</small>
+              </button>
+            </li>
+          </ul>
+        </div>
+      </section>
+      <!-- 示範情境：載入後自動帶入這一步操作者的示範帳號 -->
+      <ScenarioLoader class="scenario-loader-box" @loaded="onScenarioLoaded" />
       <p class="auth-footer">
         還沒有帳號？
         <router-link to="/register">立即註冊</router-link>
@@ -49,12 +72,17 @@
 
 <script setup>
 import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { useRoute, useRouter } from "vue-router";
 import { goBack } from "../utils/navigation.js";
 import logo from "../assets/logo.png";
 import { login } from "../utils/auth.js";
+import { DEMO_ACCOUNTS, DEMO_PASSWORD, ROLES } from "../config/roles.js";
+import ScenarioLoader from "../components/ScenarioLoader.vue";
+import { landingPathFor } from "../services/accessControl.js";
+import { getAssessmentById } from "../services/assessmentService.js";
 
 const router = useRouter();
+const route = useRoute();
 const back = () => goBack(router, "/");
 const email = ref("");
 const password = ref("");
@@ -70,7 +98,32 @@ const handleSubmit = () => {
     error.value = result.error;
     return;
   }
-  router.push("/");
+  // 原本被擋下的頁面有權限就回去；否則依角色到預設頁（資源點直接進入資源端後台）
+  const redirect = typeof route.query.redirect === "string" ? router.resolve(route.query.redirect) : null;
+  router.replace(landingPathFor(result.user, redirect, { findAssessment: getAssessmentById }));
+};
+
+const demoDescription = (account) => {
+  if (account.role === "admin") return "全部頁面與功能";
+  if (account.role === "reader") return `${account.name}（醫師）`;
+  if (account.role === "provider") return `綁定 ${account.resourceLabel}（窗口 ${account.name}）`;
+  return account.name;
+};
+const demoGroups = ROLES.map((r) => ({
+  role: r.code,
+  label: r.label,
+  accounts: DEMO_ACCOUNTS.filter((a) => a.role === r.code),
+})).filter((g) => g.accounts.length);
+
+const onScenarioLoaded = ({ email: operatorEmail }) => {
+  const account = DEMO_ACCOUNTS.find((a) => a.email === operatorEmail);
+  if (account) useDemo(account);
+};
+
+const useDemo = (account) => {
+  email.value = account.email;
+  password.value = account.password;
+  error.value = "";
 };
 </script>
 
@@ -233,6 +286,87 @@ const handleSubmit = () => {
 .btn-primary:hover {
   background: #a06f4a;
   transform: translateY(-1px);
+}
+
+.demo-accounts {
+  margin-top: 24px;
+  padding: 16px;
+  border-radius: 14px;
+  background: #faf6f2;
+  border: 1px dashed #d7c2ad;
+}
+
+.demo-accounts h2 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #5d4037;
+}
+
+.demo-note {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #8d6e63;
+}
+
+.demo-group + .demo-group {
+  margin-top: 10px;
+}
+
+.demo-group h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #8a5a3c;
+}
+
+.demo-group h3 span {
+  font-weight: 400;
+}
+
+.demo-accounts ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.demo-account {
+  width: 100%;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #eadbcd;
+  background: #fff;
+  color: #5d4037;
+  cursor: pointer;
+}
+
+.demo-account strong {
+  font-size: 14px;
+}
+
+.demo-account span {
+  font-size: 13px;
+  font-family: "Courier New", monospace;
+}
+
+.demo-account small {
+  font-size: 12px;
+  color: #8d6e63;
+}
+
+.demo-account:hover,
+.demo-account.selected {
+  border-color: #c2956e;
+  background: #fff8f2;
+}
+
+.scenario-loader-box {
+  margin-top: 16px;
 }
 
 .auth-footer {

@@ -81,7 +81,8 @@ describe("嚴格模式（STRICT_VALIDATION = true）", () => {
   });
 
   test("編輯時風險等級變更須附說明", () => {
-    const original = valid();
+    // 原本為黃燈，編輯後改為綠燈
+    const original = { ...valid(), riskLevel: "yellow" };
     assert.ok(strict({ riskLevel: "green" }, { original }).riskChangeNote);
     assert.equal(strict({ riskLevel: "green", riskChangeNote: "已改善" }, { original }).riskChangeNote, undefined);
   });

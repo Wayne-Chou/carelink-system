@@ -41,7 +41,7 @@ test("民眾端資料不含任何後台欄位", () => {
 
 test("民眾端保留公眾聯絡人與參與資訊", () => {
   const pub = toPublicResource(visible());
-  assert.equal(pub.publicContact.name, "陳範例");
+  assert.equal(pub.publicContact.name, "黃示例");
   assert.equal(pub.fee.type, "subsidized");
   assert.ok(pub.schedule.type);
   assert.ok(pub.address.district);
@@ -56,12 +56,17 @@ test("回傳的是複本，修改不影響原資料", () => {
   const original = visible();
   const pub = toPublicResource(original);
   pub.address.district = "改掉";
-  assert.equal(original.address.district, "中和區");
+  assert.equal(original.address.district, "吉安鄉");
 });
 
 test("探索頁不顯示的資源，民眾端不提供內容，說明不透露後台原因", () => {
-  for (const code of ["Res004", "Res005", "Res006"]) {
-    const r = DEMO_RESOURCES.find((x) => x.code === code);
+  // 暫停（示範資料 Res004）、風險紅燈、合作尚未確認
+  const hidden = {
+    Res004: DEMO_RESOURCES.find((x) => x.code === "Res004"),
+    red: { ...visible(), riskLevel: "red", riskCriteria: { ...visible().riskCriteria, insurance: "red" } },
+    unconfirmed: { ...visible(), partnership: "unconfirmed" },
+  };
+  for (const [code, r] of Object.entries(hidden)) {
     assert.equal(toPublicResource(r), null, code);
     const { available, message } = getPublicAvailability(r);
     assert.equal(available, false);

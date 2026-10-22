@@ -26,6 +26,7 @@ local.data.currentResourceId = "res-old";
 
 const auth = await import("../src/utils/auth.js");
 const { ROLE_CODES } = await import("../src/config/roles.js");
+const { DEMO_RESOURCES } = await import("../src/services/demoResources.js");
 
 // 模擬關閉瀏覽器：sessionStorage 清空，localStorage 保留
 const closeBrowser = () => {
@@ -55,20 +56,21 @@ describe("一般操作", () => {
     assert.equal(auth.LOGIN_STORAGE, "session");
   });
 
-  test("登入狀態存 sessionStorage，帳號清單存 localStorage", () => {
-    auth.register({ name: "王示範", email: "w@example.com", password: "x" });
+  test("登入狀態與註冊的帳號清單都存 sessionStorage，localStorage 沒有任何資料", () => {
+    auth.register({ name: "王示範", email: "w@example.com", password: "x", role: "reader" });
     assert.ok(session.data.currentUser, "登入者在 sessionStorage");
-    assert.equal("currentUser" in local.data, false, "localStorage 沒有登入者");
-    assert.equal(JSON.parse(local.data.users).length, 1, "帳號在 localStorage");
+    assert.equal(JSON.parse(session.data.users).length, 1, "帳號在 sessionStorage");
+    assert.deepEqual(local.data, {}, "localStorage 沒有任何資料");
   });
 
-  test("關閉瀏覽器後自動登出，帳號仍在，重新登入即可", () => {
-    auth.register({ name: "王示範", email: "w@example.com", password: "x" });
+  test("關閉瀏覽器後自動登出，註冊的帳號也清除；示範帳號仍可登入", () => {
+    auth.register({ name: "王示範", email: "w@example.com", password: "x", role: "reader" });
     assert.equal(auth.isAuthenticated(), true);
     closeBrowser();
     assert.equal(auth.isAuthenticated(), false);
-    assert.equal(auth.getUsers().length, 1);
-    assert.equal(auth.login({ email: "w@example.com", password: "x" }).ok, true);
+    assert.equal(auth.getUsers().length, 0, "註冊的帳號已清除");
+    assert.equal(auth.login({ email: "w@example.com", password: "x" }).ok, false);
+    assert.equal(auth.login({ email: "reader@demo.carelink", password: "demo1234" }).ok, true, "示範帳號寫在程式裡");
     assert.equal(auth.isAuthenticated(), true);
   });
 
@@ -82,15 +84,15 @@ describe("一般操作", () => {
   });
 
   test("登出時一併清除資源端登入的資源", () => {
-    auth.register({ name: "王示範", email: "w@example.com", password: "x" });
+    auth.register({ name: "王示範", email: "w@example.com", password: "x", role: "reader" });
     auth.setCurrentResourceId("res-1");
     auth.clearCurrentUser();
     assert.equal(auth.getCurrentUser(), null);
     assert.equal(auth.getCurrentResourceId(), "");
   });
 
-  test("五種角色", () => {
-    assert.deepEqual(ROLE_CODES, ["citizen", "reader", "manager", "provider", "admin"]);
+  test("四種角色：系統管理員、判讀人員、健康管理員、資源點", () => {
+    assert.deepEqual(ROLE_CODES, ["admin", "reader", "manager", "provider"]);
   });
 
   test("註冊時可指定角色，登入後讀得到", () => {
@@ -102,17 +104,65 @@ describe("一般操作", () => {
     assert.equal(auth.hasRole("manager"), false);
   });
 
-  test("未指定或不合法的角色：Email 含 admin 為管理員，其餘為民眾", () => {
-    assert.equal(auth.register({ name: "A", email: "Admin@example.com", password: "x" }).user.role, "admin");
-    assert.equal(auth.register({ name: "B", email: "b@example.com", password: "x", role: "boss" }).user.role, "citizen");
-    assert.equal(auth.resolveRole(undefined), "citizen");
+  test("註冊必須選角色，不開放系統管理員；Email 含 admin 不再自動成為管理員", () => {
+    assert.deepEqual(auth.register({ name: "A", email: "admin@example.com", password: "x" }), { ok: false, error: "請選擇角色" });
+    assert.equal(auth.register({ name: "A", email: "admin@example.com", password: "x", role: "admin" }).ok, false);
+    assert.equal(auth.register({ name: "B", email: "b@example.com", password: "x", role: "boss" }).ok, false);
+    assert.equal(auth.getUsers().length, 0, "都沒有建立帳號");
+    assert.equal("resolveRole" in auth, false, "已移除 Email 備援規則");
   });
 
-  test("舊帳號存的 role 為 user 時，改用 Email 備援規則", () => {
-    auth.setCurrentUser({ id: 1, name: "舊管理員", email: "admin@example.com", role: "user" });
-    assert.equal(auth.getCurrentRole(), "admin");
-    auth.setCurrentUser({ id: 2, name: "舊民眾", email: "old@example.com", role: "user" });
-    assert.equal(auth.getCurrentRole(), "citizen");
+  test("資源點註冊需選擇綁定的資源，並記在帳號與登入狀態", () => {
+    assert.equal(auth.register({ name: "P", email: "p@example.com", password: "x", role: "provider" }).ok, false);
+    const result = auth.register({ name: "P", email: "p@example.com", password: "x", role: "provider", resourceId: "res-9" });
+    assert.equal(result.ok, true);
+    assert.equal(result.user.resourceId, "res-9");
+    assert.equal(auth.getCurrentUser().resourceId, "res-9");
+    const reader = auth.register({ name: "R", email: "r@example.com", password: "x", role: "reader", resourceId: "res-9" });
+    assert.equal("resourceId" in reader.user, false, "其他角色不記綁定資源");
+  });
+
+  test("沒有角色的舊帳號（user、citizen 或空白）：已登入但角色為空，只能看公開頁", () => {
+    for (const role of ["user", "citizen", undefined]) {
+      auth.setCurrentUser({ id: 1, name: "舊帳號", email: "admin@example.com", role });
+      assert.equal(auth.isAuthenticated(), true);
+      assert.equal(auth.getCurrentRole(), "", String(role));
+      assert.equal(auth.hasRole("admin"), false);
+    }
+  });
+
+  test("示範帳號：每次都能登入、不存入瀏覽器、不能被註冊", () => {
+    const accounts = [
+      ["admin@demo.carelink", "admin"],
+      ["reader@demo.carelink", "reader"],
+      ["manager@demo.carelink", "manager"],
+      ["provider@demo.carelink", "provider"],
+      ["provider2@demo.carelink", "provider"],
+      ["provider3@demo.carelink", "provider"],
+    ];
+    for (const [email, role] of accounts) {
+      const result = auth.login({ email: email.toUpperCase(), password: "demo1234" });
+      assert.equal(result.ok, true, email);
+      assert.equal(auth.getCurrentRole(), role, email);
+    }
+    assert.equal(auth.getUsers().length, 0, "示範帳號不寫入帳號清單");
+    assert.equal(auth.login({ email: "admin@demo.carelink", password: "wrong" }).ok, false);
+    assert.deepEqual(auth.register({ name: "冒用", email: "reader@demo.carelink", password: "x", role: "reader" }), {
+      ok: false,
+      error: "這是示範帳號的 Email，請直接登入",
+    });
+  });
+
+  test("示範帳號的姓名、判讀類別與綁定資源", () => {
+    auth.login({ email: "reader@demo.carelink", password: "demo1234" });
+    assert.deepEqual(
+      (({ name, readerType }) => ({ name, readerType }))(auth.getCurrentUser()),
+      { name: "郭範例", readerType: "doctor" }
+    );
+    auth.login({ email: "manager@demo.carelink", password: "demo1234" });
+    assert.equal(auth.getCurrentUser().name, "高示範");
+    auth.login({ email: "provider@demo.carelink", password: "demo1234" });
+    assert.equal(auth.getCurrentUser().resourceId, DEMO_RESOURCES.find((r) => r.code === "Res001").id);
   });
 
   test("未登入時沒有角色", () => {
@@ -124,7 +174,7 @@ describe("一般操作", () => {
     local.data.users = "{壞掉";
     session.data.currentUser = "{壞掉";
     assert.equal(auth.getCurrentRole(), null);
-    assert.equal(auth.register({ name: "C", email: "c@example.com", password: "x" }).ok, true);
+    assert.equal(auth.register({ name: "C", email: "c@example.com", password: "x", role: "manager" }).ok, true);
   });
 
   test("瀏覽器禁止存取 sessionStorage 時視為未登入，不會丟出錯誤", () => {
