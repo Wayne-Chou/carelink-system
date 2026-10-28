@@ -61,7 +61,6 @@
               <i class="fa-solid fa-clock" aria-hidden="true"></i> 首次聯繫逾期（開案 {{ item.daysOpen }} 天）
             </span>
             <span v-if="item.followUpDue" class="due-badge">追蹤到期</span>
-            <span v-if="item.isDemo" class="demo-badge">示範</span>
           </div>
           <h4>{{ item.person.name || "未命名個案" }}</h4>
           <p class="case-meta">
@@ -404,16 +403,6 @@ const removeCase = (item) => {
   color: #bf360c;
   border: 1px solid #ffcc80;
 }
-.demo-badge {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6d4c41;
-  background: #fff;
-  border: 1px dashed #a1887f;
-  border-radius: 999px;
-  padding: 1px 8px;
-}
-
 .case-actions {
   display: flex;
   align-items: center;

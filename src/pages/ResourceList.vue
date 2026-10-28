@@ -43,22 +43,10 @@
           共 {{ overdueCount }} 筆資源已超過預計驗證日期
         </p>
       </div>
-      <!-- 示範情境：只保留「載入示範情境」，載入時清空所有資源、評估、個案 -->
-      <ScenarioLoader class="scenario-tools" @loaded="onScenarioLoaded" />
     </div>
 
 
     <div class="container main-list">
-      <div v-if="actionNotice" class="saved-banner" role="status">
-        <span>
-          <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
-          {{ actionNotice }}
-        </span>
-        <button type="button" class="banner-close" aria-label="關閉提示" @click="actionNotice = ''">
-          <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-        </button>
-      </div>
-
       <div v-if="savedNotice" class="saved-banner" role="status">
         <span>
           <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
@@ -93,7 +81,6 @@
                 </span>
               </div>
               <div class="header-right">
-                <span v-if="item.isDemo" class="demo-badge">示範</span>
                 <span :class="['status-text', item.status]">
                   {{ optionLabel(STATUS_OPTIONS, item.status) || "未設定" }}
                 </span>
@@ -188,7 +175,6 @@ import {
   isVerifyOverdue,
   terminateResource,
 } from "../services/resourceService.js";
-import ScenarioLoader from "../components/ScenarioLoader.vue";
 import { setCurrentResourceId } from "../utils/auth.js";
 import { consumeFlash } from "../utils/flash.js";
 
@@ -281,15 +267,6 @@ const removeResource = (item) => {
     return;
   }
   deleteResource(item.id);
-  reload();
-};
-
-// ── 示範情境 ──
-const actionNotice = ref("");
-const onScenarioLoaded = (result) => {
-  actionNotice.value = `已載入示範情境（從第 ${result.step} 步開始）：資源 ${result.resources} 筆、評估 ${result.assessments} 筆、個案 ${result.cases} 筆`;
-  savedNotice.value = null;
-  currentTab.value = "all";
   reload();
 };
 
@@ -407,20 +384,6 @@ const loginResource = (id) => {
   color: #bf360c;
   font-weight: 600;
 }
-.scenario-tools {
-  margin-top: 12px;
-}
-
-.demo-badge {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6d4c41;
-  background: #fff;
-  border: 1px dashed #a1887f;
-  border-radius: 999px;
-  padding: 1px 8px;
-}
-
 /* Resource Card */
 .main-list {
   margin-top: 20px;

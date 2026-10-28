@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { reactive, ref } from "vue";
 import { deepClone } from "../src/utils/clone.js";
 import { toPublicResource } from "../src/services/publicResource.js";
-import { DEMO_RESOURCES } from "../src/services/demoResources.js";
+import { FIXTURE_RESOURCES } from "./fixtures/resources.js";
 
 test("重現問題：structuredClone 無法複製 Vue 響應式資料", () => {
   const assessment = ref({ review: { light: "", q11Notes: {} } });
@@ -24,6 +24,6 @@ test("deepClone 處理 undefined 與 null", () => {
 });
 
 test("民眾端資料轉換可接受響應式的資源物件", () => {
-  const resource = reactive(structuredClone(DEMO_RESOURCES[1]));
-  assert.equal(toPublicResource(resource).name, DEMO_RESOURCES[1].name);
+  const resource = reactive(structuredClone(FIXTURE_RESOURCES[1]));
+  assert.equal(toPublicResource(resource).name, FIXTURE_RESOURCES[1].name);
 });

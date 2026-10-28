@@ -144,7 +144,6 @@ function convertLegacyCase(raw) {
     managerName: "",
     createdAt: raw.createdAt ?? null,
     updatedAt: raw.updatedAt ?? raw.createdAt ?? null,
-    ...(raw.isDemo ? { isDemo: true } : {}),
     person: {
       name: basic.name || raw.name || "",
       nationalId: "",

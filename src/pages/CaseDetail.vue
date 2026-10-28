@@ -23,7 +23,6 @@
         <div class="summary-head">
           <span class="case-code">{{ caseItem.code }}</span>
           <span :class="['stage-badge', `stage-${caseItem.stage}`]">{{ stageShort(caseItem.stage) }}</span>
-          <span v-if="caseItem.isDemo" class="demo-badge">示範</span>
         </div>
         <h1 class="person-name">{{ caseItem.person.name || "未命名個案" }}</h1>
         <p class="person-meta">
@@ -912,15 +911,6 @@ const historyNewestFirst = computed(() => [...(caseItem.value?.history || [])].r
 .stage-closed {
   background: #bdbdbd;
 }
-.demo-badge {
-  font-size: 11px;
-  font-weight: 700;
-  color: #6d4c41;
-  border: 1px dashed #a1887f;
-  border-radius: 999px;
-  padding: 1px 8px;
-}
-
 /* 階段進度 */
 .stepper {
   display: flex;

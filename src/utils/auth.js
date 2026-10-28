@@ -1,5 +1,5 @@
 import { DEMO_ACCOUNTS, REGISTERABLE_ROLES, isValidRole } from "../config/roles.js";
-import { notifyChange, readAccountList, writeAccountList } from "../services/storage.js";
+import { readAccountList, writeAccountList } from "../services/storage.js";
 
 // ── 登入狀態的儲存位置 ────────────────────────────────────
 // "session"：存在 sessionStorage，關閉瀏覽器（或分頁）後自動登出（測試階段使用）
@@ -41,7 +41,6 @@ function writeLogin(key, value) {
   try {
     if (value === null) loginStorage().removeItem(key);
     else loginStorage().setItem(key, value);
-    notifyChange(key);
   } catch {
     // 瀏覽器禁止存取儲存空間時略過（等同未登入）
   }

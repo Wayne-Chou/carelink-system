@@ -16,23 +16,21 @@ globalThis.sessionStorage = {
 };
 
 const svc = await import("../src/services/caseService.js");
-const { loadDemoResources } = await import("../src/services/resourceService.js");
-// 舊格式個案（改版前的示範個案），驗證舊個案轉換
+// 舊格式個案，驗證舊個案轉換
 const { LEGACY_CASES } = await import("./fixtures/legacyCases.js");
-const { DEMO_RESOURCES } = await import("../src/services/demoResources.js");
+const { FIXTURE_RESOURCES } = await import("./fixtures/resources.js");
 const { FOLLOW_UP_START } = await import("../src/config/assessmentRules.js");
 const { addMonths, todayString } = await import("../src/utils/date.js");
 
-const WALKING = DEMO_RESOURCES.find((r) => r.code === "Res003"); // 黃燈（示範關懷據點歌唱班）
-const MEAL = DEMO_RESOURCES.find((r) => r.code === "Res002");
-// 舊個案資料（tests/fixtures/legacyCases.js）連結的是改版前的示範資源
+const WALKING = FIXTURE_RESOURCES.find((r) => r.code === "Res103"); // 黃燈（範例關懷據點歌唱班）
+const MEAL = FIXTURE_RESOURCES.find((r) => r.code === "Res102");
+// 舊個案資料（tests/fixtures/legacyCases.js）連結的是已不存在的舊資源
 const LEGACY_WALKING = { id: "7c1e2a40-5b3d-4f1a-9e2c-1a2b3c4d5e6f", name: "湳興河濱長者健走班" };
 
 const newCase = (patch = {}) => svc.createCase({ person: { name: "測試個案" }, ...patch });
 
 beforeEach(() => {
-  store = {};
-  loadDemoResources({ replace: true });
+  store = { resources: JSON.stringify(FIXTURE_RESOURCES) };
 });
 
 describe("新增、讀取、修改", () => {
@@ -64,7 +62,7 @@ describe("新增、讀取、修改", () => {
   });
 });
 
-describe("舊個案轉換（以改版前的 7 筆示範個案為例）", () => {
+describe("舊個案轉換（以 7 筆舊格式個案為例）", () => {
   const loadLegacy = () => {
     store.cases = JSON.stringify(LEGACY_CASES);
     return svc.getAllCases();
@@ -78,11 +76,10 @@ describe("舊個案轉換（以改版前的 7 筆示範個案為例）", () => {
     assert.equal(store.cases, before);
   });
 
-  test("依序補上 Case001～Case007，id 與示範標記保留", () => {
+  test("依序補上 Case001～Case007，id 保留", () => {
     const cases = loadLegacy();
     assert.deepEqual(cases.map((c) => c.code), ["Case001", "Case002", "Case003", "Case004", "Case005", "Case006", "Case007"]);
     assert.deepEqual(cases.map((c) => c.id), LEGACY_CASES.map((c) => c.id));
-    assert.ok(cases.every((c) => c.isDemo === true));
   });
 
   test("已有編碼的個案保留，沒有的接在後面", () => {

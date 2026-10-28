@@ -19,11 +19,6 @@
         <p v-for="text in INTRO_PARAGRAPHS" :key="text" class="intro-text">{{ text }}</p>
         <p class="intro-emphasis">{{ INTRO_EMPHASIS }}</p>
         <button type="button" class="primary-btn" @click="next">開始填寫</button>
-        <!-- 只在示範情境第 1 步出現：一鍵填好林示範的 Q1～Q12 與工作人員欄位 -->
-        <div v-if="storyStep1" class="story-demo-box">
-          <p>示範情境第 1 步：可一鍵填好林示範的答案，直接到工作人員確認送出</p>
-          <button type="button" class="secondary-btn" @click="fillProtagonist">帶入林示範的答案</button>
-        </div>
       </section>
 
       <!-- 基本資料 -->
@@ -43,10 +38,6 @@
           <button type="button" class="secondary-btn" @click="prev">上一步</button>
           <button type="button" class="primary-btn" @click="next">下一步</button>
         </nav>
-        <div v-if="storyStep1" class="story-demo-box">
-          <p>示範情境第 1 步：可一鍵填好林示範的答案</p>
-          <button type="button" class="secondary-btn" @click="fillProtagonist">帶入林示範的答案</button>
-        </div>
       </section>
 
       <!-- 一、生活狀況 Q1–Q10 -->
@@ -219,8 +210,6 @@ import {
   STAFF_SECTION_TITLE,
 } from "../config/assessmentForm.js";
 import { createAssessment } from "../services/assessmentService.js";
-import { PROTAGONIST } from "../config/demoStory.js";
-import { getStoryState } from "../services/storyService.js";
 import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
@@ -238,22 +227,6 @@ const emptyForm = () => ({
 
 const form = reactive(emptyForm());
 
-// 示範情境第 1 步：姓名預先帶入「林示範」，並提供一鍵帶入林示範的答案（其他時候不出現）
-const storyStep1 = (() => {
-  const story = getStoryState();
-  return story.active && story.step === 1;
-})();
-if (storyStep1) form.person.name = PROTAGONIST.name;
-
-const fillProtagonist = () => {
-  form.person.name = PROTAGONIST.name;
-  form.answers = { ...PROTAGONIST.answers, q11: [...PROTAGONIST.answers.q11] };
-  form.fillMode = PROTAGONIST.fillMode;
-  form.fillNote = PROTAGONIST.fillNote;
-  q11Skipped.value = false;
-  hint.value = "";
-  stepIndex.value = STEPS.indexOf("staff");
-};
 const stepIndex = ref(0);
 const q11Skipped = ref(false);
 const hint = ref("");
@@ -454,21 +427,6 @@ const exit = () => {
   line-height: 1.9;
   margin-bottom: 16px;
 }
-.story-demo-box {
-  margin-top: 28px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px dashed #c2956e;
-  background: #fff8f2;
-  text-align: center;
-}
-
-.story-demo-box p {
-  margin: 0 0 10px;
-  font-size: 15px;
-  color: #8a5a3c;
-}
-
 .intro-emphasis {
   font-size: 22px;
   font-weight: 700;

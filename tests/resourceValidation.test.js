@@ -2,9 +2,9 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { validateResource } from "../src/services/resourceValidation.js";
 import { STRICT_VALIDATION } from "../src/config/resourceRules.js";
-import { DEMO_RESOURCES } from "../src/services/demoResources.js";
+import { FIXTURE_RESOURCES } from "./fixtures/resources.js";
 
-const valid = () => structuredClone(DEMO_RESOURCES[0]);
+const valid = () => structuredClone(FIXTURE_RESOURCES[0]);
 const strict = (patch, options = {}) =>
   validateResource({ ...valid(), ...patch }, { strict: true, ...options }).errors;
 const loose = (resource) => validateResource(resource, { strict: false });

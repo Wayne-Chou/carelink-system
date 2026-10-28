@@ -1,11 +1,9 @@
 // 測試用：改版前的舊格式個案（basic、單一 linkage、tracking、stage 1–6），用來驗證 caseService 的舊個案轉換
-// 內容為原本的 7 筆示範個案
-// 姓名皆含「示範／範例／示例／範本」；個案格式沒有電話欄位
-// 每筆帶 isDemo: true，可與示範資源一起一鍵移除
+// 共 7 筆虛構個案，姓名皆含「示範／範例／示例／範本」；個案格式沒有電話欄位
 //
 // 階段分布：辨識 1、諮詢 1、連結 2、追蹤 2、已結案 1
-//   連結階段：一筆連到黃燈資源 Res001（提示需陪同），一筆連到暫停中的 Res004（提示需重新選擇）
-// 資源端後台：Res001、Res002 各有 2 筆轉介個案，各含「待回報」與「成功」
+//   連結階段：一筆連到黃燈資源 WALKING（提示需陪同），一筆連到暫停中的 REPAIR（提示需重新選擇）
+// 資源端後台：WALKING、MEAL 各有 2 筆轉介個案，各含「待回報」與「成功」
 //
 // 歷程紀錄的寫法與 CaseDetail.vue 一致：建立為「初始建立」，其餘以「[健康管理員] 」開頭
 
@@ -16,16 +14,15 @@ const EMPTY_CONSULTATION = { needLevel: "", motivation: "", goal: "", note: "" }
 const EMPTY_LINKAGE = { resourceId: null, resourceName: "", reason: "", status: "" };
 const EMPTY_CLOSURE = { reason: "", outcome: "" };
 
-// 示範資源 id（見 demoResources.js）
-const WALKING = { id: "7c1e2a40-5b3d-4f1a-9e2c-1a2b3c4d5e6f", name: "湳興河濱長者健走班" }; // Res001 黃燈
-const MEAL = { id: "d3a1f0b2-1c4e-4a6b-8d2f-0a1b2c3d4e02", name: "範例里社區共餐食堂" }; // Res002
-const REPAIR = { id: "d3a1f0b2-1c4e-4a6b-8d2f-0a1b2c3d4e06", name: "示範居家安全修繕服務" }; // Res004 暫停
+// 舊個案連結的資源（舊格式的 id 與名稱，目前的資源中不存在）
+const WALKING = { id: "7c1e2a40-5b3d-4f1a-9e2c-1a2b3c4d5e6f", name: "湳興河濱長者健走班" }; // 黃燈
+const MEAL = { id: "d3a1f0b2-1c4e-4a6b-8d2f-0a1b2c3d4e02", name: "範例里社區共餐食堂" };
+const REPAIR = { id: "d3a1f0b2-1c4e-4a6b-8d2f-0a1b2c3d4e06", name: "示範居家安全修繕服務" }; // 暫停
 
 export const LEGACY_CASES = [
   // 1. 辨識階段：剛建立，基本資料已填
   {
     id: "case_demo_01",
-    isDemo: true,
     basic: {
       name: "李示範",
       age: "78",
@@ -46,7 +43,6 @@ export const LEGACY_CASES = [
   // 2. 諮詢階段：已初訪，需求評估尚未填完
   {
     id: "case_demo_02",
-    isDemo: true,
     basic: {
       name: "周範例",
       age: "70",
@@ -69,10 +65,9 @@ export const LEGACY_CASES = [
     createdAt: "2026-09-26",
   },
 
-  // 3. 連結階段：已連結黃燈資源 Res001，等待資源端回報
+  // 3. 連結階段：已連結黃燈資源 WALKING，等待資源端回報
   {
     id: "case_demo_03",
-    isDemo: true,
     basic: {
       name: "呂示例",
       age: "82",
@@ -106,10 +101,9 @@ export const LEGACY_CASES = [
     createdAt: "2026-09-15",
   },
 
-  // 4. 連結階段：連結的 Res004 之後暫停服務，個案頁會提示需重新選擇資源
+  // 4. 連結階段：連結的 REPAIR 之後暫停服務，個案頁會提示需重新選擇資源
   {
     id: "case_demo_04",
-    isDemo: true,
     basic: {
       name: "曾範本",
       age: "75",
@@ -143,10 +137,9 @@ export const LEGACY_CASES = [
     createdAt: "2026-09-01",
   },
 
-  // 5. 追蹤階段：連結 Res002，資源端已回報成功，已有兩次追蹤
+  // 5. 追蹤階段：連結 MEAL，資源端已回報成功，已有兩次追蹤
   {
     id: "case_demo_05",
-    isDemo: true,
     basic: {
       name: "謝示範",
       age: "73",
@@ -187,10 +180,9 @@ export const LEGACY_CASES = [
     createdAt: "2026-08-20",
   },
 
-  // 6. 追蹤階段：連結 Res002，資源端尚未回報
+  // 6. 追蹤階段：連結 MEAL，資源端尚未回報
   {
     id: "case_demo_06",
-    isDemo: true,
     basic: {
       name: "潘範例",
       age: "69",
@@ -229,10 +221,9 @@ export const LEGACY_CASES = [
     createdAt: "2026-09-10",
   },
 
-  // 7. 已結案：連結 Res001，資源端已回報成功，三次追蹤後目標達成
+  // 7. 已結案：連結 WALKING，資源端已回報成功，三次追蹤後目標達成
   {
     id: "case_demo_07",
-    isDemo: true,
     basic: {
       name: "葉示例",
       age: "80",

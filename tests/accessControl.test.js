@@ -16,15 +16,17 @@ import {
   todoScopeFor,
 } from "../src/services/accessControl.js";
 import { PUBLIC_ROUTES, ROUTE_ACCESS, routeMeta } from "../src/router/access.js";
-import { DEMO_RESOURCES } from "../src/services/demoResources.js";
+import { FIXTURE_IDS } from "./fixtures/resources.js";
 
-const RES001 = DEMO_RESOURCES.find((r) => r.code === "Res001").id;
-const RES002 = DEMO_RESOURCES.find((r) => r.code === "Res002").id;
+const RES_A = FIXTURE_IDS.Res101;
+const RES_B = FIXTURE_IDS.Res102;
 const user = (role) => DEMO_ACCOUNTS.find((a) => a.role === role);
 const ADMIN = user("admin");
 const READER = user("reader");
 const MANAGER = user("manager");
-const PROVIDER = user("provider");
+const DEMO_PROVIDER = user("provider");
+// 測試用：綁定 Res101 的資源點（示範帳號本身沒有綁定資源）
+const PROVIDER = { ...DEMO_PROVIDER, resourceId: RES_A };
 const NO_ROLE = { id: 1, name: "舊帳號", email: "admin@example.com", role: "user" };
 
 const ASSESSMENTS = {
@@ -53,7 +55,7 @@ test("角色設定：每個角色都有功能清單；註冊不開放系統管�
 test("公開頁不需登入，任何人（含沒有角色的帳號）都能進入；黃燈開啟的探索頁在新分頁也不受影響", () => {
   for (const name of PUBLIC_ROUTES) {
     for (const u of [null, NO_ROLE, ADMIN, READER, MANAGER, PROVIDER]) {
-      assert.equal(allowed(u, name, { id: RES001 }), true, `${name} ${u?.role ?? "未登入"}`);
+      assert.equal(allowed(u, name, { id: RES_A }), true, `${name} ${u?.role ?? "未登入"}`);
     }
   }
 });
@@ -93,11 +95,11 @@ test("各角色可進入的頁面（權限矩陣）", () => {
 
 test("資源詳細頁：系統管理員、判讀人員、健康管理員都能看；資源點只能看自己綁定的資源", () => {
   for (const u of [ADMIN, READER, MANAGER]) {
-    assert.equal(allowed(u, "resource-detail", { id: RES002 }), true, u.role);
+    assert.equal(allowed(u, "resource-detail", { id: RES_B }), true, u.role);
   }
-  assert.equal(allowed(PROVIDER, "resource-detail", { id: RES001 }), true);
-  assert.equal(allowed(PROVIDER, "resource-detail", { id: RES002 }), false);
-  assert.equal(allowed(NO_ROLE, "resource-detail", { id: RES001 }), false);
+  assert.equal(allowed(PROVIDER, "resource-detail", { id: RES_A }), true);
+  assert.equal(allowed(PROVIDER, "resource-detail", { id: RES_B }), false);
+  assert.equal(allowed(NO_ROLE, "resource-detail", { id: RES_A }), false);
   assert.equal(canViewResource({ ...PROVIDER, resourceId: "" }, ""), false, "沒有綁定資源的資源點");
 });
 
@@ -123,13 +125,13 @@ test("唯讀與連結：判讀人員沒有個案頁權限；健康管理員不�
 });
 
 test("資源端後台：系統管理員可檢視任何資源；資源點固定為綁定的資源", () => {
-  assert.equal(canUseDashboard(ADMIN, RES002), true);
-  assert.equal(canUseDashboard(PROVIDER, RES001), true);
-  assert.equal(canUseDashboard(PROVIDER, RES002), false);
-  assert.equal(canUseDashboard(READER, RES001), false);
-  assert.equal(dashboardResourceId(ADMIN, RES002), RES002, "系統管理員沿用資源列表選擇的資源");
-  assert.equal(dashboardResourceId(PROVIDER, RES002), RES001, "資源點不能切換");
-  assert.equal(dashboardResourceId(READER, RES001), "");
+  assert.equal(canUseDashboard(ADMIN, RES_B), true);
+  assert.equal(canUseDashboard(PROVIDER, RES_A), true);
+  assert.equal(canUseDashboard(PROVIDER, RES_B), false);
+  assert.equal(canUseDashboard(READER, RES_A), false);
+  assert.equal(dashboardResourceId(ADMIN, RES_B), RES_B, "系統管理員沿用資源列表選擇的資源");
+  assert.equal(dashboardResourceId(PROVIDER, RES_B), RES_A, "資源點不能切換");
+  assert.equal(dashboardResourceId(READER, RES_A), "");
 });
 
 test("登入後的頁面：資源點進入資源端後台；被擋下的頁面有權限才回去", () => {
@@ -188,6 +190,11 @@ test("首頁快捷區：只列出該角色能用的入口，且每個入口都�
   }
 });
 
-test("示範資源點帳號綁定 Res001", () => {
-  assert.equal(PROVIDER.resourceId, RES001);
+test("示範資源點帳號沒有綁定資源：仍進入資源端後台（顯示尚未綁定），沒有我的資源入口", () => {
+  assert.equal(DEMO_PROVIDER.resourceId, "");
+  assert.equal(homePathFor(DEMO_PROVIDER), "/resource-dashboard");
+  assert.equal(allowed(DEMO_PROVIDER, "resource-dashboard"), true);
+  assert.equal(dashboardResourceId(DEMO_PROVIDER, RES_A), "");
+  assert.equal(canUseDashboard(DEMO_PROVIDER, RES_A), false);
+  assert.deepEqual(shortcutsFor(DEMO_PROVIDER), []);
 });

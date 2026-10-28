@@ -15,7 +15,6 @@ local.data.users = JSON.stringify([{ id: 1, email: "keep@example.com" }]);
 
 const storage = await import("../src/services/storage.js");
 const { getAllResources, createResource } = await import("../src/services/resourceService.js");
-const { autoLoadDemoIfEmpty } = await import("../src/services/demoService.js");
 const { getUsers, register } = await import("../src/utils/auth.js");
 
 // 模擬關閉瀏覽器：sessionStorage 清空，localStorage 保留
@@ -47,9 +46,12 @@ describe("一般讀寫", () => {
     session.data = {};
   });
 
-  test("設定值：資料存 sessionStorage，沒有資料時自動載入示範情境", () => {
+  test("設定值：資料存 sessionStorage", () => {
     assert.equal(storage.DATA_STORAGE, "session");
-    assert.equal(storage.AUTO_LOAD_DEMO, true, "沒有資料時自動載入示範情境第 1 步");
+  });
+
+  test("系統從空白開始：沒有預設的資源、評估、個案", () => {
+    for (const key of storage.DATA_KEYS) assert.deepEqual(storage.readList(key), [], key);
   });
 
   test("資料寫入 sessionStorage，不寫入 localStorage；關閉瀏覽器後清除", () => {
@@ -69,34 +71,10 @@ describe("一般讀寫", () => {
     assert.equal(getUsers().length, 0);
   });
 
-  test("資料、帳號與畫面偏好都不寫入 localStorage", () => {
+  test("資料與帳號都不寫入 localStorage", () => {
     createResource({ name: "測試資源" });
     register({ name: "王示範", email: "w@example.com", password: "x", role: "reader" });
-    storage.writePreference("storyBar.collapsed", true);
     assert.deepEqual(local.data, {});
-  });
-
-  test("isDataEmpty：resources、cases、assessments 都沒有資料才算空", () => {
-    assert.equal(storage.isDataEmpty(), true);
-    storage.writeList("assessments", [{ id: "a" }]);
-    assert.equal(storage.isDataEmpty(), false);
-  });
-
-  test("AUTO_LOAD_DEMO：開啟且沒有資料時自動載入示範情境第 1 步（只有資源）", () => {
-    assert.equal(autoLoadDemoIfEmpty({ enabled: true }), true);
-    assert.equal(JSON.parse(session.data.resources).length, 4);
-    assert.deepEqual(JSON.parse(session.data.cases), []);
-    assert.deepEqual(JSON.parse(session.data.assessments), []);
-  });
-
-  test("AUTO_LOAD_DEMO：已有資料時不載入，關閉時不載入", () => {
-    createResource({ name: "自建資源" });
-    assert.equal(autoLoadDemoIfEmpty({ enabled: true }), false);
-    assert.equal(getAllResources().length, 1);
-
-    session.data = {};
-    assert.equal(autoLoadDemoIfEmpty({ enabled: false }), false, "關閉時不載入");
-    assert.equal(storage.isDataEmpty(), true);
   });
 
   test("讀取損壞的資料時以空陣列處理", () => {

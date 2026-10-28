@@ -54,7 +54,7 @@
             <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.code }} {{ r.name }}</option>
           </select>
           <small v-if="!resources.length" class="field-hint">
-            目前沒有可綁定的資源，請先由系統管理員建立資源或載入示範資料
+            目前沒有可綁定的資源，請先由系統管理員建立資源
           </small>
         </label>
         <p v-if="error" class="error-msg" role="alert">{{ error }}</p>

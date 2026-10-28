@@ -13,7 +13,6 @@ import {
   computeOverallRisk,
   isRecommendable,
 } from "../config/resourceRules.js";
-import { DEMO_RESOURCES } from "./demoResources.js";
 import { readList, writeList } from "./storage.js";
 import { addMonths, formatDate, nowDateTime, todayString } from "../utils/date.js";
 import { generateId } from "../utils/id.js";
@@ -405,41 +404,4 @@ export function deleteResource(id) {
   if (next.length === resources.length) return false;
   writeAll(next);
   return true;
-}
-
-// ── 示範資料 ──────────────────────────────────────────────
-// 開發與正式環境（GitHub Pages）都可使用，由後台資源列表的按鈕觸發
-// 示範資料帶 isDemo: true 標記，可一鍵移除且不影響使用者自建的資源
-
-export const isDemoResource = (resource) => resource?.isDemo === true;
-
-// replace 為 false：加入示範資料，已存在的示範資料（同 id）略過不重複加入
-//   示範資料的編碼（Res001～）若已被自建資源使用，改接在目前最大編號之後，避免重複
-// replace 為 true：清空所有資源（含使用者自建的）後只放示範資料
-// 回傳實際加入的筆數
-// items：要載入的示範資源，預設為 DEMO_RESOURCES（demoService 會傳入依載入日期平移過的版本）
-export function loadDemoResources({ replace = false, items = DEMO_RESOURCES } = {}) {
-  const existing = replace ? [] : getAllResources();
-  const existingIds = new Set(existing.map((r) => String(r.id)));
-  const usedCodes = new Set(existing.map((r) => r.code).filter(Boolean));
-  const toAdd = [];
-  for (const demo of items.filter((r) => !existingIds.has(String(r.id)))) {
-    const resource = mergeWithDefaults({ ...structuredClone(demo), isDemo: true });
-    if (usedCodes.has(resource.code)) {
-      resource.code = getNextResourceCode([...existing, ...toAdd]);
-    }
-    usedCodes.add(resource.code);
-    toAdd.push(resource);
-  }
-  writeAll([...existing, ...toAdd]);
-  return toAdd.length;
-}
-
-// 只移除帶示範標記的資源，回傳移除的筆數
-export function removeDemoResources() {
-  const resources = getAllResources();
-  const kept = resources.filter((r) => !isDemoResource(r));
-  const removed = resources.length - kept.length;
-  if (removed) writeAll(kept);
-  return removed;
 }

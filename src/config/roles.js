@@ -21,7 +21,7 @@ export function getRoleLabel(code) {
 }
 
 // ── 功能 ──────────────────────────────────────────────────
-//   resource.manage        資源列表、新增、編輯、終止、刪除、示範資料
+//   resource.manage        資源列表、新增、編輯、終止、刪除
 //   resource.view          資源詳細頁（唯讀；資源點只限自己綁定的資源）
 //   resource.dashboard     資源端後台（資源點只限自己綁定的資源）
 //   resource.dashboardAny  資源端後台可檢視任何資源
@@ -57,36 +57,25 @@ export const TODO_AUDIENCE_BY_ROLE = { admin: "admin", reader: "reader", manager
 
 // ── 示範帳號 ──────────────────────────────────────────────
 // 寫在程式中、不存入瀏覽器，每次打開網站都可以使用，也不會被刪除或覆蓋；僅供展示
-// 資源點帳號以 resourceId 綁定資源（見 services/demoResources.js 的 DEMO_RESOURCE_IDS）；
-// 三個可推薦的示範資源各有一個資源點帳號，暫停中的 Res004 沒有帳號
-// resourceLabel：登入頁與流程說明列顯示用
+// 資源點示範帳號沒有綁定任何資源（resourceId 為空），資源端後台會提示「尚未綁定資源，請聯絡管理員」
 export const DEMO_PASSWORD = "demo1234";
 export const DEMO_ACCOUNTS = [
   { id: "demo-admin", name: "系統管理員（示範）", email: "admin@demo.carelink", role: "admin" },
   { id: "demo-reader", name: "郭範例", email: "reader@demo.carelink", role: "reader", readerType: "doctor" },
   { id: "demo-manager", name: "高示範", email: "manager@demo.carelink", role: "manager" },
-  {
-    id: "demo-provider",
-    name: "陳範例",
-    email: "provider@demo.carelink",
-    role: "provider",
-    resourceId: "5f0c1a2b-7d3e-4c5a-9b1f-0a1b2c3d0001",
-    resourceLabel: "Res001 示範社區太極班",
-  },
-  {
-    id: "demo-provider2",
-    name: "黃示例",
-    email: "provider2@demo.carelink",
-    role: "provider",
-    resourceId: "5f0c1a2b-7d3e-4c5a-9b1f-0a1b2c3d0002",
-    resourceLabel: "Res002 範例長青共餐食堂",
-  },
-  {
-    id: "demo-provider3",
-    name: "張範本",
-    email: "provider3@demo.carelink",
-    role: "provider",
-    resourceId: "5f0c1a2b-7d3e-4c5a-9b1f-0a1b2c3d0003",
-    resourceLabel: "Res003 示範關懷據點歌唱班",
-  },
+  { id: "demo-provider", name: "陳範例", email: "provider@demo.carelink", role: "provider", resourceId: "" },
 ].map((account) => ({ ...account, password: DEMO_PASSWORD, isDemo: true }));
+
+// ── 快速登入（登入頁，展示用）─────────────────────────────
+// 每個角色一個按鈕，按下後直接以該示範帳號登入
+export const QUICK_LOGINS = [
+  { role: "admin", email: "admin@demo.carelink", description: "管理資源、帳號，看得到全部資料" },
+  { role: "reader", email: "reader@demo.carelink", subtitle: "醫師、護理師", description: "填寫評估表、判讀燈號" },
+  { role: "manager", email: "manager@demo.carelink", subtitle: "個管師", description: "晤談、轉介資源、追蹤、結案" },
+  {
+    role: "provider",
+    email: "provider@demo.carelink",
+    subtitle: "合作機構",
+    description: "回報轉介個案有沒有來參加",
+  },
+];

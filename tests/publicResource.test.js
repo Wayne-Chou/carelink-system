@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEMO_RESOURCES } from "../src/services/demoResources.js";
+import { fixtureResource } from "./fixtures/resources.js";
 import { SHOW_SCENARIOS_TO_PUBLIC, SHOW_STAFF_TO_PUBLIC } from "../src/config/resourceRules.js";
 import { getPublicAvailability, toPublicResource } from "../src/services/publicResource.js";
 
-const visible = () => structuredClone(DEMO_RESOURCES.find((r) => r.code === "Res002"));
+const visible = () => fixtureResource("Res102");
 
 const BACKEND_ONLY = [
   "code",
@@ -17,7 +17,6 @@ const BACKEND_ONLY = [
   "seasonalNote",
   "createdAt",
   "updatedAt",
-  "isDemo",
   "riskLevel",
   "riskCriteria",
   "highRisk",
@@ -60,9 +59,9 @@ test("回傳的是複本，修改不影響原資料", () => {
 });
 
 test("探索頁不顯示的資源，民眾端不提供內容，說明不透露後台原因", () => {
-  // 暫停（示範資料 Res004）、風險紅燈、合作尚未確認
+  // 暫停（測試資料 Res104）、風險紅燈、合作尚未確認
   const hidden = {
-    Res004: DEMO_RESOURCES.find((x) => x.code === "Res004"),
+    paused: fixtureResource("Res104"),
     red: { ...visible(), riskLevel: "red", riskCriteria: { ...visible().riskCriteria, insurance: "red" } },
     unconfirmed: { ...visible(), partnership: "unconfirmed" },
   };

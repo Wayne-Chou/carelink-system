@@ -39,10 +39,10 @@ Oct 5, 2026 · @hank
 | admin@demo.carelink | 系統管理員 | 全部頁面與功能 |
 | reader@demo.carelink | 判讀人員 | 郭範例（醫師），判讀頁自動帶入姓名與類別 |
 | manager@demo.carelink | 健康管理員 | 高示範 |
-| provider@demo.carelink | 資源點 | 綁定 Res001 示範社區太極班（窗口 陳範例） |
-| provider2@demo.carelink | 資源點 | 綁定 Res002 範例長青共餐食堂（窗口 黃示例） |
-| provider3@demo.carelink | 資源點 | 綁定 Res003 示範關懷據點歌唱班（窗口 張範本）；暫停中的 Res004 沒有帳號 |
+| provider@demo.carelink | 資源點 | 陳範例；沒有綁定資源，資源端後台顯示「尚未綁定資源，請聯絡管理員」 |
 
+- 登入頁的「快速登入（示範用）」：上述 4 個示範帳號各一個按鈕，按下即登入，導向與一般登入相同。
+- 系統沒有預設的資源、評估、個案，從空白開始；資源由系統管理員新增。
 - 註冊頁暫時保留（註冊方式討論中）：可選判讀人員、健康管理員、資源點（不開放自行註冊為系統管理員）；資源點須選擇綁定的資源。示範帳號的 Email 不能註冊。
 
 ## 二、整體流程
@@ -154,7 +154,7 @@ Oct 5, 2026 · @hank
 
 | 階段 | 欄位 | 型別 | 說明（對應簡報的個管紀錄） |
 | --- | --- | --- | --- |
-| 基本 | id、code、stage、managerName、createdAt、updatedAt、isDemo | — | stage：1–5，結案後為 closed |
+| 基本 | id、code、stage、managerName、createdAt、updatedAt | — | stage：1–5，結案後為 closed |
 | 基本 | person | object | name、nationalId（遮罩顯示）、phone、livingAlone |
 | 1 辨識 | referral | object | 個管紀錄-轉介：referrerType（medical 醫療、watcher 守望員、self 自我轉介）、referrerName、assessmentId、assessmentCode（規格外補充：評估編碼 Ast001，方便畫面顯示）、reason（篩檢結果摘要）、consent、consentAt |
 | 2 諮詢 | consultation | object | 個管紀錄-晤談：firstContactAt、whatMatters（對我而言什麼最重要）、needTags、goals\[\]（共同設定的目標）、note |
@@ -172,7 +172,7 @@ Oct 5, 2026 · @hank
 - 連結 failed 或追蹤 impact 為 worse：提示退回第 2 階段重新評估，現有行為保留。
 - 結案：需填 reason；說明再入口機制（reentryExplained）為必勾。
 
-舊個案轉換：現有欄位對應到新結構，單一 linkage 轉成 linkages 的第一筆；沒有編碼的補上 Case 流水號。示範資料改為單一主角故事線「林示範的故事」（見 doc/demo-guide.md）。
+舊個案轉換：現有欄位對應到新結構，單一 linkage 轉成 linkages 的第一筆；沒有編碼的補上 Case 流水號。
 
 舊欄位對應摘要：basic.name → person.name；basic.identity 含「獨居長者」→ person.livingAlone；basic.source 醫療／社區／自主 → referrerType medical／watcher／self；basic.problem → referral.reason；已進入第 2 階段以後的個案視為 consent = true，firstContactAt 取第一筆第 2 階段歷程的日期；consultation.goal → goals 第一筆，needLevel 與 motivation 附在 note；linkage.status 成功／失敗／中斷 → success／failed／failed（中斷記在 providerNote）；tracking → followUps；stage 6 → closed；closure 的原因與成果文字 → closure.note。轉換只在記憶體中進行，寫入任一筆時才整份存回。
 
@@ -200,7 +200,7 @@ Oct 5, 2026 · @hank
 | 1 資料層 | assessmentService、caseService、舊個案轉換、角色 role 欄位、設定值、測試 | 不改頁面 |
 | 2 評估填寫與判讀 | 填寫頁（大字、一題一屏，適合平板；也可由工作人員代填）、評估列表、判讀頁（依 Q12 → Q11 → Q1–Q10 呈現，含追問提示與燈號選擇） | /assessment/new、/assessments、/assessments/:id |
 | 3 分流與個案 | 橘燈自動開案、黃燈程序串接探索頁、個案頁改用 caseService 並依第六節欄位改寫五階段 | CaseList、CaseDetail、Explore（接收帶入條件） |
-| 4 待辦與示範 | 待辦頁；示範情境「林示範的故事」（11 步，含連結失敗回到諮詢的迴圈，可選從第幾步開始載入）與流程說明列；更新展示導覽 | /todo、資源列表與登入頁的「載入示範情境」 |
+| 4 待辦 | 待辦頁 | /todo |
 
 評估填寫頁的開頭照評估表原文顯示說明文字，並強調「每一題都可以選擇不回答，不會影響您接受的任何醫療服務」；每題提供「不回答」選項。
 

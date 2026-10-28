@@ -38,29 +38,23 @@
         <p v-if="error" class="error-msg" role="alert">{{ error }}</p>
         <button type="submit" class="btn-primary">登入</button>
       </form>
-      <!-- 示範帳號：點一下帶入 Email 與密碼 -->
-      <section class="demo-accounts" aria-labelledby="demo-accounts-title">
-        <h2 id="demo-accounts-title">示範帳號</h2>
-        <p class="demo-note">示範帳號僅供展示，點一下即可帶入；密碼皆為 {{ DEMO_PASSWORD }}</p>
-        <!-- 依角色分組：系統管理員、判讀人員、健康管理員、資源點（標示各自綁定的資源） -->
-        <div v-for="group in demoGroups" :key="group.role" class="demo-group">
-          <h3>{{ group.label }}<span v-if="group.accounts.length > 1">（{{ group.accounts.length }} 個）</span></h3>
-          <ul>
-            <li v-for="account in group.accounts" :key="account.email">
-              <button
-                type="button"
-                :class="['demo-account', { selected: email === account.email }]"
-                @click="useDemo(account)"
-              >
-                <span>{{ account.email }}</span>
-                <small>{{ demoDescription(account) }}</small>
-              </button>
-            </li>
-          </ul>
+
+      <!-- 快速登入（示範用）：按下即以該角色的示範帳號登入，導向與一般登入相同 -->
+      <section class="quick-login" aria-labelledby="quick-login-title">
+        <h2 id="quick-login-title">快速登入（示範用）</h2>
+        <div class="quick-grid">
+          <button
+            v-for="q in quickLogins"
+            :key="q.email"
+            type="button"
+            class="quick-btn"
+            @click="quickLogin(q)"
+          >
+            <strong>{{ q.label }}<span v-if="q.subtitle">：{{ q.subtitle }}</span></strong>
+            <small>{{ q.description }}</small>
+          </button>
         </div>
       </section>
-      <!-- 示範情境：載入後自動帶入這一步操作者的示範帳號 -->
-      <ScenarioLoader class="scenario-loader-box" @loaded="onScenarioLoaded" />
       <p class="auth-footer">
         還沒有帳號？
         <router-link to="/register">立即註冊</router-link>
@@ -76,8 +70,7 @@ import { useRoute, useRouter } from "vue-router";
 import { goBack } from "../utils/navigation.js";
 import logo from "../assets/logo.png";
 import { login } from "../utils/auth.js";
-import { DEMO_ACCOUNTS, DEMO_PASSWORD, ROLES } from "../config/roles.js";
-import ScenarioLoader from "../components/ScenarioLoader.vue";
+import { DEMO_ACCOUNTS, QUICK_LOGINS, getRoleLabel } from "../config/roles.js";
 import { landingPathFor } from "../services/accessControl.js";
 import { getAssessmentById } from "../services/assessmentService.js";
 
@@ -91,9 +84,9 @@ const error = ref("");
 
 const goHome = () => router.push("/");
 
-const handleSubmit = () => {
+const signIn = (credentials) => {
   error.value = "";
-  const result = login({ email: email.value, password: password.value });
+  const result = login(credentials);
   if (!result.ok) {
     error.value = result.error;
     return;
@@ -103,27 +96,13 @@ const handleSubmit = () => {
   router.replace(landingPathFor(result.user, redirect, { findAssessment: getAssessmentById }));
 };
 
-const demoDescription = (account) => {
-  if (account.role === "admin") return "全部頁面與功能";
-  if (account.role === "reader") return `${account.name}（醫師）`;
-  if (account.role === "provider") return `綁定 ${account.resourceLabel}（窗口 ${account.name}）`;
-  return account.name;
-};
-const demoGroups = ROLES.map((r) => ({
-  role: r.code,
-  label: r.label,
-  accounts: DEMO_ACCOUNTS.filter((a) => a.role === r.code),
-})).filter((g) => g.accounts.length);
+const handleSubmit = () => signIn({ email: email.value, password: password.value });
 
-const onScenarioLoaded = ({ email: operatorEmail }) => {
-  const account = DEMO_ACCOUNTS.find((a) => a.email === operatorEmail);
-  if (account) useDemo(account);
-};
-
-const useDemo = (account) => {
-  email.value = account.email;
-  password.value = account.password;
-  error.value = "";
+// 快速登入：直接用示範帳號的 Email 與密碼登入
+const quickLogins = QUICK_LOGINS.map((q) => ({ ...q, label: getRoleLabel(q.role) }));
+const quickLogin = (q) => {
+  const account = DEMO_ACCOUNTS.find((a) => a.email === q.email);
+  if (account) signIn({ email: account.email, password: account.password });
 };
 </script>
 
@@ -288,85 +267,56 @@ const useDemo = (account) => {
   transform: translateY(-1px);
 }
 
-.demo-accounts {
+.quick-login {
   margin-top: 24px;
-  padding: 16px;
-  border-radius: 14px;
-  background: #faf6f2;
-  border: 1px dashed #d7c2ad;
+  padding-top: 18px;
+  border-top: 1px dashed #d7c2ad;
 }
 
-.demo-accounts h2 {
-  margin: 0 0 4px;
+.quick-login h2 {
+  margin: 0 0 10px;
   font-size: 15px;
   font-weight: 700;
   color: #5d4037;
 }
 
-.demo-note {
-  margin: 0 0 10px;
-  font-size: 12px;
-  color: #8d6e63;
-}
-
-.demo-group + .demo-group {
-  margin-top: 10px;
-}
-
-.demo-group h3 {
-  margin: 0 0 6px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #8a5a3c;
-}
-
-.demo-group h3 span {
-  font-weight: 400;
-}
-
-.demo-accounts ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.quick-grid {
   display: grid;
   gap: 8px;
 }
 
-.demo-account {
-  width: 100%;
+.quick-btn {
   display: grid;
   gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
   text-align: left;
-  padding: 10px 12px;
-  border-radius: 10px;
   border: 1px solid #eadbcd;
-  background: #fff;
+  border-radius: 10px;
+  background: #faf6f2;
   color: #5d4037;
   cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
 
-.demo-account strong {
+.quick-btn strong {
   font-size: 14px;
 }
 
-.demo-account span {
-  font-size: 13px;
-  font-family: "Courier New", monospace;
+.quick-btn strong span {
+  font-weight: 600;
+  color: #8a5a3c;
 }
 
-.demo-account small {
+.quick-btn small {
   font-size: 12px;
   color: #8d6e63;
 }
 
-.demo-account:hover,
-.demo-account.selected {
+.quick-btn:hover,
+.quick-btn:focus-visible {
   border-color: #c2956e;
   background: #fff8f2;
-}
-
-.scenario-loader-box {
-  margin-top: 16px;
 }
 
 .auth-footer {

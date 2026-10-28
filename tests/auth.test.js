@@ -26,7 +26,6 @@ local.data.currentResourceId = "res-old";
 
 const auth = await import("../src/utils/auth.js");
 const { ROLE_CODES } = await import("../src/config/roles.js");
-const { DEMO_RESOURCES } = await import("../src/services/demoResources.js");
 
 // 模擬關閉瀏覽器：sessionStorage 清空，localStorage 保留
 const closeBrowser = () => {
@@ -137,8 +136,6 @@ describe("一般操作", () => {
       ["reader@demo.carelink", "reader"],
       ["manager@demo.carelink", "manager"],
       ["provider@demo.carelink", "provider"],
-      ["provider2@demo.carelink", "provider"],
-      ["provider3@demo.carelink", "provider"],
     ];
     for (const [email, role] of accounts) {
       const result = auth.login({ email: email.toUpperCase(), password: "demo1234" });
@@ -162,7 +159,7 @@ describe("一般操作", () => {
     auth.login({ email: "manager@demo.carelink", password: "demo1234" });
     assert.equal(auth.getCurrentUser().name, "高示範");
     auth.login({ email: "provider@demo.carelink", password: "demo1234" });
-    assert.equal(auth.getCurrentUser().resourceId, DEMO_RESOURCES.find((r) => r.code === "Res001").id);
+    assert.equal(auth.getCurrentUser().resourceId, "", "資源點示範帳號沒有綁定資源");
   });
 
   test("未登入時沒有角色", () => {

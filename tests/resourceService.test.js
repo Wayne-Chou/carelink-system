@@ -26,6 +26,7 @@ const {
   getResourceById,
   getRecommendableResources,
 } = await import("../src/services/resourceService.js");
+const { FIXTURE_RESOURCES } = await import("./fixtures/resources.js");
 
 const FULL_CRITERIA = {
   management: "green",
@@ -251,47 +252,12 @@ test("編輯流程：以完整資料更新，保留 id、createdAt 與 geo，不
   assert.deepEqual(updated.geo, { lat: 25, lng: 121.4 });
 });
 
-test("載入示範資料：加入模式保留自建資源、不重複加入", async () => {
-  const { loadDemoResources } = await import("../src/services/resourceService.js");
-  const { DEMO_RESOURCES } = await import("../src/services/demoResources.js");
-  const mine = seed({ name: "自建資源" });
-
-  assert.equal(loadDemoResources(), DEMO_RESOURCES.length);
-  assert.equal(loadDemoResources(), 0, "再按一次不會重複加入");
-  const all = getAllResources();
-  assert.equal(all.length, DEMO_RESOURCES.length + 1);
-  assert.ok(getResourceById(mine.id), "自建資源保留");
-  assert.ok(all.filter((r) => r.id !== mine.id).every((r) => r.isDemo === true));
-});
-
-test("載入示範資料：清空模式只剩示範資料", async () => {
-  const { loadDemoResources } = await import("../src/services/resourceService.js");
-  const { DEMO_RESOURCES } = await import("../src/services/demoResources.js");
-  seed({ name: "自建資源" });
-  assert.equal(loadDemoResources({ replace: true }), DEMO_RESOURCES.length);
-  assert.equal(getAllResources().length, DEMO_RESOURCES.length);
-  assert.ok(getAllResources().every((r) => r.isDemo === true));
-});
-
-test("移除示範資料只刪帶標記的，編輯過的示範資料仍保有標記", async () => {
-  const { loadDemoResources, removeDemoResources } = await import("../src/services/resourceService.js");
-  const { DEMO_RESOURCES } = await import("../src/services/demoResources.js");
-  const mine = seed({ name: "自建資源" });
-  loadDemoResources();
-  updateResource(DEMO_RESOURCES[0].id, { name: "編輯過的示範資料" });
-
-  assert.equal(removeDemoResources(), DEMO_RESOURCES.length);
-  assert.deepEqual(getAllResources().map((r) => r.id), [mine.id]);
-  assert.equal(removeDemoResources(), 0);
-});
-
-test("示範資料載入後探索頁可見 3 筆", async () => {
-  const { loadDemoResources } = await import("../src/services/resourceService.js");
-  loadDemoResources({ replace: true });
+test("測試資料寫入後探索頁可見 3 筆（暫停中的不列出）", () => {
+  store.resources = JSON.stringify(FIXTURE_RESOURCES);
   assert.equal(getRecommendableResources("explore").length, 3);
 });
 
-describe("資源編碼 Res001", () => {
+describe("資源編碼", () => {
   test("新增時依序自動產生，忽略傳入的編碼", async () => {
     const a = createResource({ name: "A", code: "自己填的" });
     const b = createResource({ name: "B" });
@@ -318,19 +284,8 @@ describe("資源編碼 Res001", () => {
     assert.equal(updateResource("1745000000000", { name: "舊資料（已編輯）" }).code, "Res002");
   });
 
-  test("載入示範資料後，新增的資源接在示範資料之後", async () => {
-    const { loadDemoResources } = await import("../src/services/resourceService.js");
-    loadDemoResources({ replace: true });
-    assert.equal(createResource({ name: "新資源" }).code, "Res005");
-  });
-
-  test("示範資料的編碼已被自建資源使用時，改用不重複的編號", async () => {
-    const { loadDemoResources } = await import("../src/services/resourceService.js");
-    createResource({ name: "自建1" }); // Res001
-    createResource({ name: "自建2" }); // Res002
-    loadDemoResources();
-    const codes = getAllResources().map((r) => r.code);
-    assert.equal(new Set(codes).size, codes.length, `編碼不重複：${codes.join(", ")}`);
-    assert.ok(codes.every((c) => /^Res\d{3,}$/.test(c)));
+  test("已有資源時，新增的資源接在目前最大編號之後", () => {
+    store.resources = JSON.stringify(FIXTURE_RESOURCES);
+    assert.equal(createResource({ name: "新資源" }).code, "Res105");
   });
 });

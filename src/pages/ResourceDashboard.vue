@@ -21,7 +21,9 @@
           請先到「資源管理」選擇要登入的資源
           <button type="button" class="outline-btn" @click="$router.push('/list')">前往資源管理</button>
         </template>
-        <!-- 資源點：綁定的資源不存在（例如示範資料尚未載入或資源已刪除） -->
+        <!-- 資源點：帳號還沒有綁定資源 -->
+        <template v-else-if="!boundResourceId">尚未綁定資源，請聯絡管理員</template>
+        <!-- 資源點：綁定的資源不存在（例如資源已刪除） -->
         <template v-else>
           找不到您帳號綁定的資源，可能尚未建立或已被刪除。請聯絡系統管理員確認。
         </template>
@@ -132,6 +134,8 @@ const canPickAny = can(currentUser, "resource.dashboardAny");
 const back = () => goBack(router, canPickAny ? "/list" : "/");
 
 // 系統管理員選擇的資源由 auth.js 存放（測試階段為 sessionStorage，關閉瀏覽器即清除）
+// 資源點帳號綁定的資源 id（未綁定時為空字串）
+const boundResourceId = canPickAny ? "" : dashboardResourceId(currentUser);
 const resource = ref(getResourceById(dashboardResourceId(currentUser, getCurrentResourceId())));
 if (!resource.value && canPickAny) clearCurrentResourceId();
 
