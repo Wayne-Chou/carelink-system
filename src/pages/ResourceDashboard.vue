@@ -10,6 +10,9 @@
           目前登入資源：
           <router-link :to="`/resources/${resource.id}`" class="resource-link">{{ resource.name }}</router-link>
           <span v-if="resource.code" class="code">{{ resource.code }}</span>
+          <router-link v-if="canEdit" :to="`/form/${resource.id}`" class="resource-link edit-link">
+            <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> 編輯資源
+          </router-link>
         </p>
       </div>
       <div class="header-right"><UserMenu /></div>
@@ -124,7 +127,7 @@ import {
 import { getAllCases, getReferralsForResource, updateLinkageStatus } from "../services/caseService.js";
 import { getResourceById } from "../services/resourceService.js";
 import { clearCurrentResourceId, getCurrentResourceId, getCurrentUser } from "../utils/auth.js";
-import { can, dashboardResourceId } from "../services/accessControl.js";
+import { can, canEditResource, dashboardResourceId } from "../services/accessControl.js";
 import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
@@ -137,6 +140,8 @@ const back = () => goBack(router, canPickAny ? "/list" : "/");
 // 資源點帳號綁定的資源 id（未綁定時為空字串）
 const boundResourceId = canPickAny ? "" : dashboardResourceId(currentUser);
 const resource = ref(getResourceById(dashboardResourceId(currentUser, getCurrentResourceId())));
+// 資源點可編輯自己綁定的資源（部分欄位）
+const canEdit = computed(() => !!resource.value && canEditResource(currentUser, resource.value.id));
 if (!resource.value && canPickAny) clearCurrentResourceId();
 
 const isTerminated = computed(() => resource.value?.status === "terminated");
@@ -446,5 +451,10 @@ select {
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
+}
+
+.edit-link {
+  margin-left: 10px;
+  white-space: nowrap;
 }
 </style>

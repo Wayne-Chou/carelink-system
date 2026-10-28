@@ -27,12 +27,16 @@ const routes = [
   { path: "/explore", name: "explore", component: Explore },
   { path: "/login", name: "login", component: Login },
   { path: "/register", name: "register", component: Register },
+  { path: "/forgot-password", name: "forgot-password", component: () => import("../pages/ForgotPassword.vue") },
+  { path: "/reset-password", name: "reset-password", component: () => import("../pages/ResetPassword.vue") },
+  // 模擬信箱：原型展示用，正式版改由後端寄送 Email
+  { path: "/mailbox", name: "mailbox", component: () => import("../pages/Mailbox.vue") },
   // 評估填寫頁：由工作人員登入後把平板交給民眾填寫
   { path: "/assessment/new", ...meta("assessment-new"), component: AssessmentNew },
   { path: "/assessments", ...meta("assessments"), component: AssessmentList },
   // 判讀頁：判讀人員、系統管理員可判讀；健康管理員只能唯讀查看已開案的評估
   { path: "/assessments/:id", ...meta("assessment-review"), component: AssessmentReview },
-  // 待辦：依今天日期即時計算（doc/assessment-schema.md 第七節），依角色只顯示自己的項目
+  // 待辦：依今天日期即時計算（doc/specs/assessment-schema.md 第七節），依角色只顯示自己的項目
   { path: "/todo", ...meta("todo"), component: Todo },
   { path: "/list", ...meta("list"), component: ResourceList },
   { path: "/resources", ...meta("resources-list"), component: ResourceList },
@@ -48,6 +52,7 @@ const routes = [
   { path: "/resources/:id", ...meta("resource-detail"), component: ResourceDetail },
   { path: "/resource-dashboard", ...meta("resource-dashboard"), component: ResourceDashboard },
   { path: "/cases", ...meta("cases"), component: CaseList },
+  { path: "/accounts", ...meta("accounts"), component: () => import("../pages/AccountManagement.vue") },
   { path: "/case/:id", ...meta("case-detail"), component: CaseDetail },
 ];
 

@@ -2,6 +2,7 @@
 // 純函式：使用者與資料由呼叫端傳入，方便測試；角色與功能定義見 config/roles.js
 
 import { PERMISSIONS, TODO_AUDIENCE_BY_ROLE, isValidRole } from "../config/roles.js";
+import { PROVIDER_EDITABLE_FIELDS } from "../config/resourceEditing.js";
 
 export const NO_PERMISSION_MESSAGE = "您的帳號沒有權限查看此頁";
 
@@ -19,6 +20,21 @@ export function canViewResource(user, resourceId) {
   if (roleOf(user) === "provider") return !!user.resourceId && String(user.resourceId) === String(resourceId);
   return true;
 }
+
+// 編輯資源：可管理資源的角色編輯全部；資源點只能編輯自己綁定的資源
+export function canEditResource(user, resourceId) {
+  if (can(user, "resource.manage")) return true;
+  return can(user, "resource.editOwn") && !!user.resourceId && String(user.resourceId) === String(resourceId);
+}
+
+// 編輯資源時可以修改的欄位：null 為全部；資源點只限 PROVIDER_EDITABLE_FIELDS；不能編輯時為空陣列
+export function editableFieldsFor(user) {
+  if (can(user, "resource.manage")) return null;
+  return can(user, "resource.editOwn") ? [...PROVIDER_EDITABLE_FIELDS] : [];
+}
+
+export const canBindProvider = (user) => can(user, "resource.bindProvider");
+export const canViewChangeLog = (user) => can(user, "resource.viewChangeLog");
 
 // 資源端後台：可檢視任何資源，或只限自己綁定的資源
 export function canUseDashboard(user, resourceId) {
@@ -46,6 +62,7 @@ export const canOpenCase = (user) => can(user, "case.manage");
  * 路由檢查（router.beforeEach 使用）
  * meta.public：公開頁；meta.permission：需要的功能；meta.scope：資料範圍
  *   scope "resource"   → params.id 須為可查看的資源
+ *   scope "resourceEdit" → params.id 須為可編輯的資源（資源點只限綁定的資源）
  *   scope "assessment" → params.id 的評估須可查看（findAssessment 由呼叫端傳入）
  * @returns {{ ok: true } | { ok: false, reason: "login" | "forbidden" }}
  */
@@ -55,6 +72,7 @@ export function checkRouteAccess(to, user, { findAssessment = () => null } = {})
   if (!user) return { ok: false, reason: "login" };
   if (meta.permission && !can(user, meta.permission)) return { ok: false, reason: "forbidden" };
   if (meta.scope === "resource" && !canViewResource(user, to.params?.id)) return { ok: false, reason: "forbidden" };
+  if (meta.scope === "resourceEdit" && !canEditResource(user, to.params?.id)) return { ok: false, reason: "forbidden" };
   if (meta.scope === "assessment" && !canViewAssessment(user, findAssessment(to.params?.id))) {
     return { ok: false, reason: "forbidden" };
   }
@@ -83,12 +101,14 @@ export function todoScopeFor(user) {
 }
 
 // 依範圍篩選待辦；audience 為 "all" 時需有 todo.viewAll
+// 待辦類型另外需要權限時（例如待審核帳號需 account.manage），沒有權限的一律不列出
 export function filterTodosFor(user, todos, audience = null) {
   const scope = todoScopeFor(user);
   if (!can(user, "todo.view")) return [];
-  if (audience === "all" && scope.canViewAll) return todos;
+  const permitted = todos.filter((t) => !t.permission || can(user, t.permission));
+  if (audience === "all" && scope.canViewAll) return permitted;
   const target = scope.canViewAll && audience ? audience : scope.own;
-  return todos.filter((t) => t.audience === target);
+  return permitted.filter((t) => t.audience === target);
 }
 
 // 首頁快捷區與導覽列的入口：只列出該角色可以使用的
@@ -99,6 +119,7 @@ const SHORTCUTS = [
   { key: "cases", label: "個案管理", icon: "fa-folder-open", path: "/cases", permission: "case.manage" },
   { key: "resources", label: "資源管理", icon: "fa-list", path: "/list", permission: "resource.manage" },
   { key: "resourceNew", label: "新增資源", icon: "fa-plus", path: "/form", permission: "resource.manage" },
+  { key: "accounts", label: "帳號管理", icon: "fa-users-gear", path: "/accounts", permission: "account.manage" },
 ];
 
 export function shortcutsFor(user) {

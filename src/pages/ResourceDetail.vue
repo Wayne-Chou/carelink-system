@@ -118,6 +118,33 @@
               </div>
             </dl>
           </div>
+          <!-- 資源點帳號：系統管理員、資源管理員可綁定或解除 -->
+          <div v-if="showBinding" class="side-card">
+            <h2 class="side-title">資源點帳號</h2>
+            <p class="side-hint">綁定後，該帳號可進入這筆資源的資源端後台並編輯部分欄位；一個帳號只綁定一筆資源</p>
+            <ul v-if="boundAccounts.length" class="binding-list">
+              <li v-for="a in boundAccounts" :key="a.email">
+                <span class="binding-name">
+                  {{ a.name || "未命名帳號" }}
+                  <small>{{ a.email }}</small>
+                </span>
+                <button type="button" class="text-btn danger" @click="unbind(a)">解除綁定</button>
+              </li>
+            </ul>
+            <p v-else class="muted">尚未綁定資源點帳號</p>
+            <div class="binding-form">
+              <label class="visually-hidden" for="bind-account">選擇要綁定的資源點帳號</label>
+              <select id="bind-account" v-model="selectedAccount">
+                <option value="">選擇資源點帳號</option>
+                <option v-for="a in bindCandidates" :key="a.email" :value="a.email">
+                  {{ a.name || "未命名帳號" }}（{{ a.email }}）{{ a.boundLabel ? `－已綁定 ${a.boundLabel}` : "" }}
+                </option>
+              </select>
+              <button type="button" class="bind-btn" :disabled="!selectedAccount" @click="bindSelected">綁定</button>
+            </div>
+            <p v-if="!bindCandidates.length" class="muted">沒有其他資源點帳號可綁定</p>
+            <p v-if="bindingMessage" class="binding-message" role="status">{{ bindingMessage }}</p>
+          </div>
         </aside>
 
         <main class="content-area">
@@ -432,13 +459,43 @@
               <p class="description-text"><FieldValue :value="resource.scenarios" /></p>
             </div>
           </section>
+
+          <!-- 修改紀錄：系統管理員、資源管理員可看 -->
+          <section v-if="showChangeLog" class="content-section">
+            <h3 class="section-title">修改紀錄</h3>
+            <p v-if="!changeLogEntries.length" class="muted">尚無修改紀錄</p>
+            <ol v-else class="change-log">
+              <li v-for="(entry, i) in changeLogEntries" :key="i" class="change-entry">
+                <p class="change-meta">
+                  <strong>{{ formatDateTime(entry.at) || "時間不明" }}</strong>
+                  <span>{{ entry.actorText }}</span>
+                </p>
+                <table class="change-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">欄位</th>
+                      <th scope="col">修改前</th>
+                      <th scope="col">修改後</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="c in entry.changes" :key="c.field">
+                      <th scope="row">{{ c.label }}</th>
+                      <td>{{ c.before }}</td>
+                      <td>{{ c.after }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </li>
+            </ol>
+          </section>
         </main>
       </div>
 
       <div v-else class="not-found">
         <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
         <p>找不到這筆資源，可能已被刪除。</p>
-        <button v-if="canEdit" class="back-btn" @click="$router.push('/list')">返回清單</button>
+        <button v-if="canManage" class="back-btn" @click="$router.push('/list')">返回清單</button>
       </div>
     </div>
   </div>
@@ -471,14 +528,29 @@ import {
 } from "../config/resourceOptions.js";
 import { getVisibility } from "../config/resourceRules.js";
 import { getResourceById, isVerifyOverdue } from "../services/resourceService.js";
+import { fieldLabel } from "../config/resourceEditing.js";
+import { getRoleLabel } from "../config/roles.js";
 import { consumeFlash } from "../utils/flash.js";
 import { goBack } from "../utils/navigation.js";
 import { hasGeo } from "../utils/geo.js";
-import { getCurrentUser } from "../utils/auth.js";
-import { canManageResources, homePathFor } from "../services/accessControl.js";
+import {
+  bindProviderAccount,
+  getCurrentUser,
+  getProviderAccountsForResource,
+  listProviderAccounts,
+  unbindProviderAccount,
+} from "../utils/auth.js";
+import {
+  canBindProvider,
+  canEditResource,
+  canManageResources,
+  canViewChangeLog,
+  homePathFor,
+} from "../services/accessControl.js";
 import {
   formatAddress,
   formatCapacity,
+  formatChangeValue,
   formatDateTime,
   formatSchedule,
 } from "../utils/resourceFormat.js";
@@ -486,10 +558,11 @@ import {
 const route = useRoute();
 const router = useRouter();
 const resource = ref(null);
-// 角色權限（原型階段）：只有系統管理員可編輯；判讀人員、健康管理員、資源點唯讀
+// 角色權限（原型階段）：系統管理員、資源管理員可編輯全部；資源點可編輯自己綁定資源的部分欄位；其他角色唯讀
 const currentUser = getCurrentUser();
-const canEdit = canManageResources(currentUser);
-const back = () => goBack(router, canEdit ? "/list" : homePathFor(currentUser));
+const canManage = canManageResources(currentUser);
+const canEdit = computed(() => !!resource.value && canEditResource(currentUser, resource.value.id));
+const back = () => goBack(router, canManage ? "/list" : homePathFor(currentUser));
 
 // 從編輯頁儲存後回來時的一次性提示（只顯示屬於這筆資源的）
 const flash = consumeFlash("resource-saved");
@@ -588,6 +661,75 @@ const geoLink = computed(() =>
   hasGeo(resource.value?.geo)
     ? `https://www.google.com/maps/search/?api=1&query=${resource.value.geo.lat},${resource.value.geo.lng}`
     : ""
+);
+
+// ── 資源點帳號綁定（resource.bindProvider）──
+const showBinding = canBindProvider(currentUser);
+// 綁定資料存在帳號儲存區，不在資源上；操作後遞增版本號讓清單重新讀取
+const bindingVersion = ref(0);
+const selectedAccount = ref("");
+const bindingMessage = ref("");
+
+const resourceLabel = (id) => {
+  const r = getResourceById(id);
+  return r ? [r.code, r.name || "未命名資源"].filter(Boolean).join(" ") : "已刪除的資源";
+};
+
+const boundAccounts = computed(() => {
+  bindingVersion.value;
+  return resource.value ? getProviderAccountsForResource(resource.value.id) : [];
+});
+
+// 可選的帳號：尚未綁定這筆資源的資源點帳號；已綁定其他資源的標示出來
+const bindCandidates = computed(() => {
+  bindingVersion.value;
+  const id = String(resource.value?.id ?? "");
+  return listProviderAccounts()
+    .filter((a) => a.resourceId !== id)
+    .map((a) => ({ ...a, boundLabel: a.resourceId ? resourceLabel(a.resourceId) : "" }));
+});
+
+const bindSelected = () => {
+  const account = bindCandidates.value.find((a) => a.email === selectedAccount.value);
+  if (!account || !resource.value) return;
+  if (
+    account.boundLabel &&
+    !confirm(
+      `「${account.name || account.email}」目前已綁定「${account.boundLabel}」。\n\n一個資源點帳號只能綁定一筆資源，改綁後會解除原本的綁定。確定要改綁到這筆資源？`
+    )
+  ) {
+    return;
+  }
+  const result = bindProviderAccount(account.email, resource.value.id);
+  bindingMessage.value = result.ok
+    ? `已綁定 ${account.name || account.email}${account.boundLabel ? `（已解除原本「${account.boundLabel}」的綁定）` : ""}`
+    : result.error;
+  selectedAccount.value = "";
+  bindingVersion.value += 1;
+};
+
+const unbind = (account) => {
+  if (!confirm(`確定要解除「${account.name || account.email}」的綁定？\n\n解除後這個帳號無法進入資源端後台。`)) return;
+  const result = unbindProviderAccount(account.email);
+  bindingMessage.value = result.ok ? `已解除 ${account.name || account.email} 的綁定` : result.error;
+  bindingVersion.value += 1;
+};
+
+// ── 修改紀錄（resource.viewChangeLog）：由新到舊 ──
+const showChangeLog = canViewChangeLog(currentUser);
+const changeLogEntries = computed(() =>
+  [...(resource.value?.changeLog ?? [])].reverse().map((entry) => ({
+    at: entry.at,
+    actorText: entry.actor?.name
+      ? `${entry.actor.name}${entry.actor.role ? `（${getRoleLabel(entry.actor.role) || entry.actor.role}）` : ""}`
+      : "修改者不明",
+    changes: (entry.changes ?? []).map((c) => ({
+      field: c.field,
+      label: fieldLabel(c.field),
+      before: formatChangeValue(c.field, c.before),
+      after: formatChangeValue(c.field, c.after),
+    })),
+  }))
 );
 </script>
 
@@ -1164,5 +1306,125 @@ const geoLink = computed(() =>
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 資源點帳號 */
+.side-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: #8d6e63;
+  line-height: 1.5;
+}
+.binding-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+}
+.binding-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed #eadfd8;
+}
+.binding-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 14px;
+  color: #3e2723;
+  overflow-wrap: anywhere;
+}
+.binding-name small {
+  color: #8d6e63;
+}
+.binding-form {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.binding-form select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid #d6ccc2;
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+}
+.bind-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #5d4037;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+.bind-btn:disabled {
+  opacity: 0.5;
+}
+.text-btn {
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  padding: 0;
+  flex-shrink: 0;
+}
+.text-btn.danger {
+  color: #c62828;
+}
+.binding-message {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2e7d32;
+}
+
+/* 修改紀錄 */
+.change-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.change-entry {
+  border: 1px solid #eadfd8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+.change-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #6d4c41;
+}
+.change-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.change-table th,
+.change-table td {
+  padding: 6px 8px;
+  border-top: 1px solid #f1e8e1;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.change-table thead th {
+  border-top: none;
+  color: #8d6e63;
+  font-weight: 600;
+}
+.change-table tbody th {
+  white-space: nowrap;
+  color: #5d4037;
 }
 </style>

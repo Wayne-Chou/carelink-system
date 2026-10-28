@@ -1,4 +1,4 @@
-// 資源欄位檢核（doc/resource-schema.md 第一～五節）
+// 資源欄位檢核（doc/specs/resource-schema.md 第一～五節）
 // 回傳 { errors, missing }，兩者皆為 { 欄位路徑: 訊息 }，欄位路徑與表單對應，例如 "address.city"
 //   errors   會阻擋送出：格式錯誤、資源名稱未填，以及嚴格模式下的所有必填未填
 //   missing  不阻擋送出：非嚴格模式下未填的必填欄位，畫面顯示為「建議填寫」

@@ -1,4 +1,4 @@
-// 定位推薦附近資源的設定（doc/resource-schema.md 第九節「定位推薦規則」）
+// 定位推薦附近資源的設定（doc/specs/resource-schema.md 第九節「定位推薦規則」）
 
 // 探索頁距離範圍篩選（公里）；空字串為不限
 export const NEARBY_RADIUS_OPTIONS = [1, 3, 5, 10];

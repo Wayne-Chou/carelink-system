@@ -1,4 +1,4 @@
-// 資源欄位的選項代碼表（doc/resource-schema.md 第一～五節），頁面共用
+// 資源欄位的選項代碼表（doc/specs/resource-schema.md 第一～五節），頁面共用
 // 每個選項為 { code, label }，資料只存 code
 
 export const STATUS_OPTIONS = [

@@ -1,15 +1,29 @@
 // 資源欄位的顯示格式，後台與民眾端頁面共用
 
 import {
+  ACCESSIBILITY_OPTIONS,
   AGE_GROUPS,
+  AVAILABILITY_TYPES,
   CAPACITY_TYPES,
+  FEE_TYPES,
+  FOLLOW_UP_METHODS,
   FREQUENCY_OPTIONS,
+  HIGH_RISK_TYPES,
   IDENTITIES,
+  LANGUAGES,
+  PARTICIPATION_OPTIONS,
+  PARTNERSHIP_OPTIONS,
+  RISK_CRITERIA,
+  RISK_LEVEL_OPTIONS,
   SCHEDULE_TYPES,
+  STATUS_OPTIONS,
+  TRANSPORT_OPTIONS,
+  VERIFIER_TYPES,
   WEEKDAYS,
   optionLabel,
   optionLabels,
 } from "../config/resourceOptions.js";
+import { getNeedTagLabel } from "../config/needTags.js";
 
 const sortNumbers = (list) => [...(Array.isArray(list) ? list : [])].sort((a, b) => a - b);
 
@@ -84,4 +98,82 @@ export function formatAudience(resource) {
   return (resource?.ageGroups || []).includes("all") || (resource?.identities || []).includes("all")
     ? "不限對象"
     : "";
+}
+
+// ── 修改紀錄的欄位內容 ────────────────────────────────────
+// 把修改前後的值轉成中文，代碼改顯示選項名稱；沒有內容時顯示「（空白）」
+
+export const EMPTY_CHANGE_VALUE = "（空白）";
+
+const OPTIONS_BY_FIELD = {
+  status: STATUS_OPTIONS,
+  partnership: PARTNERSHIP_OPTIONS,
+  riskLevel: RISK_LEVEL_OPTIONS,
+  ageGroups: AGE_GROUPS,
+  identities: IDENTITIES,
+  participation: PARTICIPATION_OPTIONS,
+  languages: LANGUAGES,
+  transport: TRANSPORT_OPTIONS,
+  accessibility: ACCESSIBILITY_OPTIONS,
+  followUpMethods: FOLLOW_UP_METHODS,
+};
+
+const isBlank = (v) =>
+  v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+
+// 沒有專用格式的值：陣列以頓號連接、物件列出有內容的值、布林為是／否
+function plainText(value) {
+  if (isBlank(value)) return "";
+  if (typeof value === "boolean") return value ? "是" : "否";
+  if (Array.isArray(value)) return value.map(plainText).filter(Boolean).join("、");
+  if (typeof value === "object") return Object.values(value).map(plainText).filter(Boolean).join("，");
+  return String(value);
+}
+
+const joinFilled = (parts, separator = " ") => parts.filter((p) => !isBlank(p)).join(separator);
+
+function fieldText(field, value) {
+  switch (field) {
+    case "address":
+      return formatAddress(value);
+    case "schedule":
+      return formatSchedule(value);
+    case "capacity":
+      return formatCapacity(value);
+    case "geo":
+      return value?.lat !== undefined && value?.lng !== undefined ? `${value.lat}, ${value.lng}` : "";
+    case "fee":
+      return joinFilled([optionLabel(FEE_TYPES, value.type), value.detail], "：");
+    case "availability":
+      return joinFilled([
+        optionLabel(AVAILABILITY_TYPES, value.type),
+        value.slots !== null && value.slots !== undefined ? `名額 ${value.slots}` : "",
+        value.nextBatch ? `下一梯次 ${value.nextBatch}` : "",
+      ], "，");
+    case "needTags":
+      return value.map((code) => getNeedTagLabel(code) || code).join("、");
+    case "staff":
+      return value.map((s) => joinFilled([s.name, s.role, s.license, s.experience])).filter(Boolean).join("；");
+    case "publicContact":
+      return joinFilled([value.name, value.phone, value.emailOrLine]);
+    case "adminContact":
+      return value.sameAsPublic ? "同公眾聯絡人" : joinFilled([value.name, value.phone, value.emailOrLine]);
+    case "verifiedBy":
+      return joinFilled([value.name, value.type ? `（${optionLabel(VERIFIER_TYPES, value.type)}）` : ""], "");
+    case "riskCriteria":
+      return RISK_CRITERIA.map((c) => `${c.label}${optionLabel(RISK_LEVEL_OPTIONS, value[c.key]) || "未填"}`).join("、");
+    case "highRisk":
+      return value.isHighRisk ? joinFilled(["是", optionLabels(HIGH_RISK_TYPES, value.types)], "：") : "否";
+    default: {
+      const options = OPTIONS_BY_FIELD[field];
+      if (options && Array.isArray(value)) return optionLabels(options, value);
+      if (options) return optionLabel(options, value) || String(value);
+      return plainText(value);
+    }
+  }
+}
+
+export function formatChangeValue(field, value) {
+  if (isBlank(value)) return EMPTY_CHANGE_VALUE;
+  return fieldText(field, value) || EMPTY_CHANGE_VALUE;
 }

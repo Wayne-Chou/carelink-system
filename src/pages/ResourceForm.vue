@@ -14,13 +14,19 @@
       <div v-if="notFound" class="form-card not-found">
         <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
         <p>找不到要編輯的資源，可能已被刪除。</p>
-        <button type="button" class="btn-outline" @click="$router.push('/list')">返回清單</button>
+        <button type="button" class="btn-outline" @click="back">返回</button>
       </div>
 
       <form v-else class="form-card" novalidate @submit.prevent="submitForm">
         <p v-if="isEdit" class="edit-banner">
           <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
           正在編輯「{{ original.name || "未命名資源" }}」，最後修改：{{ formatDateTime(original.updatedAt) || "無紀錄" }}
+        </p>
+        <p v-if="limited" class="limited-banner" role="note">
+          <i class="fa-solid fa-lock" aria-hidden="true"></i>
+          資源點帳號可修改資源內容、服務時間、人數與量能、適用對象與可近性、費用、參與須知、公眾聯絡人與相關連結；
+          灰色欄位（驗證資訊、資源狀態、需求標籤、風險評級、合作狀態、行政聯絡人、追蹤方式、AI 輔助欄位）無法修改，如需調整請聯絡資源管理員。
+          儲存後直接生效，並留下修改紀錄。
         </p>
         <div v-if="errorCount" class="error-summary" role="alert">
           <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
@@ -36,7 +42,7 @@
             </h3>
             <p class="section-desc">資源的身分、驗證與營運狀態，民眾端不顯示驗證資訊</p>
           </header>
-          <div class="section-body">
+          <fieldset class="section-body" :disabled="locked('status')">
             <div class="row g-3">
               <div class="col-md-6">
                 <label>驗證者類型 <FieldMark /></label>
@@ -124,7 +130,7 @@
                 <p v-if="err('seasonalNote')" class="field-error">{{ err("seasonalNote") }}</p>
               </div>
             </div>
-          </div>
+          </fieldset>
         </section>
 
         <hr class="section-divider" />
@@ -173,34 +179,38 @@
                 </div>
               </div>
 
-              <div class="col-12">
-                <label>需求標籤 <FieldMark /></label>
-                <div :class="['tag-groups', { invalid: err('needTags') }]">
-                  <div v-for="group in tagGroups" :key="group.code" class="tag-group">
-                    <p class="tag-group-title">{{ group.label }}</p>
-                    <ChipSelect v-model="form.needTags" :options="group.tags" />
+              <fieldset class="col-12 locked-group" :disabled="locked('needTags')">
+                <div class="row g-3">
+                  <div class="col-12">
+                    <label>需求標籤 <FieldMark /></label>
+                    <div :class="['tag-groups', { invalid: err('needTags') }]">
+                      <div v-for="group in tagGroups" :key="group.code" class="tag-group">
+                        <p class="tag-group-title">{{ group.label }}</p>
+                        <ChipSelect v-model="form.needTags" :options="group.tags" />
+                      </div>
+                    </div>
+                    <p v-if="err('needTags')" class="field-error">{{ err("needTags") }}</p>
+                    <p class="hint">
+                      處方類型（自動推得）：
+                      <template v-if="derivedTypes.length">
+                        <span v-for="t in derivedTypes" :key="t" class="derived-chip">
+                          {{ getPrescriptionTypeLabel(t) }}
+                        </span>
+                      </template>
+                      <span v-else>尚未選擇標籤</span>
+                    </p>
+                  </div>
+                  <div v-if="form.needTags.includes('other')" class="col-12">
+                    <label>其他標籤 <FieldMark /></label>
+                    <input
+                      v-model.trim="form.needTagOther"
+                      type="text"
+                      :class="{ invalid: err('needTagOther') }"
+                    />
+                    <p v-if="err('needTagOther')" class="field-error">{{ err("needTagOther") }}</p>
                   </div>
                 </div>
-                <p v-if="err('needTags')" class="field-error">{{ err("needTags") }}</p>
-                <p class="hint">
-                  處方類型（自動推得）：
-                  <template v-if="derivedTypes.length">
-                    <span v-for="t in derivedTypes" :key="t" class="derived-chip">
-                      {{ getPrescriptionTypeLabel(t) }}
-                    </span>
-                  </template>
-                  <span v-else>尚未選擇標籤</span>
-                </p>
-              </div>
-              <div v-if="form.needTags.includes('other')" class="col-12">
-                <label>其他標籤 <FieldMark /></label>
-                <input
-                  v-model.trim="form.needTagOther"
-                  type="text"
-                  :class="{ invalid: err('needTagOther') }"
-                />
-                <p v-if="err('needTagOther')" class="field-error">{{ err("needTagOther") }}</p>
-              </div>
+              </fieldset>
 
               <div class="col-12">
                 <label>人力配置</label>
@@ -518,7 +528,7 @@
             </h3>
             <p class="section-desc">由驗證者填寫，整體等級依五項判斷條件自動計算</p>
           </header>
-          <div class="section-body">
+          <fieldset class="section-body" :disabled="locked('riskCriteria')">
             <div class="row g-3">
               <div v-for="c in RISK_CRITERIA" :key="c.key" class="col-md-6">
                 <label>{{ c.label }} <FieldMark /></label>
@@ -608,7 +618,7 @@
                 <p v-if="err('riskChangeNote')" class="field-error">{{ err("riskChangeNote") }}</p>
               </div>
             </div>
-          </div>
+          </fieldset>
         </section>
 
         <hr class="section-divider" />
@@ -758,18 +768,22 @@
           </header>
           <div class="section-body">
             <div class="row g-3">
-              <div class="col-md-6">
-                <label>合作狀態 <FieldMark /></label>
-                <select v-model="form.partnership" :class="{ invalid: err('partnership') }">
-                  <option v-for="o in PARTNERSHIP_OPTIONS" :key="o.code" :value="o.code">
-                    {{ o.label }}
-                  </option>
-                </select>
-                <p v-if="err('partnership')" class="field-error">{{ err("partnership") }}</p>
-                <p v-else-if="form.partnership === 'unconfirmed'" class="hint">
-                  尚未確認合作的資源不會出現在轉介選單{{ HIDE_UNCONFIRMED_IN_EXPLORE ? "與民眾探索頁" : "" }}
-                </p>
-              </div>
+              <fieldset class="col-12 locked-group" :disabled="locked('partnership')">
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <label>合作狀態 <FieldMark /></label>
+                    <select v-model="form.partnership" :class="{ invalid: err('partnership') }">
+                      <option v-for="o in PARTNERSHIP_OPTIONS" :key="o.code" :value="o.code">
+                        {{ o.label }}
+                      </option>
+                    </select>
+                    <p v-if="err('partnership')" class="field-error">{{ err("partnership") }}</p>
+                    <p v-else-if="form.partnership === 'unconfirmed'" class="hint">
+                      尚未確認合作的資源不會出現在轉介選單{{ HIDE_UNCONFIRMED_IN_EXPLORE ? "與民眾探索頁" : "" }}
+                    </p>
+                  </div>
+                </div>
+              </fieldset>
 
               <div class="col-12">
                 <p class="sub-title">公眾聯絡人 <FieldMark /></p>
@@ -801,60 +815,68 @@
                 <input v-model.trim="form.publicContact.emailOrLine" type="text" />
               </div>
 
-              <div class="col-12">
-                <label class="checkbox-label">
-                  <input v-model="form.adminContact.sameAsPublic" type="checkbox" />
-                  行政聯絡人同公眾聯絡人
-                </label>
-              </div>
-              <template v-if="!form.adminContact.sameAsPublic">
-                <div class="col-12">
-                  <p class="sub-title">
-                    行政聯絡人 <FieldMark />
-                    <span class="badge-backend">僅後台</span>
-                  </p>
+              <fieldset class="col-12 locked-group" :disabled="locked('adminContact')">
+                <div class="row g-3">
+                  <div class="col-12">
+                    <label class="checkbox-label">
+                      <input v-model="form.adminContact.sameAsPublic" type="checkbox" />
+                      行政聯絡人同公眾聯絡人
+                    </label>
+                  </div>
+                  <template v-if="!form.adminContact.sameAsPublic">
+                    <div class="col-12">
+                      <p class="sub-title">
+                        行政聯絡人 <FieldMark />
+                        <span class="badge-backend">僅後台</span>
+                      </p>
+                    </div>
+                    <div class="col-md-4">
+                      <label>姓名 <FieldMark /></label>
+                      <input
+                        v-model.trim="form.adminContact.name"
+                        type="text"
+                        :class="{ invalid: err('adminContact.name') }"
+                      />
+                      <p v-if="err('adminContact.name')" class="field-error">
+                        {{ err("adminContact.name") }}
+                      </p>
+                    </div>
+                    <div class="col-md-4">
+                      <label>電話</label>
+                      <input
+                        v-model.trim="form.adminContact.phone"
+                        type="tel"
+                        :class="{ invalid: err('adminContact.phone') }"
+                      />
+                      <p v-if="err('adminContact.phone')" class="field-error">
+                        {{ err("adminContact.phone") }}
+                      </p>
+                    </div>
+                    <div class="col-md-4">
+                      <label>Email 或 LINE</label>
+                      <input v-model.trim="form.adminContact.emailOrLine" type="text" />
+                    </div>
+                  </template>
                 </div>
-                <div class="col-md-4">
-                  <label>姓名 <FieldMark /></label>
-                  <input
-                    v-model.trim="form.adminContact.name"
-                    type="text"
-                    :class="{ invalid: err('adminContact.name') }"
-                  />
-                  <p v-if="err('adminContact.name')" class="field-error">
-                    {{ err("adminContact.name") }}
-                  </p>
-                </div>
-                <div class="col-md-4">
-                  <label>電話</label>
-                  <input
-                    v-model.trim="form.adminContact.phone"
-                    type="tel"
-                    :class="{ invalid: err('adminContact.phone') }"
-                  />
-                  <p v-if="err('adminContact.phone')" class="field-error">
-                    {{ err("adminContact.phone") }}
-                  </p>
-                </div>
-                <div class="col-md-4">
-                  <label>Email 或 LINE</label>
-                  <input v-model.trim="form.adminContact.emailOrLine" type="text" />
-                </div>
-              </template>
+              </fieldset>
 
-              <div class="col-12">
-                <label>追蹤方式 <FieldMark /></label>
-                <ChipSelect
-                  v-model="form.followUpMethods"
-                  :options="FOLLOW_UP_METHODS"
-                  :invalid="!!err('followUpMethods')"
-                />
-                <p v-if="err('followUpMethods')" class="field-error">{{ err("followUpMethods") }}</p>
-              </div>
-              <div v-if="form.followUpMethods.includes('other')" class="col-12">
-                <label>其他追蹤方式</label>
-                <input v-model.trim="form.followUpOther" type="text" />
-              </div>
+              <fieldset class="col-12 locked-group" :disabled="locked('followUpMethods')">
+                <div class="row g-3">
+                  <div class="col-12">
+                    <label>追蹤方式 <FieldMark /></label>
+                    <ChipSelect
+                      v-model="form.followUpMethods"
+                      :options="FOLLOW_UP_METHODS"
+                      :invalid="!!err('followUpMethods')"
+                    />
+                    <p v-if="err('followUpMethods')" class="field-error">{{ err("followUpMethods") }}</p>
+                  </div>
+                  <div v-if="form.followUpMethods.includes('other')" class="col-12">
+                    <label>其他追蹤方式</label>
+                    <input v-model.trim="form.followUpOther" type="text" />
+                  </div>
+                </div>
+              </fieldset>
 
               <div class="col-12">
                 <label>網站或社群連結</label>
@@ -878,7 +900,7 @@
             <h3 class="section-title">六、AI 輔助欄位</h3>
             <p class="section-desc">原型階段用於關鍵字搜尋</p>
           </header>
-          <div class="section-body">
+          <fieldset class="section-body" :disabled="locked('keywords')">
             <div class="row g-3">
               <div class="col-12">
                 <label>關鍵字（建議）</label>
@@ -893,7 +915,7 @@
                 ></textarea>
               </div>
             </div>
-          </div>
+          </fieldset>
         </section>
 
         <div class="form-footer">
@@ -961,9 +983,20 @@ import { deepClone } from "../utils/clone.js";
 import { setFlash } from "../utils/flash.js";
 import { goBack } from "../utils/navigation.js";
 import { formatDateTime } from "../utils/resourceFormat.js";
+import { currentActor, getCurrentUser } from "../utils/auth.js";
+import { editableFieldsFor } from "../services/accessControl.js";
 
 const route = useRoute();
 const router = useRouter();
+
+// 可修改的欄位：系統管理員、資源管理員為全部（null）；資源點只限 PROVIDER_EDITABLE_FIELDS，其餘欄位唯讀
+const currentUser = getCurrentUser();
+const editableFields = editableFieldsFor(currentUser);
+const limited = !!editableFields;
+const locked = (field) => limited && !editableFields.includes(field);
+// 錯誤與未填欄位只計算可修改的欄位（資源點改不了的欄位不阻擋送出）
+const onlyEditable = (map) =>
+  limited ? Object.fromEntries(Object.entries(map).filter(([path]) => !locked(path.split(".")[0]))) : map;
 
 const todayString = () => {
   const d = new Date();
@@ -1206,7 +1239,10 @@ const scrollToFirstError = () => {
     ?.scrollIntoView({ behavior: "smooth", block: "center" });
 };
 
-const validate = () => validateResource(buildPayload(), { original });
+const validate = () => {
+  const result = validateResource(buildPayload(), { original });
+  return { errors: onlyEditable(result.errors), missing: onlyEditable(result.missing) };
+};
 
 // 第一次送出後即時重新檢核，修正一項就消失一項
 watch(
@@ -1231,7 +1267,7 @@ const previousShowsNotice =
 const submitForm = async () => {
   submitted.value = true;
   const payload = buildPayload();
-  const result = validateResource(payload, { original });
+  const result = validate();
   errors.value = result.errors;
   if (errorCount.value) {
     await nextTick();
@@ -1241,7 +1277,7 @@ const submitForm = async () => {
   const missingCount = Object.keys(result.missing).length;
 
   if (isEdit) {
-    const updated = updateResource(original.id, payload);
+    const updated = updateResource(original.id, payload, { actor: currentActor(currentUser), editableFields });
     if (!previousPath || previousShowsNotice) {
       setFlash({ type: "resource-saved", id: updated.id, name: updated.name, missing: missingCount });
     }
@@ -1262,6 +1298,30 @@ const back = () => goBack(router, isEdit ? detailPath : "/list");
 </script>
 
 <style scoped>
+.limited-banner {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  color: #6d4c41;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 資源點唯讀的欄位 */
+fieldset.section-body,
+fieldset.locked-group {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+}
+fieldset:disabled {
+  opacity: 0.6;
+}
+fieldset:disabled :is(input, select, textarea, button) {
+  cursor: not-allowed;
+}
 .surveyor-page {
   background: #fcfaf8;
   min-height: 100vh;

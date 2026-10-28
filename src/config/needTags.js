@@ -1,4 +1,4 @@
-// 處方類型與需求標籤代碼表（doc/resource-schema.md 第七節）
+// 處方類型與需求標籤代碼表（doc/specs/resource-schema.md 第七節）
 // 資料一律存代碼，中文只在這裡對照。
 
 export const PRESCRIPTION_TYPES = [

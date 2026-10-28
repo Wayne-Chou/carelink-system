@@ -35,6 +35,9 @@
             </button>
           </div>
         </label>
+        <p class="forgot-row">
+          <router-link to="/forgot-password">忘記密碼？</router-link>
+        </p>
         <p v-if="error" class="error-msg" role="alert">{{ error }}</p>
         <button type="submit" class="btn-primary">登入</button>
       </form>
@@ -57,7 +60,12 @@
       </section>
       <p class="auth-footer">
         還沒有帳號？
-        <router-link to="/register">立即註冊</router-link>
+        <router-link to="/register">申請帳號</router-link>
+      </p>
+      <p class="auth-footer mailbox-row">
+        <router-link to="/mailbox" class="prototype-link">
+          <span class="prototype-tag">原型展示用</span> 模擬信箱
+        </router-link>
       </p>
       <button type="button" class="btn-text" @click="back">← 返回</button>
     </div>
@@ -349,5 +357,44 @@ const quickLogin = (q) => {
 
 .btn-text:hover {
   color: #3e2723;
+}
+
+.forgot-row {
+  margin: -8px 0 0;
+  text-align: right;
+  font-size: 13px;
+}
+
+.forgot-row a {
+  color: #8d6e63;
+  text-decoration: none;
+}
+
+.forgot-row a:hover {
+  color: #b98158;
+  text-decoration: underline;
+}
+
+.mailbox-row {
+  margin-top: 8px;
+}
+
+.prototype-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400 !important;
+  color: #8d6e63 !important;
+}
+
+.prototype-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px dashed #a1887f;
+  color: #6d4c41;
+  background: #fff;
 }
 </style>

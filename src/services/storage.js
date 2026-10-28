@@ -70,28 +70,30 @@ export function writeList(key, list) {
 }
 
 // ── 帳號清單（依 ACCOUNT_STORAGE）────────────────────────
-// 只有 utils/auth.js 的帳號清單 users 使用
+// 帳號清單 users、資源點綁定、重設密碼連結、模擬信箱共用（utils/auth.js、services/accountService.js、services/mailService.js）
 
 const accountStorage = () => (ACCOUNT_STORAGE === "local" ? localStorage : sessionStorage);
 
 // 改用 sessionStorage 之前，帳號清單存在 localStorage；第一次讀寫時清掉殘留的帳號
 let legacyAccountsCleaned = false;
-function cleanLegacyAccounts(key) {
+// 只有帳號清單 users 有舊資料；不論第一次讀寫的是哪個 key 都要清
+const LEGACY_ACCOUNT_KEYS = ["users"];
+function cleanLegacyAccounts() {
   if (legacyAccountsCleaned || ACCOUNT_STORAGE !== "session") return;
   legacyAccountsCleaned = true;
   try {
-    localStorage.removeItem(key);
+    for (const key of LEGACY_ACCOUNT_KEYS) localStorage.removeItem(key);
   } catch {
     // 瀏覽器禁止存取儲存空間時略過
   }
 }
 
 export function readAccountList(key) {
-  cleanLegacyAccounts(key);
+  cleanLegacyAccounts();
   return readFrom(accountStorage, key);
 }
 
 export function writeAccountList(key, list) {
-  cleanLegacyAccounts(key);
+  cleanLegacyAccounts();
   writeTo(accountStorage, key, list);
 }

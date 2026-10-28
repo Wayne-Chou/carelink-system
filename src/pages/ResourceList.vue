@@ -122,7 +122,7 @@
                 </button>
               </div>
               <div class="footer-right">
-                <button type="button" class="detail-btn" @click="loginResource(item.id)">
+                <button v-if="canEnterDashboard" type="button" class="detail-btn" @click="loginResource(item.id)">
                   進入資源端
                 </button>
                 <button type="button" class="detail-btn" @click="$router.push(`/resources/${item.id}`)">
@@ -175,7 +175,8 @@ import {
   isVerifyOverdue,
   terminateResource,
 } from "../services/resourceService.js";
-import { setCurrentResourceId } from "../utils/auth.js";
+import { currentActor, getCurrentUser, setCurrentResourceId } from "../utils/auth.js";
+import { can } from "../services/accessControl.js";
 import { consumeFlash } from "../utils/flash.js";
 
 const router = useRouter();
@@ -249,7 +250,7 @@ const terminate = (item) => {
     `確定要終止「${item.name || "未命名資源"}」？\n\n終止後不會出現在探索頁與轉介選單，資料會保留供歷史個案查詢。`
   );
   if (!ok) return;
-  terminateResource(item.id);
+  terminateResource(item.id, { actor: currentActor() });
   reload();
 };
 
@@ -269,6 +270,9 @@ const removeResource = (item) => {
   deleteResource(item.id);
   reload();
 };
+
+// 「進入資源端」只給可檢視任何資源端後台的角色（系統管理員）；資源管理員不能看轉介個案
+const canEnterDashboard = can(getCurrentUser(), "resource.dashboardAny");
 
 // 資源端登入的資源屬於登入狀態，由 auth.js 存放（測試階段為 sessionStorage）
 const loginResource = (id) => {

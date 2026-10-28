@@ -65,7 +65,8 @@
               <span v-if="item.code" class="code">{{ item.code }}</span>
             </h4>
             <p class="meta">
-              <span>到期日 {{ item.dueDate || "下次來院時" }}</span>
+              <span v-if="item.dateText">{{ item.dateText }}</span>
+              <span v-else>到期日 {{ item.dueDate || "下次來院時" }}</span>
               <span v-if="item.detail">{{ item.detail }}</span>
             </p>
           </div>
@@ -136,6 +137,7 @@ const urgency = (item) => {
 };
 
 const overdueText = (item) => {
+  if (item.type === "account_review") return "待審核";
   if (item.overdueDays === null) return "未定日期";
   if (item.overdueDays > 0) return `逾期 ${item.overdueDays} 天`;
   if (item.overdueDays === 0) return "今天到期";

@@ -1,0 +1,281 @@
+/* 註冊、忘記密碼、重設密碼頁共用的版面（各頁以 <style scoped src> 載入）*/
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #8b5e4a 0%, #f5f1ed 55%, #fffaf7 100%);
+  font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 440px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 28px;
+  padding: 40px 36px;
+  box-shadow: 0 12px 40px rgba(62, 39, 35, 0.12);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #3e2723;
+  margin-bottom: 24px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.brand-logo {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
+.brand-text {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.auth-eyebrow {
+  font-size: 13px;
+  font-weight: 600;
+  color: #b98158;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.auth-card h1 {
+  font-size: 28px;
+  font-weight: 800;
+  color: #3e2723;
+  margin-bottom: 8px;
+}
+
+.auth-desc {
+  color: #6d4c41;
+  font-size: 14px;
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field span {
+  font-size: 14px;
+  font-weight: 600;
+  color: #5d4037;
+}
+
+.field select {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #e0d4c8;
+  background: #fff;
+  font-size: 15px;
+  color: #3e2723;
+}
+
+.field-hint {
+  font-size: 12px;
+  color: #8d6e63;
+}
+
+.field input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #eadfd8;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #3e2723;
+  background: rgba(255, 255, 255, 0.9);
+  box-sizing: border-box;
+}
+
+.field input:focus {
+  outline: none;
+  border-color: #c8a27c;
+  box-shadow: 0 0 0 3px rgba(185, 129, 88, 0.15);
+}
+
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-field input {
+  padding-right: 44px;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #8d6e63;
+  font-size: 15px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.password-toggle:hover {
+  color: #b98158;
+}
+
+.error-msg {
+  color: #c62828;
+  font-size: 14px;
+  margin: 0;
+}
+
+.btn-primary {
+  border: none;
+  background: #b98158;
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.btn-primary:hover {
+  background: #a06f4a;
+  transform: translateY(-1px);
+}
+
+.auth-footer {
+  margin-top: 20px;
+  font-size: 14px;
+  color: #6d4c41;
+  text-align: center;
+}
+
+.auth-footer a {
+  color: #b98158;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.auth-footer a:hover {
+  text-decoration: underline;
+}
+
+.btn-text {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  border: none;
+  background: transparent;
+  color: #8d6e63;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn-text:hover {
+  color: #3e2723;
+}
+
+.auth-card.wide {
+  max-width: 640px;
+}
+
+.field textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #eadfd8;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #3e2723;
+  background: rgba(255, 255, 255, 0.9);
+  box-sizing: border-box;
+  resize: vertical;
+}
+
+.field .invalid,
+.field input.invalid,
+.field select.invalid,
+.field textarea.invalid {
+  border-color: #e57373;
+}
+
+.field-error {
+  margin: 0;
+  font-size: 13px;
+  color: #c62828;
+}
+
+.required {
+  color: #c62828;
+  margin-left: 2px;
+}
+
+.notice-box {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #faf6f2;
+  border: 1px solid #eadbcd;
+  color: #5d4037;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.notice-box.success {
+  background: #e8f5e9;
+  border-color: #c8e6c9;
+  color: #2e7d32;
+}
+
+.notice-box.warning {
+  background: #fff8e1;
+  border-color: #ffe082;
+  color: #6d4c41;
+}
+
+.prototype-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #8d6e63;
+}
+
+.prototype-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px dashed #a1887f;
+  color: #6d4c41;
+  background: #fff;
+}

@@ -1,4 +1,4 @@
-// 社區資源資料層：所有資源的讀寫集中在這裡（規格見 doc/resource-schema.md）
+// 社區資源資料層：所有資源的讀寫集中在這裡（規格見 doc/specs/resource-schema.md）
 // 讀取時會把舊格式資料在記憶體中轉成新格式；只有呼叫寫入函式時才會把整份新格式寫回儲存區（經 storage.js）。
 
 import { NEED_TAGS, derivePrescriptionTypes } from "../config/needTags.js";
@@ -13,6 +13,7 @@ import {
   computeOverallRisk,
   isRecommendable,
 } from "../config/resourceRules.js";
+import { CHANGE_LOG_IGNORED_FIELDS } from "../config/resourceEditing.js";
 import { readList, writeList } from "./storage.js";
 import { addMonths, formatDate, nowDateTime, todayString } from "../utils/date.js";
 import { generateId } from "../utils/id.js";
@@ -107,6 +108,9 @@ export function createEmptyResource() {
 
     keywords: [],
     scenarios: null,
+
+    // 修改紀錄（系統自動，由舊到新）：{ at, actor: { name, role }, changes: [{ field, before, after }] }
+    changeLog: [],
   };
 }
 
@@ -346,6 +350,7 @@ export function createResource(data = {}) {
     code: getNextResourceCode(resources),
     createdAt: now,
     updatedAt: now,
+    changeLog: [],
   });
   if (!resource.nextVerifyAt) resource.nextVerifyAt = calcNextVerifyAt(resource);
 
@@ -353,15 +358,65 @@ export function createResource(data = {}) {
   return resource;
 }
 
+// ── 修改紀錄 ──────────────────────────────────────────────
+
+// 比對用的值：null、undefined、空字串視為相同；物件的空值欄位不列入、key 依字母排序
+function comparable(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (Array.isArray(value)) return value.map(comparable);
+  if (isPlainObject(value)) {
+    const entries = Object.keys(value)
+      .sort()
+      .map((k) => [k, comparable(value[k])])
+      .filter(([, v]) => v !== null);
+    return entries.length ? Object.fromEntries(entries) : null;
+  }
+  return value;
+}
+
+const sameValue = (a, b) => JSON.stringify(comparable(a)) === JSON.stringify(comparable(b));
+
+/**
+ * 比對修改前後的資源，列出有變動的第一層欄位與前後內容
+ * 不比對 CHANGE_LOG_IGNORED_FIELDS（識別資料、系統時間、自動推得的欄位）
+ * @returns {Array<{ field: string, before: any, after: any }>}
+ */
+export function diffResource(before = {}, after = {}) {
+  const fields = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...fields]
+    .filter((field) => !CHANGE_LOG_IGNORED_FIELDS.includes(field))
+    .filter((field) => !sameValue(before[field], after[field]))
+    .map((field) => ({
+      field,
+      before: structuredClone(before[field] ?? null),
+      after: structuredClone(after[field] ?? null),
+    }));
+}
+
+// 只保留允許修改的欄位（資源點編輯時使用）；allowed 為 null 時不限制
+export function pickFields(patch = {}, allowed = null) {
+  if (!allowed) return patch;
+  return Object.fromEntries(Object.entries(patch).filter(([key]) => allowed.includes(key)));
+}
+
 // patch 為深層合併：例如只傳 { address: { city } }，address 其他欄位保留；陣列整個替換
 // schedule.type 變更時以新類型的空白結構為底，避免殘留舊類型欄位
 // patch 若明確帶 nextVerifyAt 視為手動調整；否則在最後驗證日或風險等級變動時重新計算
 // 資源編碼不可修改；沒有編碼的舊資料在這次儲存時補上
-export function updateResource(id, patch = {}) {
+/**
+ * 修改資源
+ * options.actor：修改者 { name, role }，寫入修改紀錄
+ * options.editableFields：只允許修改的欄位（資源點傳入 PROVIDER_EDITABLE_FIELDS），其他欄位一律忽略
+ * 有實際變動時在 changeLog 新增一筆紀錄；修改紀錄本身不能由 patch 修改
+ */
+export function updateResource(id, rawPatch = {}, { actor = null, editableFields = null } = {}) {
   const resources = getAllResources();
   const index = resources.findIndex((r) => String(r.id) === String(id));
   if (index === -1) return null;
 
+  const patchWithoutLog = { ...rawPatch };
+  delete patchWithoutLog.changeLog;
+  const patch = pickFields(patchWithoutLog, editableFields);
   const current = resources[index];
   const scheduleTypeChanged =
     isPlainObject(patch.schedule) &&
@@ -388,14 +443,22 @@ export function updateResource(id, patch = {}) {
     updated.nextVerifyAt = calcNextVerifyAt(updated);
   }
 
+  const changes = diffResource(current, updated);
+  updated.changeLog = changes.length
+    ? [
+        ...current.changeLog,
+        { at: updated.updatedAt, actor: { name: actor?.name ?? "", role: actor?.role ?? "" }, changes },
+      ]
+    : current.changeLog;
+
   resources[index] = updated;
   writeAll(resources);
   return updated;
 }
 
 // 規格：終止的資源保留資料供歷史個案查詢，頁面應優先使用 terminateResource
-export function terminateResource(id) {
-  return updateResource(id, { status: "terminated" });
+export function terminateResource(id, options = {}) {
+  return updateResource(id, { status: "terminated" }, options);
 }
 
 export function deleteResource(id) {

@@ -1,4 +1,4 @@
-// 推薦規則、風險計算與驗證週期（doc/resource-schema.md 第三、九節）
+// 推薦規則、風險計算與驗證週期（doc/specs/resource-schema.md 第三、九節）
 
 // ── 驗證週期（月） ──────────────────────────────────────────
 export const VERIFY_INTERVAL_MONTHS = 6;
@@ -7,10 +7,10 @@ export const VERIFY_INTERVAL_MONTHS_NEW_OR_YELLOW = 3;
 // ── 表單驗證模式 ──────────────────────────────────────────
 // 規格定案後改為 true。
 // false（原型階段）：只有資源名稱必填，其他必填欄位改為「建議填寫」，未填不阻擋送出；格式錯誤仍會阻擋
-// true：依 doc/resource-schema.md 的必填欄完整檢核
+// true：依 doc/specs/resource-schema.md 的必填欄完整檢核
 export const STRICT_VALIDATION = false;
 
-// ── 待確認事項的假設（第十一節），確認後改這裡即可 ─────────────
+// ── 待確認事項（doc/open-questions.md）的假設，確認後改這裡即可 ─────────────
 
 // 「整體風險等級是否取五項條件中最差的一項？」
 // "worst"：取最差一項；"manual"：不自動計算，沿用人工填寫的 riskLevel

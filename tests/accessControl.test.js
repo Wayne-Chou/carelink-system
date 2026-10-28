@@ -4,11 +4,15 @@ import { readFileSync } from "node:fs";
 import { DEMO_ACCOUNTS, PERMISSIONS, REGISTERABLE_ROLES, ROLE_CODES } from "../src/config/roles.js";
 import {
   can,
+  canBindProvider,
+  canEditResource,
   canUseDashboard,
+  canViewChangeLog,
   canViewAssessment,
   canViewResource,
   checkRouteAccess,
   dashboardResourceId,
+  editableFieldsFor,
   filterTodosFor,
   homePathFor,
   landingPathFor,
@@ -17,11 +21,13 @@ import {
 } from "../src/services/accessControl.js";
 import { PUBLIC_ROUTES, ROUTE_ACCESS, routeMeta } from "../src/router/access.js";
 import { FIXTURE_IDS } from "./fixtures/resources.js";
+import { PROVIDER_EDITABLE_FIELDS } from "../src/config/resourceEditing.js";
 
 const RES_A = FIXTURE_IDS.Res101;
 const RES_B = FIXTURE_IDS.Res102;
 const user = (role) => DEMO_ACCOUNTS.find((a) => a.role === role);
 const ADMIN = user("admin");
+const RESOURCE_MANAGER = user("resource_manager");
 const READER = user("reader");
 const MANAGER = user("manager");
 const DEMO_PROVIDER = user("provider");
@@ -47,9 +53,50 @@ test("路由表：router/index.js 的每個路由都列在權限表或公開頁�
   for (const name of Object.keys(ROUTE_ACCESS)) assert.ok(names.includes(name), `權限表的 ${name} 不在路由中`);
 });
 
-test("角色設定：每個角色都有功能清單；註冊不開放系統管理員", () => {
+test("角色設定：每個角色都有功能清單；註冊不開放系統管理員、資源管理員", () => {
   for (const role of ROLE_CODES) assert.ok(Array.isArray(PERMISSIONS[role]) && PERMISSIONS[role].length, role);
   assert.deepEqual(REGISTERABLE_ROLES, ["reader", "manager", "provider"]);
+});
+
+test("資源管理員：可進入資源相關頁面與待辦；不能進入評估、個案、資源端後台", () => {
+  const ALLOWED = ["list", "resources-list", "form", "form-edit", "success", "resource-detail", "todo"];
+  const DENIED = ["assessment-new", "assessments", "assessment-review", "cases", "case-detail", "resource-dashboard"];
+  for (const name of ALLOWED) assert.equal(allowed(RESOURCE_MANAGER, name, { id: RES_B }), true, name);
+  for (const name of DENIED) assert.equal(allowed(RESOURCE_MANAGER, name, { id: "linked" }), false, name);
+  assert.equal(canUseDashboard(RESOURCE_MANAGER, RES_A), false);
+  assert.equal(homePathFor(RESOURCE_MANAGER), "/");
+});
+
+test("帳號管理只有系統管理員；忘記密碼、重設密碼、模擬信箱為公開頁", () => {
+  const users = [ADMIN, RESOURCE_MANAGER, READER, MANAGER, PROVIDER, NO_ROLE, null];
+  assert.deepEqual(users.map((u) => allowed(u, "accounts")), [true, false, false, false, false, false, false]);
+  for (const name of ["forgot-password", "reset-password", "mailbox"]) {
+    assert.ok(PUBLIC_ROUTES.includes(name), name);
+    assert.equal(allowed(null, name), true, name);
+  }
+  assert.deepEqual(users.slice(0, 6).map((u) => can(u, "account.manage")), [true, false, false, false, false, false]);
+});
+
+test("編輯資源：系統管理員、資源管理員可編輯任何資源的全部欄位；資源點只能編輯自己綁定的資源", () => {
+  for (const u of [ADMIN, RESOURCE_MANAGER]) {
+    assert.equal(canEditResource(u, RES_B), true, u.role);
+    assert.equal(editableFieldsFor(u), null, `${u.role} 全部欄位`);
+  }
+  assert.equal(allowed(PROVIDER, "form-edit", { id: RES_A }), true);
+  assert.equal(allowed(PROVIDER, "form-edit", { id: RES_B }), false, "不能編輯別的資源");
+  assert.equal(allowed(DEMO_PROVIDER, "form-edit", { id: RES_A }), false, "未綁定的資源點不能編輯");
+  assert.equal(allowed(PROVIDER, "form"), false, "資源點不能新增資源");
+  assert.deepEqual(editableFieldsFor(PROVIDER), PROVIDER_EDITABLE_FIELDS);
+  for (const u of [READER, MANAGER, NO_ROLE]) {
+    assert.equal(canEditResource(u, RES_A), false, u.role);
+    assert.deepEqual(editableFieldsFor(u), []);
+  }
+});
+
+test("綁定資源點帳號、查看修改紀錄：只有系統管理員與資源管理員", () => {
+  const users = [ADMIN, RESOURCE_MANAGER, READER, MANAGER, PROVIDER, NO_ROLE];
+  assert.deepEqual(users.map(canBindProvider), [true, true, false, false, false, false]);
+  assert.deepEqual(users.map(canViewChangeLog), [true, true, false, false, false, false]);
 });
 
 test("公開頁不需登入，任何人（含沒有角色的帳號）都能進入；黃燈開啟的探索頁在新分頁也不受影響", () => {
@@ -113,14 +160,14 @@ test("判讀頁：判讀人員、系統管理員看全部；健康管理員只�
   assert.equal(canViewAssessment(MANAGER, ASSESSMENTS.linked), true);
 });
 
-test("唯讀與連結：判讀人員沒有個案頁權限；健康管理員不能判讀、作廢；只有系統管理員能編輯資源", () => {
+test("唯讀與連結：判讀人員沒有個案頁權限；健康管理員不能判讀、作廢；只有系統管理員、資源管理員能管理資源", () => {
   assert.equal(can(READER, "case.manage"), false, "判讀頁的已建立個案只顯示編碼");
   assert.equal(can(READER, "assessment.review"), true);
   assert.equal(can(MANAGER, "assessment.review"), false);
   assert.equal(can(MANAGER, "assessment.list"), false, "唯讀判讀頁不顯示「回評估列表」");
   assert.deepEqual(
-    [ADMIN, READER, MANAGER, PROVIDER].map((u) => can(u, "resource.manage")),
-    [true, false, false, false]
+    [ADMIN, RESOURCE_MANAGER, READER, MANAGER, PROVIDER].map((u) => can(u, "resource.manage")),
+    [true, true, false, false, false]
   );
 });
 
@@ -163,13 +210,17 @@ test("待辦依角色只顯示自己的項目，系統管理員可切換全部",
   assert.deepEqual(filterTodosFor(NO_ROLE, TODOS), []);
   assert.deepEqual(todoScopeFor(ADMIN), { own: "admin", canViewAll: true });
   assert.deepEqual(todoScopeFor(PROVIDER), { own: null, canViewAll: false });
+  assert.deepEqual(types(filterTodosFor(RESOURCE_MANAGER, TODOS)), ["resource_verify"], "資源管理員只看資源待驗證");
+  assert.deepEqual(types(filterTodosFor(RESOURCE_MANAGER, TODOS, "all")), ["resource_verify"], "資源管理員不能切換全部");
+  assert.deepEqual(todoScopeFor(RESOURCE_MANAGER), { own: "admin", canViewAll: false });
 });
 
 test("首頁快捷區：只列出該角色能用的入口，且每個入口都能通過路由檢查", () => {
   const keys = (u) => shortcutsFor(u).map((s) => s.key);
-  assert.deepEqual(keys(ADMIN), ["todo", "assessmentNew", "assessments", "cases", "resources", "resourceNew"]);
+  assert.deepEqual(keys(ADMIN), ["todo", "assessmentNew", "assessments", "cases", "resources", "resourceNew", "accounts"]);
   assert.deepEqual(keys(READER), ["todo", "assessmentNew", "assessments"]);
   assert.deepEqual(keys(MANAGER), ["todo", "cases"]);
+  assert.deepEqual(keys(RESOURCE_MANAGER), ["todo", "resources", "resourceNew"]);
   assert.deepEqual(keys(PROVIDER), ["dashboard", "myResource"]);
   assert.deepEqual(keys(NO_ROLE), []);
   const NAME_BY_PATH = {
@@ -180,8 +231,9 @@ test("首頁快捷區：只列出該角色能用的入口，且每個入口都�
     "/list": "list",
     "/form": "form",
     "/resource-dashboard": "resource-dashboard",
+    "/accounts": "accounts",
   };
-  for (const u of [ADMIN, READER, MANAGER, PROVIDER]) {
+  for (const u of [ADMIN, RESOURCE_MANAGER, READER, MANAGER, PROVIDER]) {
     for (const s of shortcutsFor(u)) {
       const name = NAME_BY_PATH[s.path] ?? "resource-detail";
       const params = name === "resource-detail" ? { id: s.path.split("/").pop() } : {};

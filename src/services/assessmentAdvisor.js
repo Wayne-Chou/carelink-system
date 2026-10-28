@@ -1,4 +1,4 @@
-// 燈號建議與判讀提示（doc/assessment-schema.md 第四節）
+// 燈號建議與判讀提示（doc/specs/assessment-schema.md 第四節）
 // 只提供建議與提醒，不定案：燈號一律由判讀人員決定
 // 純函式，不讀寫儲存區
 

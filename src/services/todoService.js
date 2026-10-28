@@ -1,10 +1,12 @@
-// 待辦（doc/assessment-schema.md 第七節）：每次依今天日期即時計算，不另外儲存
+// 待辦（doc/specs/assessment-schema.md 第七節）：每次依今天日期即時計算，不另外儲存
 // 純計算：資料由呼叫端傳入（預設讀取各 service），方便測試指定日期
 
 import { FIRST_CONTACT_HOURS, PROVIDER_REPORT_DAYS } from "../config/assessmentRules.js";
 import { getAllAssessments, isActiveAssessment } from "./assessmentService.js";
 import { getAllCases, getNextFollowUp, isFirstContactOverdue, isFollowUpDue } from "./caseService.js";
 import { getAllResources, isVerifyOverdue } from "./resourceService.js";
+import { getPendingApplications } from "./accountService.js";
+import { getRoleLabel } from "../config/roles.js";
 import { addDays, daysBetween, formatDate, todayString, toDateString } from "../utils/date.js";
 
 export const AUDIENCES = [
@@ -22,6 +24,8 @@ export const TODO_TYPES = [
   { code: "green_reassess", label: "綠燈年度重評", audience: "reader" },
   { code: "orange_reserved", label: "橘燈保留再確認", audience: "reader" },
   { code: "resource_verify", label: "資源待驗證", audience: "admin" },
+  // 只有系統管理員（account.manage）看得到；資源管理員雖然也屬於「管理員」，但不會列出
+  { code: "account_review", label: "待審核帳號", audience: "admin", permission: "account.manage" },
 ];
 
 const TYPE_BY_CODE = Object.fromEntries(TODO_TYPES.map((t) => [t.code, t]));
@@ -37,6 +41,8 @@ const TYPE_BY_CODE = Object.fromEntries(TODO_TYPES.map((t) => [t.code, t]));
  * @property {number|null} overdueDays  今天減到期日的天數：大於 0 為逾期，0 為今天到期
  * @property {string} detail      補充說明
  * @property {string} link        前往的頁面
+ * @property {string} [permission] 需要的權限（沒有權限的角色不列出）
+ * @property {string} [dateText]   沒有到期日時顯示的時間說明（例：申請時間）
  */
 
 function makeTodo(type, fields, today) {
@@ -45,6 +51,7 @@ function makeTodo(type, fields, today) {
     type,
     typeLabel: TYPE_BY_CODE[type].label,
     audience: TYPE_BY_CODE[type].audience,
+    ...(TYPE_BY_CODE[type].permission ? { permission: TYPE_BY_CODE[type].permission } : {}),
     overdueDays: dueDate ? daysBetween(dueDate, today) : null,
     ...fields,
     dueDate,
@@ -74,6 +81,7 @@ export function computeTodos({
   assessments = getAllAssessments(),
   cases = getAllCases(),
   resources = getAllResources(),
+  applications = getPendingApplications(),
 } = {}) {
   const todos = [];
   const activeAssessments = assessments.filter(isActiveAssessment);
@@ -158,6 +166,23 @@ export function computeTodos({
       makeTodo(
         "resource_verify",
         { name: r.name || "未命名資源", code: r.code || "", link: `/resources/${r.id}`, dueDate: r.nextVerifyAt, detail: `預計驗證日期 ${r.nextVerifyAt}` },
+        today
+      )
+    );
+  }
+
+  // ── 帳號（系統管理員）── 待審核的註冊申請，先申請的在前；沒有到期日，排在有日期的項目之後
+  for (const a of applications) {
+    todos.push(
+      makeTodo(
+        "account_review",
+        {
+          name: a.name || "未填姓名",
+          code: a.email,
+          link: `/accounts?review=${a.id}`,
+          dateText: `申請時間 ${a.createdAt ?? "—"}`,
+          detail: [`申請角色：${getRoleLabel(a.role)}`, a.organization].filter(Boolean).join("｜"),
+        },
         today
       )
     );

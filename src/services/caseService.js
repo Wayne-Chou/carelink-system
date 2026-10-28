@@ -1,4 +1,4 @@
-// 個案資料層（doc/assessment-schema.md 第六節）
+// 個案資料層（doc/specs/assessment-schema.md 第六節）
 // 比照資源的做法：讀取時把舊格式在記憶體中轉成新格式，只有呼叫寫入函式時才整份寫回「cases」（經 storage.js）
 //
 // 注意：CaseList、CaseDetail、ResourceDashboard 目前仍直接讀寫舊格式，

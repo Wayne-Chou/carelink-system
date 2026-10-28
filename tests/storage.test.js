@@ -15,7 +15,8 @@ local.data.users = JSON.stringify([{ id: 1, email: "keep@example.com" }]);
 
 const storage = await import("../src/services/storage.js");
 const { getAllResources, createResource } = await import("../src/services/resourceService.js");
-const { getUsers, register } = await import("../src/utils/auth.js");
+const { getUsers } = await import("../src/utils/auth.js");
+const { addUser } = await import("./helpers/accounts.js");
 
 // 模擬關閉瀏覽器：sessionStorage 清空，localStorage 保留
 const closeBrowser = () => {
@@ -64,7 +65,7 @@ describe("一般讀寫", () => {
 
   test("帳號清單存 sessionStorage，關閉瀏覽器後清除", () => {
     assert.equal(storage.ACCOUNT_STORAGE, "session");
-    register({ name: "王示範", email: "w@example.com", password: "x", role: "reader" });
+    addUser({ name: "王示範", email: "w@example.com", role: "reader" });
     assert.equal(JSON.parse(session.data.users).length, 1);
     assert.equal("users" in local.data, false);
     closeBrowser();
@@ -73,7 +74,7 @@ describe("一般讀寫", () => {
 
   test("資料與帳號都不寫入 localStorage", () => {
     createResource({ name: "測試資源" });
-    register({ name: "王示範", email: "w@example.com", password: "x", role: "reader" });
+    addUser({ name: "王示範", email: "w@example.com", role: "reader" });
     assert.deepEqual(local.data, {});
   });
 

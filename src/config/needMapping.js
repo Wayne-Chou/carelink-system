@@ -1,4 +1,4 @@
-// 生活近況評估表與需求標籤對應（doc/resource-schema.md 第八節）
+// 生活近況評估表與需求標籤對應（doc/specs/resource-schema.md 第八節）
 // Q11 為民眾自行指認的需求，可直接採用；Q1–Q10 只產生建議，須由判讀人員確認。
 
 // action：

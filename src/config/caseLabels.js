@@ -1,4 +1,4 @@
-// 個案的顯示標籤（doc/assessment-schema.md 第六節），個案頁、資源端後台、歷程說明共用
+// 個案的顯示標籤（doc/specs/assessment-schema.md 第六節），個案頁、資源端後台、歷程說明共用
 
 export const STAGE_OPTIONS = [
   { code: 1, label: "辨識", short: "1 辨識" },

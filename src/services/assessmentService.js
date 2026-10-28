@@ -1,4 +1,4 @@
-// 生活近況評估紀錄資料層（doc/assessment-schema.md 第三、五節）
+// 生活近況評估紀錄資料層（doc/specs/assessment-schema.md 第三、五節）
 // 存在「assessments」（經 storage.js）；一次填表加一次判讀為一筆，同一位民眾可有多筆（以 previousAssessmentId 串起）
 
 import {
