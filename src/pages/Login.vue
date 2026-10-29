@@ -8,7 +8,7 @@
       <p class="auth-eyebrow">Welcome back</p>
       <h1>登入</h1>
       <p class="auth-desc">登入後可管理社區資源與個案流程</p>
-      <form class="auth-form" @submit.prevent="handleSubmit">
+      <form class="auth-form" data-tour="login-form" @submit.prevent="handleSubmit">
         <label class="field">
           <span>Email</span>
           <input v-model="email" type="email" required placeholder="you@example.com" />
@@ -35,7 +35,7 @@
             </button>
           </div>
         </label>
-        <p class="forgot-row">
+        <p class="forgot-row" data-tour="login-forgot">
           <router-link to="/forgot-password">忘記密碼？</router-link>
         </p>
         <p v-if="error" class="error-msg" role="alert">{{ error }}</p>
@@ -43,7 +43,7 @@
       </form>
 
       <!-- 快速登入（示範用）：按下即以該角色的示範帳號登入，導向與一般登入相同 -->
-      <section class="quick-login" aria-labelledby="quick-login-title">
+      <section class="quick-login" data-tour="login-quick" aria-labelledby="quick-login-title">
         <h2 id="quick-login-title">快速登入（示範用）</h2>
         <div class="quick-grid">
           <button
@@ -58,14 +58,9 @@
           </button>
         </div>
       </section>
-      <p class="auth-footer">
+      <p class="auth-footer" data-tour="login-register">
         還沒有帳號？
         <router-link to="/register">申請帳號</router-link>
-      </p>
-      <p class="auth-footer mailbox-row">
-        <router-link to="/mailbox" class="prototype-link">
-          <span class="prototype-tag">原型展示用</span> 模擬信箱
-        </router-link>
       </p>
       <button type="button" class="btn-text" @click="back">← 返回</button>
     </div>
@@ -373,28 +368,5 @@ const quickLogin = (q) => {
 .forgot-row a:hover {
   color: #b98158;
   text-decoration: underline;
-}
-
-.mailbox-row {
-  margin-top: 8px;
-}
-
-.prototype-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 400 !important;
-  color: #8d6e63 !important;
-}
-
-.prototype-tag {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 1px dashed #a1887f;
-  color: #6d4c41;
-  background: #fff;
 }
 </style>

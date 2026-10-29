@@ -97,23 +97,28 @@ export function getCurrentUser() {
     clearCurrentUser();
     return null;
   }
-  if (user.role === "provider") user.resourceId = getBoundResourceId(user.email, user.resourceId);
-  return user;
+  return withBinding(user);
 }
 
+// 登入狀態保存的欄位：判讀人員類別（判讀頁自動帶入）、資源點綁定的資源 id
+const toSessionUser = (user) => ({
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: user.role,
+  readerType: user.readerType ?? "",
+  resourceId: user.resourceId ?? "",
+});
+
+// 資源點帶入目前綁定的資源
+const withBinding = (user) =>
+  user.role === "provider" ? { ...user, resourceId: getBoundResourceId(user.email, user.resourceId) } : user;
+
+// 某個帳號登入後 getCurrentUser() 會取得的資料（不實際登入；角色預覽面板使用）
+export const sessionUserOf = (account) => withBinding(toSessionUser(account));
+
 export function setCurrentUser(user) {
-  writeLogin(
-    CURRENT_USER_KEY,
-    JSON.stringify({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      // 判讀人員類別（判讀頁自動帶入）、資源點綁定的資源 id
-      readerType: user.readerType ?? "",
-      resourceId: user.resourceId ?? "",
-    })
-  );
+  writeLogin(CURRENT_USER_KEY, JSON.stringify(toSessionUser(user)));
 }
 
 // 登出：一併清除資源端登入的資源

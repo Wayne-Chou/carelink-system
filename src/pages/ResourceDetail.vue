@@ -6,7 +6,7 @@
           <i class="fa-solid fa-chevron-left me-2" aria-hidden="true"></i>返回
         </button>
         <div class="nav-actions">
-          <button v-if="resource && canEdit" class="edit-btn" @click="$router.push(`/form/${resource.id}`)">
+          <button v-if="resource && canOpen(`/form/${resource.id}`)" class="edit-btn" data-tour="detail-edit" @click="$router.push(`/form/${resource.id}`)">
             <i class="fa-solid fa-pen-to-square me-2" aria-hidden="true"></i>編輯
           </button>
           <UserMenu variant="light" />
@@ -53,7 +53,7 @@
           </div>
 
           <!-- 曝光狀態 -->
-          <div class="side-card">
+          <div class="side-card" data-tour="detail-visibility">
             <h2 class="side-title">曝光狀態</h2>
             <ul class="visibility-list">
               <li v-for="item in visibilityRows" :key="item.key">
@@ -83,7 +83,7 @@
           </div>
 
           <!-- 驗證資訊 -->
-          <div class="side-card">
+          <div class="side-card" data-tour="detail-verify">
             <h2 class="side-title">
               驗證資訊
               <span v-if="overdue" class="overdue-badge">待驗證</span>
@@ -119,7 +119,7 @@
             </dl>
           </div>
           <!-- 資源點帳號：系統管理員、資源管理員可綁定或解除 -->
-          <div v-if="showBinding" class="side-card">
+          <div v-if="showBinding" class="side-card" data-tour="detail-binding">
             <h2 class="side-title">資源點帳號</h2>
             <p class="side-hint">綁定後，該帳號可進入這筆資源的資源端後台並編輯部分欄位；一個帳號只綁定一筆資源</p>
             <ul v-if="boundAccounts.length" class="binding-list">
@@ -461,7 +461,7 @@
           </section>
 
           <!-- 修改紀錄：系統管理員、資源管理員可看 -->
-          <section v-if="showChangeLog" class="content-section">
+          <section v-if="showChangeLog" class="content-section" data-tour="detail-changelog">
             <h3 class="section-title">修改紀錄</h3>
             <p v-if="!changeLogEntries.length" class="muted">尚無修改紀錄</p>
             <ol v-else class="change-log">
@@ -495,13 +495,14 @@
       <div v-else class="not-found">
         <i class="fa-regular fa-folder-open" aria-hidden="true"></i>
         <p>找不到這筆資源，可能已被刪除。</p>
-        <button v-if="canManage" class="back-btn" @click="$router.push('/list')">返回清單</button>
+        <button v-if="canOpen('/list')" class="back-btn" @click="$router.push('/list')">返回清單</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import UserMenu from "../components/UserMenu.vue";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -526,6 +527,7 @@ import {
   optionLabel,
   optionLabels,
 } from "../config/resourceOptions.js";
+import { RISK_ICONS as RISK_ICON } from "../config/resourceOptions.js";
 import { getVisibility } from "../config/resourceRules.js";
 import { getResourceById, isVerifyOverdue } from "../services/resourceService.js";
 import { fieldLabel } from "../config/resourceEditing.js";
@@ -542,7 +544,6 @@ import {
 } from "../utils/auth.js";
 import {
   canBindProvider,
-  canEditResource,
   canManageResources,
   canViewChangeLog,
   homePathFor,
@@ -557,18 +558,18 @@ import {
 
 const route = useRoute();
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 const resource = ref(null);
 // 角色權限（原型階段）：系統管理員、資源管理員可編輯全部；資源點可編輯自己綁定資源的部分欄位；其他角色唯讀
 const currentUser = getCurrentUser();
 const canManage = canManageResources(currentUser);
-const canEdit = computed(() => !!resource.value && canEditResource(currentUser, resource.value.id));
 const back = () => goBack(router, canManage ? "/list" : homePathFor(currentUser));
 
 // 從編輯頁儲存後回來時的一次性提示（只顯示屬於這筆資源的）
 const flash = consumeFlash("resource-saved");
 const savedNotice = ref(flash && String(flash.id) === String(route.params.id) ? flash : null);
 
-const RISK_ICON = { green: "🟢", yellow: "🟡", red: "🔴" };
 
 watch(
   () => route.params.id,

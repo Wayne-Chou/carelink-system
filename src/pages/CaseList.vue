@@ -8,16 +8,16 @@
         <h2>個案管理</h2>
       </div>
       <div class="header-right">
-        <button class="add-btn" @click="addCase">＋新增個案</button>
+        <button class="add-btn" data-tour="cases-new" @click="addCase">＋新增個案</button>
         <UserMenu />
       </div>
     </div>
 
     <div class="filter-container">
-      <div class="search-box">
+      <div class="search-box" data-tour="cases-search">
         <input v-model="searchQuery" type="search" placeholder="搜尋姓名或個案編碼..." aria-label="搜尋個案" />
       </div>
-      <div class="filter-tabs" role="tablist">
+      <div class="filter-tabs" data-tour="cases-tabs" role="tablist">
         <button
           v-for="tab in tabs"
           :key="tab.value"
@@ -37,7 +37,7 @@
       </p>
     </div>
 
-    <div class="container main-list">
+    <div class="container main-list" data-tour="cases-list">
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
 
       <div v-if="!filtered.length" class="empty-state">
@@ -50,13 +50,13 @@
         :class="['case-card', { overdue: item.overdue, closed: item.stage === 'closed' }]"
         role="link"
         tabindex="0"
-        @click="goDetail(item.id)"
-        @keydown.enter="goDetail(item.id)"
+        @click="canOpen(caseLink(item.id)) && goDetail(item.id)"
+        @keydown.enter="canOpen(caseLink(item.id)) && goDetail(item.id)"
       >
         <div class="case-content">
           <div class="case-head">
             <span class="case-code">{{ item.code }}</span>
-            <span :class="['stage-badge', `stage-${item.stage}`]">{{ stageShort(item.stage) }}</span>
+            <span :class="['stage-badge', `stage-${item.stage}`]">{{ item.stageText }}</span>
             <span v-if="item.overdue" class="overdue-badge">
               <i class="fa-solid fa-clock" aria-hidden="true"></i> 首次聯繫逾期（開案 {{ item.daysOpen }} 天）
             </span>
@@ -65,9 +65,7 @@
           <h4>{{ item.person.name || "未命名個案" }}</h4>
           <p class="case-meta">
             <span v-if="item.referral.assessmentCode">評估 {{ item.referral.assessmentCode }}</span>
-            <span v-if="item.latestLinkage">
-              連結：{{ item.latestLinkage.resourceName || "未知資源" }}（{{ caseLabel(LINKAGE_STATUS_OPTIONS, item.latestLinkage.status) }}）
-            </span>
+            <span v-if="item.latestLinkage">連結：{{ item.linkageText }}</span>
             <span v-if="item.nextFollowUp">下次追蹤 {{ item.nextFollowUp.plannedAt }}（{{ item.nextFollowUp.round }} 個月）</span>
             <span v-if="item.managerName">健康管理員 {{ item.managerName }}</span>
             <span>開案 {{ toDateString(item.createdAt) || "未提供" }}</span>
@@ -91,25 +89,21 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { FIRST_CONTACT_HOURS } from "../config/assessmentRules.js";
-import { LINKAGE_STATUS_OPTIONS, STAGE_OPTIONS, caseLabel, stageShort } from "../config/caseLabels.js";
-import {
-  canDeleteCase,
-  createCase,
-  deleteCase,
-  getAllCases,
-  getNextFollowUp,
-  isFirstContactOverdue,
-  isFollowUpDue,
-} from "../services/caseService.js";
+import { STAGE_OPTIONS } from "../config/caseLabels.js";
+import { createCase, deleteCase, getAllCases } from "../services/caseService.js";
+import { caseRows } from "../services/listViews.js";
 import { getCurrentUser } from "../utils/auth.js";
-import { hoursBetween, toDateString } from "../utils/date.js";
+import { toDateString } from "../utils/date.js";
 import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 const back = () => goBack(router, "/");
 
 const cases = ref(getAllCases());
@@ -121,22 +115,8 @@ const reload = () => {
   cases.value = getAllCases();
 };
 
-// 列表需要的衍生資料一次算好
-const rows = computed(() => {
-  const now = new Date();
-  return cases.value.map((c) => {
-    const nextFollowUp = getNextFollowUp(c);
-    return {
-      ...c,
-      overdue: isFirstContactOverdue(c, now),
-      daysOpen: Math.floor((hoursBetween(c.createdAt, now) ?? 0) / 24),
-      latestLinkage: c.linkages.at(-1) ?? null,
-      nextFollowUp,
-      followUpDue: isFollowUpDue(c),
-      deletable: canDeleteCase(c).ok,
-    };
-  });
-});
+// 列表需要的衍生資料一次算好；卡片顯示資料與角色預覽面板共用（services/listViews.js）
+const rows = computed(() => caseRows(cases.value));
 
 const tabs = computed(() => [
   { label: "進行中", value: "open", count: rows.value.filter((r) => r.stage !== "closed").length },
@@ -171,7 +151,8 @@ const addCase = () => {
   reload();
 };
 
-const goDetail = (id) => router.push(`/case/${id}`);
+const caseLink = (id) => `/case/${id}`;
+const goDetail = (id) => router.push(caseLink(id));
 
 // 只有第 1 階段、沒有連結與追蹤紀錄的個案可以刪除（例如誤建），其他提示改用結案
 const removeCase = (item) => {

@@ -139,6 +139,9 @@ export const FOLLOW_UP_METHODS = [
   { code: "other", label: "其他" },
 ];
 
+// 風險燈號的圖示（表單、詳細頁、列表共用）
+export const RISK_ICONS = { green: "🟢", yellow: "🟡", red: "🔴" };
+
 // getVisibility() 回傳的不顯示原因代碼 → 簡短中文（列表等空間有限處使用）
 export const VISIBILITY_REASON_LABELS = {
   paused: "暫停中",

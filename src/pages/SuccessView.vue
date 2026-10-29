@@ -12,6 +12,7 @@
       <div
         v-if="exploreStatus"
         :class="['explore-status', exploreStatus.visible ? 'on' : 'off']"
+        data-tour="success-status"
         role="status"
       >
         <template v-if="exploreStatus.visible">
@@ -23,14 +24,14 @@
         </template>
       </div>
 
-      <div class="action-buttons">
-        <button v-if="resource" class="btn-primary" @click="$router.push(`/resources/${resource.id}`)">
+      <div class="action-buttons" data-tour="success-actions">
+        <button v-if="resource && canOpen(`/resources/${resource.id}`)" class="btn-primary" @click="$router.push(`/resources/${resource.id}`)">
           前往資源詳細頁
         </button>
-        <button class="btn-again" @click="$router.push('/list')">
+        <button v-if="canOpen('/list')" class="btn-again" @click="$router.push('/list')">
           查看資源列表
         </button>
-        <button class="btn-again" @click="$router.push('/form')">
+        <button v-if="canOpen('/form')" class="btn-again" @click="$router.push('/form')">
           再新增一筆
         </button>
         <button class="btn-home" @click="$router.push('/')">回到首頁</button>
@@ -45,8 +46,11 @@ import { useRoute } from "vue-router";
 import { VISIBILITY_REASON_LABELS } from "../config/resourceOptions.js";
 import { getVisibility } from "../config/resourceRules.js";
 import { getResourceById } from "../services/resourceService.js";
+import { useCanOpen } from "../composables/useCanOpen.js";
 
 const route = useRoute();
+// 導向沒有權限的頁面的按鈕一律不顯示
+const canOpen = useCanOpen();
 
 // 表單建立後帶 ?id= 過來；找不到資源（例如直接開啟網址）時只顯示通用訊息
 const resource = route.query.id ? getResourceById(route.query.id) : null;

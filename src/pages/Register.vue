@@ -38,7 +38,12 @@
         </div>
 
         <form class="auth-form" novalidate @submit.prevent="handleSubmit">
-          <label v-for="f in commonFields" :key="f.key" class="field">
+          <label
+            v-for="f in commonFields"
+            :key="f.key"
+            class="field"
+            :data-tour="f.key === 'supervisorName' ? 'register-supervisor' : undefined"
+          >
             <span>{{ f.label }}<span class="required">*</span></span>
             <textarea
               v-if="f.key === 'reason'"
@@ -59,7 +64,7 @@
             <p v-if="errors[f.key]" class="field-error">{{ errors[f.key] }}</p>
           </label>
 
-          <label class="field">
+          <label class="field" data-tour="register-role">
             <span>申請角色<span class="required">*</span></span>
             <select v-model="form.role" :class="{ invalid: errors.role }">
               <option value="" disabled>請選擇角色</option>
@@ -98,7 +103,7 @@
             <p v-if="detailError(f.key)" class="field-error">{{ detailError(f.key) }}</p>
           </label>
 
-          <div class="notice-box">
+          <div class="notice-box" data-tour="register-consent">
             <p class="mb-2"><strong>個資保護與保密同意</strong></p>
             <p class="mb-2">
               使用本平台會接觸民眾的評估、個案與聯絡資料。我同意僅在執行業務必要範圍內查看與使用，不對外洩漏、不另行複製或留存，
@@ -112,7 +117,7 @@
           </div>
 
           <p v-if="errorCount" class="error-msg" role="alert">還有 {{ errorCount }} 個欄位需要修正</p>
-          <button type="submit" class="btn-primary">送出申請</button>
+          <button type="submit" class="btn-primary" data-tour="register-submit">送出申請</button>
         </form>
         <p class="auth-footer">
           已有帳號？

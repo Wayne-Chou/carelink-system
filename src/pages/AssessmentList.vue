@@ -8,16 +8,16 @@
         <h2>評估列表</h2>
       </div>
       <div class="header-right">
-        <button class="add-btn" @click="$router.push('/assessment/new')">＋ 填寫評估</button>
+        <button v-if="canOpen('/assessment/new')" class="add-btn" data-tour="assessments-new" @click="$router.push('/assessment/new')">＋ 填寫評估</button>
         <UserMenu />
       </div>
     </div>
 
     <div class="filter-container">
-      <div class="search-box">
+      <div class="search-box" data-tour="assessments-search">
         <input v-model="searchQuery" type="search" placeholder="搜尋姓名或評估編碼..." aria-label="搜尋評估" />
       </div>
-      <div class="filter-tabs" role="tablist">
+      <div class="filter-tabs" data-tour="assessments-tabs" role="tablist">
         <button
           v-for="tab in tabs"
           :key="tab.value"
@@ -37,7 +37,7 @@
       </p>
     </div>
 
-    <div class="container main-list">
+    <div class="container main-list" data-tour="assessments-list">
       <div v-if="filtered.length">
         <article
           v-for="item in filtered"
@@ -45,16 +45,14 @@
           :class="['assessment-card', item.status]"
           role="link"
           tabindex="0"
-          @click="open(item)"
-          @keydown.enter="open(item)"
+          @click="canOpen(linkOf(item)) && open(item)"
+          @keydown.enter="canOpen(linkOf(item)) && open(item)"
         >
           <div class="card-main">
             <div class="card-head">
               <span class="code">{{ item.code }}</span>
-              <span :class="['status-badge', item.status]">{{ STATUS_LABELS[item.status] }}</span>
-              <span v-if="item.light" :class="['light-badge', item.review.light]">
-                {{ formatLight(item.review.light, item.review.orangeType) }}
-              </span>
+              <span :class="['status-badge', item.status]">{{ item.statusText }}</span>
+              <span v-if="item.light" :class="['light-badge', item.review.light]">{{ item.lightText }}</span>
               <span v-if="item.pendingCase" class="case-badge pending">待開案</span>
               <span v-if="item.caseCode" class="case-badge opened">已開案 {{ item.caseCode }}</span>
             </div>
@@ -85,42 +83,26 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { STATUS_LABELS, formatLight } from "../config/assessmentLabels.js";
-import {
-  getAllAssessments,
-  isPendingCaseOpening,
-  isVoided,
-  maskNationalId,
-  sortForList,
-} from "../services/assessmentService.js";
-import { getAllCases } from "../services/caseService.js";
-import { getAllResources } from "../services/resourceService.js";
+import { STATUS_LABELS } from "../config/assessmentLabels.js";
+import { getAllAssessments, isVoided, maskNationalId, sortForList } from "../services/assessmentService.js";
+import { assessmentRows } from "../services/listViews.js";
 import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 const back = () => goBack(router, "/");
 
 const assessments = ref(sortForList(getAllAssessments()));
 const searchQuery = ref("");
 const currentTab = ref("all");
 
-// 已開案的評估顯示個案編碼
-const caseCodes = new Map(getAllCases().map((c) => [String(c.id), c.code]));
-// 黃燈當場提供的資源顯示名稱
-const resourceNames = new Map(getAllResources().map((r) => [String(r.id), r.name]));
-
-const rows = computed(() =>
-  assessments.value.map((a) => ({
-    ...a,
-    light: !!a.review.light,
-    pendingCase: isPendingCaseOpening(a),
-    caseCode: a.caseId ? caseCodes.get(String(a.caseId)) ?? "" : "",
-    providedNames: (a.review.providedResources || []).map((id) => resourceNames.get(String(id)) ?? "（資源已不存在）"),
-  }))
-);
+// 卡片顯示資料（狀態、燈號、開案情形）與角色預覽面板共用（services/listViews.js）
+const rows = computed(() => assessmentRows(assessments.value));
 
 // 「全部」不含已作廢；已作廢只在「已作廢」分頁查看
 const tabs = computed(() => [
@@ -143,7 +125,8 @@ const filtered = computed(() => {
   });
 });
 
-const open = (item) => router.push(`/assessments/${item.id}`);
+const linkOf = (item) => `/assessments/${item.id}`;
+const open = (item) => router.push(linkOf(item));
 </script>
 
 <style scoped>

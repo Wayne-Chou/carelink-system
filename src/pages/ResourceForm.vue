@@ -22,7 +22,7 @@
           <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>
           正在編輯「{{ original.name || "未命名資源" }}」，最後修改：{{ formatDateTime(original.updatedAt) || "無紀錄" }}
         </p>
-        <p v-if="limited" class="limited-banner" role="note">
+        <p v-if="limited" class="limited-banner" data-tour="form-locked" role="note">
           <i class="fa-solid fa-lock" aria-hidden="true"></i>
           資源點帳號可修改資源內容、服務時間、人數與量能、適用對象與可近性、費用、參與須知、公眾聯絡人與相關連結；
           灰色欄位（驗證資訊、資源狀態、需求標籤、風險評級、合作狀態、行政聯絡人、追蹤方式、AI 輔助欄位）無法修改，如需調整請聯絡資源管理員。
@@ -35,7 +35,7 @@
         </div>
 
         <!-- 一、管理欄位 -->
-        <section class="form-section">
+        <section class="form-section" data-tour="form-sections">
           <header class="section-header">
             <h3 class="section-title">
               一、管理欄位 <span class="badge-backend">僅後台</span>
@@ -521,7 +521,7 @@
         <hr class="section-divider" />
 
         <!-- 三、安全與風險評級 -->
-        <section class="form-section">
+        <section class="form-section" data-tour="form-risk">
           <header class="section-header">
             <h3 class="section-title">
               三、安全與風險評級 <span class="badge-backend">僅後台</span>
@@ -918,7 +918,7 @@
           </fieldset>
         </section>
 
-        <div class="form-footer">
+        <div class="form-footer" data-tour="form-submit">
           <button type="submit" class="btn-submit">{{ isEdit ? "儲存變更" : "完成並送出" }}</button>
         </div>
       </form>
@@ -962,6 +962,7 @@ import {
   WEEKDAYS,
   optionLabel,
 } from "../config/resourceOptions.js";
+import { RISK_ICONS as RISK_ICON } from "../config/resourceOptions.js";
 import {
   HIDE_UNCONFIRMED_IN_EXPLORE,
   OVERALL_RISK_STRATEGY,
@@ -1027,7 +1028,6 @@ const errors = ref({});
 const submitted = ref(false);
 const nextVerifyManual = ref(false);
 
-const RISK_ICON = { green: "🟢", yellow: "🟡", red: "🔴" };
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => ({ code: i + 1, label: `${i + 1} 日` }));
 const cityGroups = getCityGroups();
 const isManualRisk = OVERALL_RISK_STRATEGY !== "worst";

@@ -78,6 +78,15 @@ describe("一般讀寫", () => {
     assert.deepEqual(local.data, {});
   });
 
+  test("畫面狀態：存在 sessionStorage（ui: 前綴），損壞或沒有存過時回傳預設值", () => {
+    assert.equal(storage.readUiState("panel", "預設"), "預設");
+    storage.writeUiState("panel", { open: false });
+    assert.deepEqual(storage.readUiState("panel"), { open: false });
+    assert.equal("ui:panel" in local.data, false, "不寫入 localStorage");
+    session.data["ui:panel"] = "{壞掉";
+    assert.equal(storage.readUiState("panel", "預設"), "預設");
+  });
+
   test("讀取損壞的資料時以空陣列處理", () => {
     session.data.cases = "{壞掉";
     assert.deepEqual(storage.readList("cases"), []);

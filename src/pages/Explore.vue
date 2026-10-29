@@ -13,7 +13,7 @@
     </header>
 
     <main class="container explore-main">
-      <section class="search-panel">
+      <section class="search-panel" data-tour="explore-search">
         <form class="search-form" @submit.prevent="submitSearch">
           <div class="field-group">
             <label for="keyword-input">關鍵字搜尋</label>
@@ -35,7 +35,7 @@
           </div>
           <div class="search-actions">
             <button type="submit" class="btn-primary">搜尋</button>
-            <button type="button" class="btn-secondary" @click="useNearby">
+            <button type="button" class="btn-secondary" data-tour="explore-nearby" @click="useNearby">
               <i class="fa-solid fa-location-crosshairs"></i>
               使用目前位置
             </button>
@@ -44,7 +44,7 @@
       </section>
 
       <section class="explore-layout">
-        <aside class="filters-panel">
+        <aside class="filters-panel" data-tour="explore-filters">
           <div class="filters-head">
             <h2>篩選條件</h2>
             <button v-if="hasFilters" type="button" class="clear-btn" @click="clearFilters">
@@ -138,7 +138,7 @@
           </div>
         </aside>
 
-        <div class="results-panel">
+        <div class="results-panel" data-tour="explore-results">
           <div class="results-head">
             <p>找到 {{ rankedResults.length }} 個符合的社區資源</p>
           </div>
@@ -200,34 +200,30 @@
           </div>
 
           <div v-else class="result-grid">
-            <article v-for="{ resource: res, distanceKm } in rankedResults" :key="res.id" class="result-card">
+            <article v-for="{ resource: res, card, distanceKm } in rankedCards" :key="res.id" class="result-card">
               <div class="result-media" aria-hidden="true">
                 <i class="fa-solid fa-image"></i>
               </div>
               <div class="result-content">
-                <span v-if="res.needTags.length" class="result-badge">
-                  {{ getNeedTagLabel(res.needTags[0]) }}
-                </span>
-                <h3 class="result-title">{{ res.name }}</h3>
+                <span v-if="card.badge" class="result-badge">{{ card.badge }}</span>
+                <h3 class="result-title">{{ card.title }}</h3>
                 <p v-if="geoState.status === 'located'" :class="['result-distance', { unknown: distanceKm === null }]">
                   <i class="fa-solid fa-route" aria-hidden="true"></i>
                   {{ distanceKm === null ? "未提供位置" : formatDistance(distanceKm) }}
                 </p>
-                <p class="result-desc">
-                  {{ res.description || "社區資源據點，提供在地健康、社交與支持服務。" }}
-                </p>
+                <p class="result-desc">{{ card.description }}</p>
                 <ul class="result-meta">
                   <li>
                     <i class="fa-solid fa-location-dot"></i>
-                    {{ formatRegion(res) }}
+                    {{ card.region }}
                   </li>
-                  <li v-if="res.placeName || res.address.detail">
+                  <li v-if="card.place">
                     <i class="fa-solid fa-building"></i>
-                    {{ res.placeName || res.address.detail }}
+                    {{ card.place }}
                   </li>
-                  <li v-if="formatAudience(res)">
+                  <li v-if="card.audience">
                     <i class="fa-solid fa-user-group"></i>
-                    適用：{{ formatAudience(res) }}
+                    適用：{{ card.audience }}
                   </li>
                 </ul>
                 <button type="button" class="btn-card" @click="goResource(res.id)">
@@ -252,6 +248,7 @@ import { formatDistance, geolocationErrorMessage, rankByDistance } from "../util
 import { NEED_TAGS, PRESCRIPTION_TYPES, getNeedTagLabel } from "../config/needTags.js";
 import { AGE_GROUPS, IDENTITIES } from "../config/resourceOptions.js";
 import { getRecommendableResources } from "../services/resourceService.js";
+import { exploreCard } from "../services/listViews.js";
 import {
   cityOptionGroups,
   collectCodes,
@@ -259,7 +256,6 @@ import {
   filterResources,
 } from "../services/resourceSearch.js";
 import { goBack } from "../utils/navigation.js";
-import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 
 const route = useRoute();
 const router = useRouter();
@@ -411,6 +407,9 @@ const rankedResults = computed(() =>
     ? rankByDistance(filteredResources.value, geoState.value.position, { radiusKm: radiusKm.value })
     : filteredResources.value.map((resource) => ({ resource, distanceKm: null }))
 );
+
+// 卡片顯示資料與角色預覽面板共用（services/listViews.js 的 exploreCard）
+const rankedCards = computed(() => rankedResults.value.map((r) => ({ ...r, card: exploreCard(r.resource) })));
 
 const focusRegion = () => {
   const select = document.getElementById("city-filter");

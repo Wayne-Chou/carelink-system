@@ -79,6 +79,15 @@ export function checkRouteAccess(to, user, { findAssessment = () => null } = {})
   return { ok: true };
 }
 
+/**
+ * 連結或按鈕是否顯示（頁面以 composables/useCanOpen.js 呼叫）
+ *   有權限 → 顯示；尚未登入 → 顯示（點了會先到登入頁，登入後回到該頁）；已登入但沒有權限 → 不顯示
+ */
+export function canOpenRoute(to, user, options = {}) {
+  const result = checkRouteAccess(to, user, options);
+  return result.ok || result.reason === "login";
+}
+
 // 登入後的預設頁：資源點直接進入資源端後台，其他角色回首頁
 export function homePathFor(user) {
   return roleOf(user) === "provider" ? "/resource-dashboard" : "/";

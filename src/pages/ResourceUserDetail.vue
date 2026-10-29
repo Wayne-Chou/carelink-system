@@ -4,7 +4,7 @@
       <button class="back-btn" @click="back">← 返回</button>
 
       <template v-if="resource">
-        <header class="hero-card">
+        <header class="hero-card" data-tour="public-resource-hero">
           <div class="tags">
             <span v-for="t in resource.prescriptionTypes" :key="t" class="type-tag">
               {{ getPrescriptionTypeLabel(t) }}
@@ -20,7 +20,7 @@
 
         <div class="layout">
           <main class="main-col">
-            <section class="section">
+            <section class="section" data-tour="public-resource-schedule">
               <h3>服務時間</h3>
               <p class="emphasis">{{ formatSchedule(resource.schedule) || "請洽詢聯絡人" }}</p>
               <p v-if="availabilityText" :class="['availability', resource.availability.type]">
@@ -39,7 +39,7 @@
               </p>
             </section>
 
-            <section class="section">
+            <section class="section" data-tour="public-resource-join">
               <h3>如何參加</h3>
               <dl class="info-list">
                 <div v-if="participationText">
@@ -81,7 +81,7 @@
             </section>
           </main>
 
-          <aside class="side-col">
+          <aside class="side-col" data-tour="public-resource-contact">
             <section class="side-card">
               <h3>地點與交通</h3>
               <p v-if="resource.placeName" class="emphasis">{{ resource.placeName }}</p>

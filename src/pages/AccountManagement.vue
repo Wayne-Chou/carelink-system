@@ -11,7 +11,7 @@
     </div>
 
     <div class="container main-content">
-      <div class="toolbar">
+      <div class="toolbar" data-tour="accounts-toolbar">
         <button type="button" class="primary-btn" @click="openCreate">
           <i class="fa-solid fa-user-plus" aria-hidden="true"></i> 建立帳號
         </button>
@@ -27,7 +27,7 @@
         </button>
       </p>
 
-      <div class="tabs" role="tablist" aria-label="帳號狀態">
+      <div class="tabs" data-tour="accounts-tabs" role="tablist" aria-label="帳號狀態">
         <button
           v-for="tab in tabs"
           :key="tab.code"
@@ -42,7 +42,12 @@
       </div>
 
       <div v-if="!visibleAccounts.length" class="empty-state">此分類目前沒有帳號</div>
-      <article v-for="a in visibleAccounts" :key="a.id" :class="['account-card', a.status]">
+      <article
+        v-for="(a, index) in visibleAccounts"
+        :key="a.id"
+        :class="['account-card', a.status]"
+        :data-tour="index === 0 ? 'accounts-list' : undefined"
+      >
         <div class="card-main">
           <div class="card-head">
             <span :class="['status-badge', a.status]">{{ accountStatusLabel(a.status) }}</span>
@@ -160,7 +165,13 @@
           </form>
 
           <!-- 停用（已啟用） -->
-          <form v-else-if="selected.status === 'active' && !selected.isDemo" class="action-form" novalidate @submit.prevent="submitSuspend">
+          <form
+            v-else-if="selected.status === 'active' && !selected.isDemo"
+            class="action-form"
+            data-tour="accounts-suspend"
+            novalidate
+            @submit.prevent="submitSuspend"
+          >
             <h4 class="sub-title">停用帳號</h4>
             <p v-if="isSelf" class="hint">不能停用自己的帳號。</p>
             <template v-else>

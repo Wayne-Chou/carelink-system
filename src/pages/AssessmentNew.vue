@@ -14,11 +14,15 @@
 
     <main class="fill-main">
       <!-- 開頭說明 -->
-      <section v-if="current === 'intro'" class="screen">
+      <section v-if="current === 'intro'" class="screen" data-tour="new-intro">
         <h1 ref="heading" tabindex="-1">{{ FORM_TITLE }}</h1>
         <p v-for="text in INTRO_PARAGRAPHS" :key="text" class="intro-text">{{ text }}</p>
         <p class="intro-emphasis">{{ INTRO_EMPHASIS }}</p>
-        <button type="button" class="primary-btn" @click="next">開始填寫</button>
+        <button type="button" class="primary-btn" data-tour="new-start" @click="next">開始填寫</button>
+        <!-- 這一頁沒有右下角的「?」按鈕：交給民眾前，工作人員可從這裡手動開啟導覽 -->
+        <p class="tour-link-row">
+          <button type="button" class="tour-link" @click="startPageTour('assessment-new')">工作人員：查看操作導覽</button>
+        </p>
       </section>
 
       <!-- 基本資料 -->
@@ -183,7 +187,7 @@
         <h1 ref="heading" tabindex="-1">評估已送出（{{ created?.code }}）</h1>
         <div class="done-actions">
           <button type="button" class="primary-btn" @click="reset">填寫下一份</button>
-          <button type="button" class="secondary-btn" @click="$router.push('/assessments')">前往評估列表</button>
+          <button v-if="canOpen('/assessments')" type="button" class="secondary-btn" @click="$router.push('/assessments')">前往評估列表</button>
         </div>
       </section>
     </main>
@@ -191,6 +195,8 @@
 </template>
 
 <script setup>
+import { startPageTour } from "../services/tourController.js";
+import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
@@ -213,6 +219,8 @@ import { createAssessment } from "../services/assessmentService.js";
 import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 
 const QUESTION_KEYS = QUESTIONS.map((q) => q.key);
 const STEPS = ["intro", "person", ...QUESTION_KEYS, "q11", "q12", "handoff", "staff", "done"];
@@ -745,5 +753,19 @@ const exit = () => {
   .secondary-btn {
     flex: 1;
   }
+}
+
+/* 工作人員手動開啟導覽的小連結（這一頁沒有右下角的「?」按鈕） */
+.tour-link-row {
+  margin: 18px 0 0;
+  text-align: center;
+}
+
+.tour-link {
+  border: none;
+  background: transparent;
+  color: #607d8b;
+  font-size: 14px;
+  text-decoration: underline;
 }
 </style>

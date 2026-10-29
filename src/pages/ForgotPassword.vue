@@ -10,7 +10,7 @@
       <p class="auth-desc">輸入註冊時的 Email，我們會寄出重設密碼信，信中的連結 {{ RESET_TOKEN_MINUTES }} 分鐘內有效。</p>
 
       <div v-if="message" class="notice-box success" role="status">{{ message }}</div>
-      <form v-else class="auth-form" novalidate @submit.prevent="handleSubmit">
+      <form v-else class="auth-form" data-tour="forgot-form" novalidate @submit.prevent="handleSubmit">
         <label class="field">
           <span>Email</span>
           <input v-model="email" type="email" autocomplete="email" placeholder="you@example.com" :class="{ invalid: error }" />
@@ -20,7 +20,7 @@
       </form>
 
       <p class="auth-footer">
-        <router-link to="/mailbox" class="prototype-link">
+        <router-link to="/mailbox" class="prototype-link" data-tour="forgot-mailbox">
           <span class="prototype-tag">原型展示用</span> 查看模擬信箱
         </router-link>
       </p>

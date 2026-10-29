@@ -23,7 +23,7 @@
 
       <div v-else class="mailbox-layout">
         <!-- 收件人 -->
-        <nav class="recipients" aria-label="收件人">
+        <nav class="recipients" data-tour="mailbox-recipients" aria-label="收件人">
           <label class="visually-hidden" for="recipient-select">收件人</label>
           <select id="recipient-select" v-model="selectedTo" class="recipient-select">
             <option v-for="box in mailboxes" :key="box.to" :value="box.to">{{ box.to }}（{{ box.mails.length }}）</option>
@@ -45,7 +45,7 @@
 
         <section class="mail-area">
           <!-- 信件列表（新的在前） -->
-          <ul class="mail-list">
+          <ul class="mail-list" data-tour="mailbox-list">
             <li v-for="mail in currentMails" :key="mail.id">
               <button
                 type="button"
@@ -59,7 +59,7 @@
           </ul>
 
           <!-- 信件內容 -->
-          <article v-if="openedMail" class="mail-view">
+          <article v-if="openedMail" class="mail-view" data-tour="mailbox-view">
             <h3>{{ openedMail.subject }}</h3>
             <dl class="mail-meta">
               <div><dt>收件人</dt><dd>{{ openedMail.to }}</dd></div>
@@ -68,9 +68,11 @@
             </dl>
             <p v-for="(para, i) in paragraphs(openedMail.body)" :key="i" class="mail-body">{{ para }}</p>
             <div v-if="openedMail.links?.length" class="mail-links">
-              <router-link v-for="link in openedMail.links" :key="link.path" :to="link.path" class="mail-link">
-                {{ link.label }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
-              </router-link>
+              <template v-for="link in openedMail.links" :key="link.path">
+                <router-link v-if="canOpen(link.path)" :to="link.path" class="mail-link">
+                  {{ link.label }} <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
+                </router-link>
+              </template>
             </div>
           </article>
           <p v-else class="muted">請選擇一封信</p>
@@ -81,6 +83,7 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { MAIL_TYPES, getMailboxes } from "../services/mailService.js";
@@ -88,6 +91,8 @@ import { formatDateTime } from "../utils/resourceFormat.js";
 import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 const route = useRoute();
 const back = () => goBack(router, "/login");
 

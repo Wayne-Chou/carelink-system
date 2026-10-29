@@ -1,6 +1,6 @@
 <template>
   <!-- 登入者姓名、角色與登出：放在各工作頁面 header 右側，任何角色都不必回首頁就能登出 -->
-  <div v-if="user" :class="['user-menu', variant]">
+  <div v-if="user" :class="['user-menu', variant]" data-tour="user-menu">
     <span class="user-name">
       {{ user.name }}<span v-if="roleLabel" class="user-role">｜{{ roleLabel }}</span>
     </span>

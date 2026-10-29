@@ -39,7 +39,7 @@
           <p class="hero-desc">
             提供長者、照顧者與社區民眾快速查找健康、社交與支持服務。
           </p>
-          <form class="hero-search" @submit.prevent="handleSearch">
+          <form class="hero-search" data-tour="home-search" @submit.prevent="handleSearch">
             <i class="fa-solid fa-magnifying-glass search-icon"></i>
             <input
               v-model="searchText"
@@ -49,7 +49,7 @@
             />
             <button type="submit">搜尋</button>
           </form>
-          <button type="button" class="hero-nearby-btn" @click="useCurrentLocation">
+          <button type="button" class="hero-nearby-btn" data-tour="home-nearby" @click="useCurrentLocation">
             <i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i>
             找我附近的資源
           </button>
@@ -87,18 +87,14 @@
             <span v-if="roleLabel" class="role-chip">{{ roleLabel }}</span>
           </p>
           <!-- 只列出該角色可以使用的入口（services/accessControl.js 的 shortcutsFor） -->
-          <div v-if="shortcuts.length" class="provider-quick-actions">
-            <button
-              v-for="s in shortcuts"
-              :key="s.key"
-              type="button"
-              class="provider-quick-btn"
-              @click="go(s.path)"
-            >
-              <i :class="['fa-solid', s.icon]" aria-hidden="true"></i>
-              {{ s.label }}
-              <span v-if="s.key === 'todo' && overdueCount" class="todo-badge">逾期 {{ overdueCount }}</span>
-            </button>
+          <div v-if="shortcuts.length" class="provider-quick-actions" data-tour="home-shortcuts">
+            <template v-for="s in shortcuts" :key="s.key">
+              <button v-if="canOpen(s.path)" type="button" class="provider-quick-btn" @click="go(s.path)">
+                <i :class="['fa-solid', s.icon]" aria-hidden="true"></i>
+                {{ s.label }}
+                <span v-if="s.key === 'todo' && overdueCount" class="todo-badge">逾期 {{ overdueCount }}</span>
+              </button>
+            </template>
           </div>
           <p v-else class="no-role-note">
             這個帳號尚未設定角色，目前只能查看公開頁面（首頁、探索頁、資源介紹）。如需使用工作功能，請聯絡系統管理員。
@@ -194,7 +190,7 @@
     </section>
 
     <!-- What's in my region? -->
-    <section id="region" class="section region-section section--quiet">
+    <section id="region" class="section region-section section--quiet" data-tour="home-region">
       <div class="container region-panel">
         <div class="region-intro">
           <p class="section-eyebrow">What's in my region?</p>
@@ -287,7 +283,7 @@
     </section>
 
     <!-- Select a Category -->
-    <section id="categories" class="section categories-section section--secondary">
+    <section id="categories" class="section categories-section section--secondary" data-tour="home-categories">
       <div class="container">
         <div class="section-head">
           <p class="section-eyebrow">Select a Category</p>
@@ -319,7 +315,7 @@
     </section>
 
     <!-- Featured Resources -->
-    <section id="featured" class="section featured-section section--primary">
+    <section id="featured" class="section featured-section section--primary" data-tour="home-featured">
       <div class="container">
         <div class="section-head row-head">
           <div>
@@ -398,7 +394,6 @@
           <a href="#region" @click.prevent="scrollTo('region')">行政區</a>
           <a href="#useful-info" @click.prevent="scrollTo('useful-info')">實用資訊</a>
           <a href="#featured" @click.prevent="scrollTo('featured')">精選資源</a>
-          
         </nav>
       </div>
     </footer>
@@ -406,6 +401,7 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { getRoleLabel } from "../config/roles.js";
@@ -426,6 +422,8 @@ import { computeTodos, countOverdue } from "../services/todoService.js";
 import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 const currentUser = ref(null);
 const overdueCount = ref(0);
 const route = useRoute();
@@ -574,7 +572,8 @@ const goExplore = (params = {}) => {
   router.push({ path: "/explore", query });
 };
 
-onMounted(() => {
+// 首頁的資料：登入者、逾期待辦數、可推薦的資源（載入示範資料後也重新讀取）
+const loadHomeData = () => {
   currentUser.value = getCurrentUser();
   // 逾期數只算自己角色的待辦（系統管理員為「管理員」項目）
   if (currentUser.value && todoScopeFor(currentUser.value).own) {
@@ -583,7 +582,9 @@ onMounted(() => {
   allResources.value = getRecommendableResources("explore").sort((a, b) =>
     String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""))
   );
-});
+};
+
+onMounted(loadHomeData);
 
 const scrollTo = (id) => {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -2462,5 +2463,4 @@ const onLogout = () => {
     gap: 14px;
   }
 }
-
 </style>

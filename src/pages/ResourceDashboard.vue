@@ -6,11 +6,12 @@
       </div>
       <div class="header-center">
         <h2>資源端管理面板</h2>
-        <p v-if="resource">
+        <p v-if="resource" data-tour="dashboard-resource">
           目前登入資源：
-          <router-link :to="`/resources/${resource.id}`" class="resource-link">{{ resource.name }}</router-link>
+          <router-link v-if="canOpen(`/resources/${resource.id}`)" :to="`/resources/${resource.id}`" class="resource-link">{{ resource.name }}</router-link>
+          <span v-else>{{ resource.name }}</span>
           <span v-if="resource.code" class="code">{{ resource.code }}</span>
-          <router-link v-if="canEdit" :to="`/form/${resource.id}`" class="resource-link edit-link">
+          <router-link v-if="canOpen(`/form/${resource.id}`)" :to="`/form/${resource.id}`" class="resource-link edit-link">
             <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> 編輯資源
           </router-link>
         </p>
@@ -22,10 +23,10 @@
       <div v-if="!resource" class="empty-state">
         <template v-if="canPickAny">
           請先到「資源管理」選擇要登入的資源
-          <button type="button" class="outline-btn" @click="$router.push('/list')">前往資源管理</button>
+          <button v-if="canOpen('/list')" type="button" class="outline-btn" @click="$router.push('/list')">前往資源管理</button>
         </template>
         <!-- 資源點：帳號還沒有綁定資源 -->
-        <template v-else-if="!boundResourceId">尚未綁定資源，請聯絡管理員</template>
+        <span v-else-if="!boundResourceId" data-tour="dashboard-empty">尚未綁定資源，請聯絡管理員</span>
         <!-- 資源點：綁定的資源不存在（例如資源已刪除） -->
         <template v-else>
           找不到您帳號綁定的資源，可能尚未建立或已被刪除。請聯絡系統管理員確認。
@@ -39,7 +40,7 @@
         </p>
         <p v-if="notice" class="notice" role="status">{{ notice }}</p>
 
-        <section class="summary">
+        <section class="summary" data-tour="dashboard-summary">
           <span>待回報 <strong>{{ pendingCount }}</strong> 筆</span>
           <span>已回報 <strong>{{ rows.length - pendingCount }}</strong> 筆</span>
         </section>
@@ -47,34 +48,32 @@
         <div v-if="!rows.length" class="empty-state">目前沒有轉介到此資源的個案</div>
 
         <article
-          v-for="row in rows"
+          v-for="(row, rowIndex) in rows"
           :key="`${row.caseItem.id}-${row.index}`"
           :class="['case-card', row.linkage.status]"
         >
           <div class="card-head">
             <span class="case-code">{{ row.caseItem.code }}</span>
             <h4>{{ row.caseItem.person.name || "未命名個案" }}</h4>
-            <span :class="['status-badge', row.linkage.status]">
-              {{ caseLabel(LINKAGE_STATUS_OPTIONS, row.linkage.status) }}
-            </span>
+            <span :class="['status-badge', row.linkage.status]">{{ row.statusText }}</span>
             <span v-if="row.linkage.escortNeeded" class="escort-badge">首次需健康管理員陪同</span>
           </div>
           <p class="meta">
             <span>轉介日 {{ row.linkage.linkedAt || "—" }}</span>
-            <span>個案階段 {{ stageShort(row.caseItem.stage) }}</span>
+            <span>個案階段 {{ row.stageText }}</span>
             <span v-if="row.caseItem.managerName">健康管理員 {{ row.caseItem.managerName }}</span>
           </p>
           <p v-if="row.linkage.reason" class="text">轉介說明：{{ row.linkage.reason }}</p>
 
           <!-- 已回報 -->
           <p v-if="row.linkage.status !== 'pending'" class="text reported">
-            回報結果：{{ caseLabel(LINKAGE_STATUS_OPTIONS, row.linkage.status) }}
+            回報結果：{{ row.statusText }}
             <template v-if="row.linkage.attendance">｜{{ caseLabel(ATTENDANCE_OPTIONS, row.linkage.attendance) }}</template>
             <template v-if="row.linkage.providerNote">｜{{ row.linkage.providerNote }}</template>
           </p>
 
           <!-- 待回報：回報表單 -->
-          <div v-else-if="!isTerminated" class="report-form">
+          <div v-else-if="!isTerminated" class="report-form" :data-tour="rowIndex === 0 ? 'dashboard-report' : undefined">
             <div class="choice-row" role="radiogroup" :aria-label="`${row.caseItem.code} 連結結果`">
               <label :class="['choice', 'success', { selected: formOf(row).status === 'success' }]">
                 <input v-model="formOf(row).status" type="radio" :name="`status-${row.key}`" value="success" />
@@ -115,22 +114,24 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import UserMenu from "../components/UserMenu.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
   ATTENDANCE_OPTIONS,
-  LINKAGE_STATUS_OPTIONS,
   caseLabel,
-  stageShort,
 } from "../config/caseLabels.js";
-import { getAllCases, getReferralsForResource, updateLinkageStatus } from "../services/caseService.js";
+import { getAllCases, updateLinkageStatus } from "../services/caseService.js";
+import { referralRows } from "../services/listViews.js";
 import { getResourceById } from "../services/resourceService.js";
 import { clearCurrentResourceId, getCurrentResourceId, getCurrentUser } from "../utils/auth.js";
-import { can, canEditResource, dashboardResourceId } from "../services/accessControl.js";
+import { can, dashboardResourceId } from "../services/accessControl.js";
 import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 // 角色權限（原型階段）：系統管理員可從資源管理選擇任何資源進入；資源點固定為自己綁定的資源
 const currentUser = getCurrentUser();
 const canPickAny = can(currentUser, "resource.dashboardAny");
@@ -140,8 +141,6 @@ const back = () => goBack(router, canPickAny ? "/list" : "/");
 // 資源點帳號綁定的資源 id（未綁定時為空字串）
 const boundResourceId = canPickAny ? "" : dashboardResourceId(currentUser);
 const resource = ref(getResourceById(dashboardResourceId(currentUser, getCurrentResourceId())));
-// 資源點可編輯自己綁定的資源（部分欄位）
-const canEdit = computed(() => !!resource.value && canEditResource(currentUser, resource.value.id));
 if (!resource.value && canPickAny) clearCurrentResourceId();
 
 const isTerminated = computed(() => resource.value?.status === "terminated");
@@ -149,10 +148,8 @@ const cases = ref(getAllCases());
 const notice = ref("");
 const forms = reactive({});
 
-// 轉介到此資源的個案（規則見 caseService.getReferralsForResource）
-const rows = computed(() =>
-  resource.value ? getReferralsForResource(resource.value.id, cases.value) : []
-);
+// 轉介到此資源的個案（規則見 caseService.getReferralsForResource）；顯示資料與角色預覽面板共用（services/listViews.js）
+const rows = computed(() => referralRows(resource.value?.id, cases.value));
 
 const pendingCount = computed(() => rows.value.filter((r) => r.linkage.status === "pending").length);
 

@@ -13,13 +13,13 @@
     <div v-if="!caseItem" class="container main-content">
       <div class="empty-state">
         找不到個案資料
-        <button type="button" class="outline-btn" @click="$router.push('/cases')">回個案列表</button>
+        <button v-if="canOpen('/cases')" type="button" class="outline-btn" @click="$router.push('/cases')">回個案列表</button>
       </div>
     </div>
 
     <div v-else class="container main-content">
       <!-- 基本資料與提醒 -->
-      <section class="card summary-card">
+      <section class="card summary-card" data-tour="case-summary">
         <div class="summary-head">
           <span class="case-code">{{ caseItem.code }}</span>
           <span :class="['stage-badge', `stage-${caseItem.stage}`]">{{ stageShort(caseItem.stage) }}</span>
@@ -54,7 +54,7 @@
       <p v-if="notice" class="notice" role="status">{{ notice }}</p>
 
       <!-- 第 1 階段 轉介 -->
-      <section :class="['card', 'stage-card', stageState(1)]">
+      <section :class="['card', 'stage-card', stageState(1)]" data-tour="case-stage-1">
         <header class="stage-head">
           <h2><span class="step-no">1</span> 轉介</h2>
           <span class="stage-state">{{ stageStateLabel(1) }}</span>
@@ -93,9 +93,13 @@
             <p class="assessment-link">
               <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
               由生活近況評估開案：
-              <router-link :to="`/assessments/${caseItem.referral.assessmentId}`">
+              <router-link
+                v-if="canOpen(`/assessments/${caseItem.referral.assessmentId}`)"
+                :to="`/assessments/${caseItem.referral.assessmentId}`"
+              >
                 {{ caseItem.referral.assessmentCode || "查看評估" }}（前往判讀頁）
               </router-link>
+              <span v-else>{{ caseItem.referral.assessmentCode || "—" }}</span>
             </p>
           </div>
           <div class="col-12">
@@ -122,7 +126,7 @@
       </section>
 
       <!-- 第 2 階段 晤談 -->
-      <section :class="['card', 'stage-card', stageState(2)]">
+      <section :class="['card', 'stage-card', stageState(2)]" data-tour="case-stage-2">
         <header class="stage-head">
           <h2><span class="step-no">2</span> 晤談</h2>
           <span class="stage-state">{{ stageStateLabel(2) }}</span>
@@ -202,7 +206,7 @@
       </section>
 
       <!-- 第 3 階段 連結 -->
-      <section :class="['card', 'stage-card', stageState(3)]">
+      <section :class="['card', 'stage-card', stageState(3)]" data-tour="case-stage-3">
         <header class="stage-head">
           <h2><span class="step-no">3</span> 連結</h2>
           <span class="stage-state">{{ stageStateLabel(3) }}</span>
@@ -218,9 +222,10 @@
             >
               <div class="linkage-head">
                 <span class="linkage-no">第 {{ i + 1 }} 次</span>
-                <router-link :to="`/resources/${l.resourceId}`" class="linkage-name">
+                <router-link v-if="canOpen(`/resources/${l.resourceId}`)" :to="`/resources/${l.resourceId}`" class="linkage-name">
                   {{ l.resourceName || "未知資源" }}
                 </router-link>
+                <span v-else class="linkage-name">{{ l.resourceName || "未知資源" }}</span>
                 <span :class="['status-badge', l.status]">{{ caseLabel(LINKAGE_STATUS_OPTIONS, l.status) }}</span>
                 <span v-if="l.escortNeeded" class="escort-badge">需陪同</span>
               </div>
@@ -324,7 +329,7 @@
       </section>
 
       <!-- 第 4 階段 追蹤 -->
-      <section :class="['card', 'stage-card', stageState(4)]">
+      <section :class="['card', 'stage-card', stageState(4)]" data-tour="case-stage-4">
         <header class="stage-head">
           <h2><span class="step-no">4</span> 追蹤</h2>
           <span class="stage-state">{{ stageStateLabel(4) }}</span>
@@ -428,7 +433,7 @@
       </section>
 
       <!-- 第 5 階段 結案 -->
-      <section :class="['card', 'stage-card', stageState(5)]">
+      <section :class="['card', 'stage-card', stageState(5)]" data-tour="case-stage-5">
         <header class="stage-head">
           <h2><span class="step-no">5</span> 結案</h2>
           <span class="stage-state">{{ stageStateLabel(5) }}</span>
@@ -489,6 +494,7 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import UserMenu from "../components/UserMenu.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -533,6 +539,8 @@ import { formatDateTime as formatDisplayTime, formatRegion } from "../utils/reso
 
 const route = useRoute();
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 const back = () => goBack(router, "/cases");
 
 const STEPS = STAGE_OPTIONS;

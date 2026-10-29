@@ -26,7 +26,7 @@
         <p class="auth-desc">
           {{ check.name }}（{{ check.email }}）您好，請設定新密碼。密碼需{{ PASSWORD_RULE_TEXT }}。
         </p>
-        <form class="auth-form" novalidate @submit.prevent="handleSubmit">
+        <form class="auth-form" data-tour="reset-form" novalidate @submit.prevent="handleSubmit">
           <label class="field">
             <span>新密碼</span>
             <div class="password-field">
@@ -60,7 +60,7 @@
         </form>
       </template>
 
-      <button type="button" class="btn-text" @click="$router.push('/login')">← 回到登入</button>
+      <button type="button" class="btn-text" data-tour="reset-back" @click="$router.push('/login')">← 回到登入</button>
     </div>
   </div>
 </template>

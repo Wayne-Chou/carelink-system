@@ -69,6 +69,29 @@ export function writeList(key, list) {
   writeTo(dataStorage, key, list);
 }
 
+// ── 畫面狀態（sessionStorage）─────────────────────────────
+// 收合等畫面偏好，關閉分頁後清除；key 加上 "ui:" 前綴，避免與資料混用
+// 值以 JSON 存放；沒有存過、解析失敗或瀏覽器禁止存取時回傳 fallback
+
+const UI_PREFIX = "ui:";
+
+export function readUiState(key, fallback = null) {
+  try {
+    const raw = sessionStorage.getItem(UI_PREFIX + key);
+    return raw === null ? fallback : JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeUiState(key, value) {
+  try {
+    sessionStorage.setItem(UI_PREFIX + key, JSON.stringify(value));
+  } catch {
+    // 瀏覽器禁止存取儲存空間時略過（畫面狀態不保留）
+  }
+}
+
 // ── 帳號清單（依 ACCOUNT_STORAGE）────────────────────────
 // 帳號清單 users、資源點綁定、重設密碼連結、模擬信箱共用（utils/auth.js、services/accountService.js、services/mailService.js）
 

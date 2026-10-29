@@ -8,13 +8,13 @@
         <h2>社區資源管理清單</h2>
       </div>
       <div class="header-right">
-        <button class="add-btn" @click="$router.push('/cases')">👤 個人端</button>
-        <button class="add-btn" @click="$router.push('/form')">＋ 新增</button>
+        <button v-if="canOpen('/cases')" class="add-btn" @click="$router.push('/cases')">👤 個人端</button>
+        <button v-if="canOpen('/form')" class="add-btn" data-tour="list-new" @click="$router.push('/form')">＋ 新增</button>
         <UserMenu />
       </div>
     </div>
 
-    <div class="filter-container">
+    <div class="filter-container" data-tour="list-tabs">
       <div class="search-box">
         <input
           v-model="searchQuery"
@@ -62,7 +62,8 @@
 
       <div v-if="filteredResources.length > 0">
         <article
-          v-for="item in filteredResources"
+          v-for="(item, index) in filteredResources"
+          :data-tour="index === 0 ? 'list-card' : undefined"
           :id="`resource-${item.id}`"
           :key="item.id"
           :class="['resource-card', { highlighted: savedNotice && String(savedNotice.id) === String(item.id) }]"
@@ -81,9 +82,7 @@
                 </span>
               </div>
               <div class="header-right">
-                <span :class="['status-text', item.status]">
-                  {{ optionLabel(STATUS_OPTIONS, item.status) || "未設定" }}
-                </span>
+                <span :class="['status-text', item.status]">{{ item.statusText }}</span>
                 <span v-if="item.overdue" class="overdue-badge">待驗證</span>
               </div>
             </div>
@@ -91,12 +90,8 @@
             <h4 class="resource-name">{{ item.name || "未命名資源" }}</h4>
 
             <div class="meta-row">
-              <span :class="['meta-badge', 'risk', item.riskLevel || 'none']">
-                {{ item.riskLevel ? `${RISK_ICON[item.riskLevel]} ${optionLabel(RISK_LEVEL_OPTIONS, item.riskLevel)}` : "⚪ 未評估" }}
-              </span>
-              <span :class="['meta-badge', 'partnership', item.partnership]">
-                {{ optionLabel(PARTNERSHIP_OPTIONS, item.partnership) || "合作狀態未填" }}
-              </span>
+              <span :class="['meta-badge', 'risk', item.riskLevel || 'none']">{{ item.riskText }}</span>
+              <span :class="['meta-badge', 'partnership', item.partnership]">{{ item.partnershipText }}</span>
               <span
                 :class="['meta-badge', 'explore', item.exploreVisible ? 'on' : 'off']"
                 :title="item.exploreReasons"
@@ -105,30 +100,28 @@
                   :class="item.exploreVisible ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash'"
                   aria-hidden="true"
                 ></i>
-                {{ item.exploreVisible ? "探索頁顯示中" : `探索頁未顯示：${item.exploreReasons}` }}
+                {{ item.exploreText }}
               </span>
             </div>
 
             <div v-if="item.needTags.length" class="tag-row">
-              <span v-for="tag in item.needTags" :key="tag" class="info-tag">
-                #{{ getNeedTagLabel(tag) }}
-              </span>
+              <span v-for="tag in item.tagTexts" :key="tag" class="info-tag">{{ tag }}</span>
             </div>
 
-            <div class="card-footer">
+            <div class="card-footer" :data-tour="index === 0 ? 'list-actions' : undefined">
               <div class="footer-left">
                 <button type="button" class="text-btn danger" @click="removeResource(item)">
                   永久刪除
                 </button>
               </div>
               <div class="footer-right">
-                <button v-if="canEnterDashboard" type="button" class="detail-btn" @click="loginResource(item.id)">
+                <button v-if="canOpen('/resource-dashboard')" type="button" class="detail-btn" @click="loginResource(item.id)">
                   進入資源端
                 </button>
-                <button type="button" class="detail-btn" @click="$router.push(`/resources/${item.id}`)">
+                <button v-if="canOpen(`/resources/${item.id}`)" type="button" class="detail-btn" @click="$router.push(`/resources/${item.id}`)">
                   查看
                 </button>
-                <button type="button" class="detail-btn" @click="$router.push(`/form/${item.id}`)">
+                <button v-if="canOpen(`/form/${item.id}`)" type="button" class="detail-btn" @click="$router.push(`/form/${item.id}`)">
                   編輯
                 </button>
                 <button
@@ -155,31 +148,22 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import UserMenu from "../components/UserMenu.vue";
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { goBack } from "../utils/navigation.js";
 import FieldValue from "../components/FieldValue.vue";
 import { getNeedTagLabel } from "../config/needTags.js";
-import {
-  PARTNERSHIP_OPTIONS,
-  RISK_LEVEL_OPTIONS,
-  STATUS_OPTIONS,
-  VISIBILITY_REASON_LABELS,
-  optionLabel,
-} from "../config/resourceOptions.js";
-import { getVisibility } from "../config/resourceRules.js";
-import {
-  deleteResource,
-  getAllResources,
-  isVerifyOverdue,
-  terminateResource,
-} from "../services/resourceService.js";
-import { currentActor, getCurrentUser, setCurrentResourceId } from "../utils/auth.js";
-import { can } from "../services/accessControl.js";
+import { STATUS_OPTIONS } from "../config/resourceOptions.js";
+import { deleteResource, getAllResources, terminateResource } from "../services/resourceService.js";
+import { resourceRows } from "../services/listViews.js";
+import { currentActor, setCurrentResourceId } from "../utils/auth.js";
 import { consumeFlash } from "../utils/flash.js";
 
 const router = useRouter();
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
 const back = () => goBack(router, "/");
 const searchQuery = ref("");
 const currentTab = ref("all");
@@ -195,24 +179,14 @@ onMounted(async () => {
     ?.scrollIntoView({ behavior: "smooth", block: "center" });
 });
 
-const RISK_ICON = { green: "🟢", yellow: "🟡", red: "🔴" };
 
 const reload = () => {
   resources.value = getAllResources();
 };
 
 // 列表需要的衍生資料一次算好
-const rows = computed(() =>
-  resources.value.map((item) => {
-    const { explore } = getVisibility(item);
-    return {
-      ...item,
-      overdue: isVerifyOverdue(item),
-      exploreVisible: explore.visible,
-      exploreReasons: explore.reasons.map((code) => VISIBILITY_REASON_LABELS[code] ?? code).join("、"),
-    };
-  })
-);
+// 卡片顯示資料（狀態、風險、合作狀態、探索頁是否顯示）與角色預覽面板共用（services/listViews.js）
+const rows = computed(() => resourceRows(resources.value));
 
 const tabs = computed(() => [
   { label: "全部", value: "all", count: rows.value.length },
@@ -270,9 +244,6 @@ const removeResource = (item) => {
   deleteResource(item.id);
   reload();
 };
-
-// 「進入資源端」只給可檢視任何資源端後台的角色（系統管理員）；資源管理員不能看轉介個案
-const canEnterDashboard = can(getCurrentUser(), "resource.dashboardAny");
 
 // 資源端登入的資源屬於登入狀態，由 auth.js 存放（測試階段為 sessionStorage）
 const loginResource = (id) => {

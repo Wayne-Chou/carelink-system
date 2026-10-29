@@ -18,6 +18,7 @@ import { getAssessmentById } from "../services/assessmentService.js";
 import { checkRouteAccess } from "../services/accessControl.js";
 import { getCurrentUser } from "../utils/auth.js";
 import { routeMeta } from "./access.js";
+import { ROLE_PREVIEW_LINK } from "../config/help.js";
 
 // 權限（原型階段，正式版需由後端處理）：各路由需要的功能寫在 router/access.js；沒有列出的是公開頁
 const meta = (name) => ({ name, meta: routeMeta(name) });
@@ -31,6 +32,8 @@ const routes = [
   { path: "/reset-password", name: "reset-password", component: () => import("../pages/ResetPassword.vue") },
   // 模擬信箱：原型展示用，正式版改由後端寄送 Email
   { path: "/mailbox", name: "mailbox", component: () => import("../pages/Mailbox.vue") },
+  // 角色預覽（原型展示用）在右下角「?」按鈕的面板；/sitemap 導向首頁並自動打開面板
+  { path: "/sitemap", name: "sitemap", redirect: ROLE_PREVIEW_LINK },
   // 評估填寫頁：由工作人員登入後把平板交給民眾填寫
   { path: "/assessment/new", ...meta("assessment-new"), component: AssessmentNew },
   { path: "/assessments", ...meta("assessments"), component: AssessmentList },

@@ -15,7 +15,7 @@
       <p v-if="!scope.canViewAll" class="scope-note">
         顯示給「{{ AUDIENCE_LABELS[scope.own] }}」的待辦
       </p>
-      <div v-else class="filter-tabs" role="tablist" aria-label="依給誰篩選">
+      <div v-else class="filter-tabs" data-tour="todo-audience" role="tablist" aria-label="依給誰篩選">
         <button
           v-for="tab in audienceTabs"
           :key="tab.code"
@@ -29,7 +29,7 @@
           <span class="tab-count">{{ tab.count }}</span>
         </button>
       </div>
-      <div v-if="typeCounts.length" class="type-chips" aria-label="各類型筆數">
+      <div v-if="typeCounts.length" class="type-chips" data-tour="todo-types" aria-label="各類型筆數">
         <button
           v-for="t in typeCounts"
           :key="t.code"
@@ -44,7 +44,7 @@
       <p class="today-note">依今天（{{ today }}）即時計算，逾期的排在最前面</p>
     </div>
 
-    <div class="container main-list">
+    <div class="container main-list" data-tour="todo-list">
       <div v-if="filtered.length">
         <article
           v-for="item in filtered"
@@ -52,8 +52,8 @@
           :class="['todo-card', urgency(item)]"
           role="link"
           tabindex="0"
-          @click="open(item)"
-          @keydown.enter="open(item)"
+          @click="canOpen(item.link) && open(item)"
+          @keydown.enter="canOpen(item.link) && open(item)"
         >
           <div class="card-main">
             <div class="card-head">
@@ -84,6 +84,7 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
@@ -94,6 +95,8 @@ import { getCurrentUser } from "../utils/auth.js";
 import { filterTodosFor, todoScopeFor } from "../services/accessControl.js";
 
 const router = useRouter();
+// 導向沒有權限的頁面的項目不可點
+const canOpen = useCanOpen();
 const back = () => goBack(router, "/");
 
 const AUDIENCE_LABELS = Object.fromEntries(AUDIENCES.map((a) => [a.code, a.label]));

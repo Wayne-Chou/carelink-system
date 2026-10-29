@@ -13,13 +13,13 @@
     <div v-if="!assessment" class="container main">
       <div class="empty-state">
         <p>找不到這筆評估紀錄。</p>
-        <button v-if="canList" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+        <button v-if="canOpen('/assessments')" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
       </div>
     </div>
 
     <div v-else class="container main">
       <!-- 基本資料 -->
-      <section class="card person-card">
+      <section class="card person-card" data-tour="review-person">
         <div class="person-head">
           <span class="code">{{ assessment.code }}</span>
           <span :class="['status-badge', assessment.status]">{{ STATUS_LABELS[assessment.status] }}</span>
@@ -42,7 +42,7 @@
           <div><dt>操作者</dt><dd>{{ assessment.voidedBy || "未記錄" }}</dd></div>
         </dl>
         <p class="hint">已作廢的評估保留原始資料供查詢，不列入待辦提醒與下次確認日期</p>
-        <button v-if="canList" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+        <button v-if="canOpen('/assessments')" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
       </section>
 
       <!-- 已判讀：結果摘要 -->
@@ -55,7 +55,7 @@
           <li v-if="result.case" class="case-created">
             已建立個案
             <!-- 沒有個案頁權限的角色（判讀人員）只顯示編碼，不顯示連結 -->
-            <router-link v-if="canOpenCaseLink" :to="`/case/${result.case.id}`" class="case-link">
+            <router-link v-if="canOpen(`/case/${result.case.id}`)" :to="`/case/${result.case.id}`" class="case-link">
               {{ result.case.code }}
               <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
             </router-link>
@@ -70,7 +70,7 @@
             <template v-if="providedResourceItems.length">
               <ul class="provided-result">
                 <li v-for="item in providedResourceItems" :key="item.id">
-                  <router-link v-if="item.exists && canViewResource(currentUser, item.id)" :to="`/resources/${item.id}`">{{ item.name }}</router-link>
+                  <router-link v-if="item.exists && canOpen(`/resources/${item.id}`)" :to="`/resources/${item.id}`">{{ item.name }}</router-link>
                   <span v-else>{{ item.name }}</span>
                   <small v-if="item.phone">（{{ item.contact }} {{ item.phone }}）</small>
                 </li>
@@ -89,17 +89,17 @@
           </li>
         </ul>
         <div class="result-actions">
-          <button v-if="canReview && nextPendingId" type="button" class="primary-btn" @click="goNextPending">
+          <button v-if="nextPendingId && canOpen(`/assessments/${nextPendingId}`)" type="button" class="primary-btn" @click="goNextPending">
             下一筆未判讀
           </button>
-          <button v-if="canList" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+          <button v-if="canOpen('/assessments')" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
           <button v-if="canReview && !result.assessment.caseId && !editing" type="button" class="text-btn" @click="startEdit">
             修改判讀
           </button>
         </div>
       </section>
 
-      <p v-if="!canReview" class="readonly-note">
+      <p v-if="!canReview" class="readonly-note" data-tour="review-readonly">
         <i class="fa-solid fa-eye" aria-hidden="true"></i>
         唯讀：您可以查看這筆已開案評估的判讀結果，修改判讀與作廢需由判讀人員處理。
       </p>
@@ -128,7 +128,7 @@
         </section>
 
         <!-- 第一步 Q12 -->
-        <section class="card step-card">
+        <section class="card step-card" data-tour="review-steps">
           <header class="step-head">
             <h2 class="section-title"><span class="step-no">1</span> Q12 不順心的事</h2>
             <button type="button" class="emergency-btn" @click="markEmergency">
@@ -292,7 +292,7 @@
         </section>
 
         <!-- 第四步 判定燈號 -->
-        <section ref="decisionSection" class="card step-card decision-card">
+        <section ref="decisionSection" class="card step-card decision-card" data-tour="review-decision">
           <header class="step-head">
             <h2 class="section-title"><span class="step-no">4</span> 判定燈號</h2>
           </header>
@@ -422,7 +422,7 @@
           </div>
 
           <!-- 黃燈程序 2、3（對話指引第四節） -->
-          <div v-if="draft.light === 'yellow'" class="yellow-program">
+          <div v-if="draft.light === 'yellow'" class="yellow-program" data-tour="review-yellow">
             <p class="field-label">黃燈程序 2｜指出入口</p>
             <p class="hint">
               開啟探索頁並帶入上方確認的需求標籤，和民眾一起看；不會用數位工具的民眾，可以改提供下方資源的聯絡電話。
@@ -476,7 +476,7 @@
       </template>
 
       <!-- 作廢（頁面最下方） -->
-      <section v-if="canReview && !isVoided(assessment)" class="card void-card">
+      <section v-if="canReview && !isVoided(assessment)" class="card void-card" data-tour="review-void">
         <h2 class="section-title small">作廢這筆評估</h2>
         <template v-if="!voidCheck.ok">
           <p class="hint">
@@ -508,6 +508,7 @@
 </template>
 
 <script setup>
+import { useCanOpen } from "../composables/useCanOpen.js";
 import UserMenu from "../components/UserMenu.vue";
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -548,18 +549,19 @@ import { getCaseById } from "../services/caseService.js";
 import { getRecommendableResources, getResourceById } from "../services/resourceService.js";
 import { filterResources } from "../services/resourceSearch.js";
 import { getCurrentUser } from "../utils/auth.js";
-import { can, canOpenCase, canReviewAssessment, canViewResource } from "../services/accessControl.js";
+import { can, canReviewAssessment } from "../services/accessControl.js";
 import { deepClone } from "../utils/clone.js";
 import { goBack } from "../utils/navigation.js";
 import { formatDateTime, formatRegion, formatSchedule } from "../utils/resourceFormat.js";
 
 const route = useRoute();
 const router = useRouter();
-// 角色權限（原型階段）：健康管理員只能唯讀查看已開案的評估；判讀人員沒有個案頁權限
+// 導向沒有權限的頁面的連結與按鈕一律不顯示
+const canOpen = useCanOpen();
+// 角色權限（原型階段）：健康管理員只能唯讀查看已開案的評估；判讀人員沒有個案頁權限（連結由 canOpen 判斷）
 const currentUser = getCurrentUser();
 const canReview = canReviewAssessment(currentUser);
 const canList = can(currentUser, "assessment.list");
-const canOpenCaseLink = canOpenCase(currentUser);
 
 const back = () => goBack(router, canList ? "/assessments" : "/");
 
