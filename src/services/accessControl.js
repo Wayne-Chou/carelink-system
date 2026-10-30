@@ -3,6 +3,7 @@
 
 import { PERMISSIONS, TODO_AUDIENCE_BY_ROLE, isValidRole } from "../config/roles.js";
 import { PROVIDER_EDITABLE_FIELDS } from "../config/resourceEditing.js";
+import { pathOf } from "../router/routes.js";
 
 export const NO_PERMISSION_MESSAGE = "您的帳號沒有權限查看此頁";
 
@@ -88,9 +89,26 @@ export function canOpenRoute(to, user, options = {}) {
   return result.ok || result.reason === "login";
 }
 
-// 登入後的預設頁：資源點直接進入資源端後台，其他角色回首頁
+// 登入後的預設頁（後台首頁）：資源點直接進入資源端後台，其他角色進入後台首頁；沒有角色的帳號回民眾首頁
 export function homePathFor(user) {
-  return roleOf(user) === "provider" ? "/resource-dashboard" : "/";
+  if (roleOf(user) === "provider") return pathOf("resource-dashboard");
+  if (can(user, "workspace.home")) return pathOf("admin-home");
+  return pathOf("home");
+}
+
+/**
+ * 路由守衛要導向哪裡（router.beforeEach 使用）；可以進入時回傳 null
+ *   未登入 → 登入頁（登入後回到原本要去的頁面）
+ *   資源點打開後台首頁 → 直接進入自己的資源端後台（不提示）
+ *   已登入但沒有權限 → 自己的後台首頁，帶 denied=1 顯示提示
+ */
+export function navigationRedirect(to, user, options = {}) {
+  const result = checkRouteAccess(to, user, options);
+  if (result.ok) return null;
+  if (result.reason === "login") return { name: "login", query: { redirect: to.fullPath } };
+  const home = homePathFor(user);
+  if (to.name === "admin-home" && roleOf(user) === "provider") return { path: home };
+  return { path: home, query: { denied: "1" } };
 }
 
 // 登入或註冊後要去的頁面：原本被擋下的頁面（router.resolve 的結果）有權限就回去，否則到預設頁
@@ -122,23 +140,32 @@ export function filterTodosFor(user, todos, audience = null) {
 
 // 首頁快捷區與導覽列的入口：只列出該角色可以使用的
 const SHORTCUTS = [
-  { key: "todo", label: "待辦", icon: "fa-bell", path: "/todo", permission: "todo.view" },
-  { key: "assessmentNew", label: "填寫評估", icon: "fa-clipboard-list", path: "/assessment/new", permission: "assessment.fill" },
-  { key: "assessments", label: "評估列表", icon: "fa-list-check", path: "/assessments", permission: "assessment.list" },
-  { key: "cases", label: "個案管理", icon: "fa-folder-open", path: "/cases", permission: "case.manage" },
-  { key: "resources", label: "資源管理", icon: "fa-list", path: "/list", permission: "resource.manage" },
-  { key: "resourceNew", label: "新增資源", icon: "fa-plus", path: "/form", permission: "resource.manage" },
-  { key: "accounts", label: "帳號管理", icon: "fa-users-gear", path: "/accounts", permission: "account.manage" },
-];
+  { key: "todo", label: "待辦", icon: "fa-bell", route: "todo", permission: "todo.view" },
+  { key: "assessmentNew", label: "填寫評估", icon: "fa-clipboard-list", route: "assessment-new", permission: "assessment.fill" },
+  { key: "assessments", label: "評估列表", icon: "fa-list-check", route: "assessments", permission: "assessment.list" },
+  { key: "cases", label: "個案管理", icon: "fa-folder-open", route: "cases", permission: "case.manage" },
+  { key: "resources", label: "資源管理", icon: "fa-list", route: "list", permission: "resource.manage" },
+  { key: "resourceNew", label: "新增資源", icon: "fa-plus", route: "form", permission: "resource.manage" },
+  { key: "accounts", label: "帳號管理", icon: "fa-users-gear", route: "accounts", permission: "account.manage" },
+].map(({ route, ...item }) => ({ ...item, path: pathOf(route) }));
 
+// 後台首頁的快捷入口（各角色能用的功能）
 export function shortcutsFor(user) {
   const list = SHORTCUTS.filter((s) => can(user, s.permission));
-  // 資源點：自己資源的資源端後台與資源詳細頁
-  if (roleOf(user) === "provider" && user.resourceId) {
-    list.push(
-      { key: "dashboard", label: "資源端後台", icon: "fa-clipboard-check", path: "/resource-dashboard" },
-      { key: "myResource", label: "我的資源", icon: "fa-house-chimney", path: `/resources/${user.resourceId}` }
-    );
+  // 資源點：資源端後台（未綁定時顯示「尚未綁定資源」）與自己的資源
+  if (roleOf(user) === "provider") {
+    list.push({ key: "dashboard", label: "資源端後台", icon: "fa-clipboard-check", path: pathOf("resource-dashboard") });
+    if (user.resourceId) {
+      list.push({ key: "myResource", label: "我的資源", icon: "fa-house-chimney", path: pathOf("resource-detail", { id: user.resourceId }) });
+    }
   }
   return list;
+}
+
+// 後台左側選單：後台首頁 + 快捷入口（資源點沒有後台首頁，只有資源端後台與自己的資源）
+export function adminMenuFor(user) {
+  const home = can(user, "workspace.home")
+    ? [{ key: "home", label: "後台首頁", icon: "fa-gauge", path: pathOf("admin-home") }]
+    : [];
+  return [...home, ...shortcutsFor(user)];
 }

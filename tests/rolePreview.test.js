@@ -9,9 +9,9 @@ globalThis.sessionStorage = session;
 
 const { buildRolePreview, getPreviewGroups, PREVIEW_TODO_LIMIT } = await import("../src/services/rolePreview.js");
 const { DEMO_NAMES, loadDemoData } = await import("../src/services/demoData.js");
-const { checkRouteAccess, filterTodosFor, shortcutsFor, homePathFor } = await import("../src/services/accessControl.js");
+const { adminMenuFor, checkRouteAccess, filterTodosFor, homePathFor } = await import("../src/services/accessControl.js");
+const { resolvePath } = await import("./helpers/routing.js");
 const { computeTodos } = await import("../src/services/todoService.js");
-const { routeMeta } = await import("../src/router/access.js");
 const { STATUS_LABELS, formatLight } = await import("../src/config/assessmentLabels.js");
 const { LINKAGE_STATUS_OPTIONS, caseLabel, stageShort } = await import("../src/config/caseLabels.js");
 const { PARTNERSHIP_OPTIONS, RISK_ICONS, RISK_LEVEL_OPTIONS, optionLabel } = await import("../src/config/resourceOptions.js");
@@ -35,18 +35,6 @@ const realUser = (role) => {
   const user = auth.getCurrentUser();
   auth.clearCurrentUser();
   return user;
-};
-
-// 首頁快捷區的網址 → 路由名稱
-const NAME_BY_PATH = {
-  "/todo": "todo",
-  "/assessment/new": "assessment-new",
-  "/assessments": "assessments",
-  "/cases": "cases",
-  "/list": "list",
-  "/form": "form",
-  "/resource-dashboard": "resource-dashboard",
-  "/accounts": "accounts",
 };
 
 beforeEach(() => {
@@ -84,22 +72,21 @@ describe("分頁與登入狀態", () => {
   });
 });
 
-describe("首頁入口與實際權限一致", () => {
+describe("後台選單與實際權限一致", () => {
   for (const withDemo of [false, true]) {
     test(withDemo ? "有示範資料（資源點已綁定）" : "沒有示範資料（資源點未綁定）", () => {
       if (withDemo) loadDemoData();
       for (const role of ROLES) {
         const p = preview(role);
         const user = realUser(role);
-        assert.deepEqual(p.shortcuts, shortcutsFor(user), `${role} 與首頁快捷區相同`);
-        for (const s of p.shortcuts) {
-          const name = NAME_BY_PATH[s.path] ?? "resource-detail";
-          const route = { name, params: { id: s.path.split("/").pop() }, matched: [{}], meta: routeMeta(name) };
+        assert.deepEqual(p.menu, adminMenuFor(user), `${role} 與後台選單相同`);
+        for (const s of p.menu) {
+          const route = resolvePath(s.path);
           assert.equal(checkRouteAccess(route, user, { findAssessment: getAssessmentById }).ok, true, `${role} ${s.path}`);
         }
       }
-      assert.equal(preview("provider").shortcuts.length, withDemo ? 2 : 0, "資源點綁定後才有入口");
-      assert.deepEqual(preview(null).shortcuts, []);
+      assert.equal(preview("provider").menu.length, withDemo ? 2 : 1, "資源點綁定後才有「我的資源」");
+      assert.deepEqual(preview(null).menu, []);
     });
   }
 });

@@ -2,15 +2,13 @@
   <div class="list-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="back">← 返回</button>
       </div>
       <div class="header-center">
         <h2>社區資源管理清單</h2>
       </div>
       <div class="header-right">
-        <button v-if="canOpen('/cases')" class="add-btn" @click="$router.push('/cases')">👤 個人端</button>
-        <button v-if="canOpen('/form')" class="add-btn" data-tour="list-new" @click="$router.push('/form')">＋ 新增</button>
-        <UserMenu />
+        <button v-if="canOpen('/admin/cases')" class="add-btn" @click="$router.push('/admin/cases')">👤 個人端</button>
+        <button v-if="canOpen('/admin/resources/new')" class="add-btn" data-tour="list-new" @click="$router.push('/admin/resources/new')">＋ 新增</button>
       </div>
     </div>
 
@@ -115,13 +113,13 @@
                 </button>
               </div>
               <div class="footer-right">
-                <button v-if="canOpen('/resource-dashboard')" type="button" class="detail-btn" @click="loginResource(item.id)">
+                <button v-if="canOpen('/admin/provider')" type="button" class="detail-btn" @click="loginResource(item.id)">
                   進入資源端
                 </button>
-                <button v-if="canOpen(`/resources/${item.id}`)" type="button" class="detail-btn" @click="$router.push(`/resources/${item.id}`)">
+                <button v-if="canOpen(`/admin/resources/${item.id}`)" type="button" class="detail-btn" @click="$router.push(`/admin/resources/${item.id}`)">
                   查看
                 </button>
-                <button v-if="canOpen(`/form/${item.id}`)" type="button" class="detail-btn" @click="$router.push(`/form/${item.id}`)">
+                <button v-if="canOpen(`/admin/resources/${item.id}/edit`)" type="button" class="detail-btn" @click="$router.push(`/admin/resources/${item.id}/edit`)">
                   編輯
                 </button>
                 <button
@@ -149,10 +147,8 @@
 
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
-import UserMenu from "../components/UserMenu.vue";
 import { computed, nextTick, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import { goBack } from "../utils/navigation.js";
 import FieldValue from "../components/FieldValue.vue";
 import { getNeedTagLabel } from "../config/needTags.js";
 import { STATUS_OPTIONS } from "../config/resourceOptions.js";
@@ -164,7 +160,6 @@ import { consumeFlash } from "../utils/flash.js";
 const router = useRouter();
 // 導向沒有權限的頁面的連結與按鈕一律不顯示
 const canOpen = useCanOpen();
-const back = () => goBack(router, "/");
 const searchQuery = ref("");
 const currentTab = ref("all");
 const resources = ref(getAllResources());
@@ -248,7 +243,7 @@ const removeResource = (item) => {
 // 資源端登入的資源屬於登入狀態，由 auth.js 存放（測試階段為 sessionStorage）
 const loginResource = (id) => {
   setCurrentResourceId(id);
-  router.push("/resource-dashboard");
+  router.push("/admin/provider");
 };
 </script>
 

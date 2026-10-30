@@ -226,7 +226,7 @@ export function submitApplication(form, { now = new Date() } = {}) {
       type: "application_new",
       subject: `【CareLink】有新的註冊申請：${account.name}（${roleLabel}）`,
       body: `有一筆新的註冊申請待審核。\n\n姓名：${account.name}\n申請角色：${roleLabel}\n目前任職或服務單位：${account.organization}\n目前單位主管或聯絡人：${account.supervisorName}（${account.supervisorContact}）\n申請時間：${at}`,
-      links: [{ label: "前往審核", path: `/accounts?review=${account.id}` }],
+      links: [{ label: "前往審核", path: `/admin/accounts?review=${account.id}` }],
     });
   }
   return { ok: true, account: withStatus(account) };

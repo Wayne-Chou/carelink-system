@@ -1,13 +1,13 @@
 // 角色預覽（原型展示用，右下角「?」按鈕的面板）：各角色登入後畫面的縮小模擬，不實際登入
 // 全部沿用實際頁面的設定與資料函式，功能變更時預覽跟著更新：
 //   姓名與角色      示範帳號（config/roles.js）經 auth.sessionUserOf 轉成登入後的資料
-//   首頁入口        accessControl.shortcutsFor（首頁快捷區）
+//   後台選單        accessControl.adminMenuFor（後台版面的左側選單）
 //   待辦            todoService.computeTodos + accessControl.filterTodosFor（待辦頁預設範圍）
 //   示範資料的樣子  services/listViews.js（各列表頁的卡片資料）
 //   能進入的頁面    config/sitemap.js + sitemapService.resolvePage
 
 import { getRoleLabel } from "../config/roles.js";
-import { can, filterTodosFor, homePathFor, shortcutsFor } from "./accessControl.js";
+import { adminMenuFor, can, filterTodosFor, homePathFor, shortcutsFor } from "./accessControl.js";
 import { computeTodos } from "./todoService.js";
 import { findDemoData } from "./demoData.js";
 import { getSitemapGroups, resolvePage } from "./sitemapService.js";
@@ -24,7 +24,7 @@ export const PREVIEW_TODO_LIMIT = 3;
 
 export const hasDemoData = (demo) => !!(demo.resource || demo.assessment || demo.case);
 
-// 系統管理員：各列表的筆數，名稱沿用首頁快捷區的入口名稱
+// 系統管理員：各列表的筆數，名稱沿用後台的入口名稱
 function adminSummary(user) {
   const labels = Object.fromEntries(shortcutsFor(user).map((s) => [s.key, s.label]));
   const accounts = listAccounts();
@@ -87,7 +87,7 @@ export function buildRolePreview(group, { demo = findDemoData(), today = todaySt
     account: group.account,
     user,
     header: user ? { name: user.name, roleLabel: getRoleLabel(user.role) } : null,
-    shortcuts: user ? shortcutsFor(user) : [],
+    menu: user ? adminMenuFor(user) : [],
     todos: canTodo ? { total: todos.length, items: todos.slice(0, PREVIEW_TODO_LIMIT) } : null,
     content: demoContentFor(group.role, user, demo),
     pages: group.pages.map((page) => ({ ...page, target: resolvePage(page, demo) })),

@@ -7,7 +7,7 @@
       <div class="header-center">
         <h2>{{ isEdit ? "編輯社區資源" : "新增社區資源" }}</h2>
       </div>
-      <div class="header-right"><UserMenu /></div>
+      <div class="header-right"></div>
     </div>
 
     <div class="container main-content">
@@ -927,7 +927,6 @@
 </template>
 
 <script setup>
-import UserMenu from "../components/UserMenu.vue";
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import ChipSelect from "../components/ChipSelect.vue";
@@ -1256,7 +1255,7 @@ watch(
 // ── 編輯模式的返回目標 ──
 // 進入編輯前的頁面（從列表或詳細頁進來）；直接開啟網址時為 null，改回這筆資源的詳細頁
 const previousPath = isEdit ? router.options.history.state?.back ?? null : null;
-const detailPath = original ? `/resources/${original.id}` : "/list";
+const detailPath = original ? `/admin/resources/${original.id}` : "/admin/resources";
 // 只有列表與詳細頁會顯示「已儲存」提示；回到其他頁面時不留提示，避免之後誤顯示
 const SAVED_NOTICE_ROUTES = ["list", "resources-list", "resource-detail"];
 const previousShowsNotice =
@@ -1287,14 +1286,14 @@ const submitForm = async () => {
   } else {
     const created = createResource(payload);
     router.push({
-      path: "/success",
+      path: "/admin/resources/created",
       query: { id: created.id, ...(missingCount ? { missing: missingCount } : {}) },
     });
   }
 };
 
 // 「← 返回」：回上一頁；直接開啟網址時，編輯回這筆資源的詳細頁，新增回資源列表
-const back = () => goBack(router, isEdit ? detailPath : "/list");
+const back = () => goBack(router, isEdit ? detailPath : "/admin/resources");
 </script>
 
 <style scoped>

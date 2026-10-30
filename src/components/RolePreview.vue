@@ -59,14 +59,14 @@
         </div>
 
         <div class="mock-body">
-          <!-- 首頁入口（只顯示，不可點） -->
+          <!-- 後台選單（只顯示，不可點） -->
           <div v-if="preview.user" class="mock-block">
-            <p class="mock-title">首頁入口</p>
+            <p class="mock-title">後台選單</p>
             <div class="shortcut-row">
-              <span v-for="s in preview.shortcuts" :key="s.key" class="shortcut">
+              <span v-for="s in preview.menu" :key="s.key" class="shortcut">
                 <i :class="['fa-solid', s.icon]" aria-hidden="true"></i> {{ s.label }}
               </span>
-              <span v-if="!preview.shortcuts.length" class="muted">沒有快捷入口</span>
+              <span v-if="!preview.menu.length" class="muted">沒有選單項目</span>
             </div>
           </div>
 

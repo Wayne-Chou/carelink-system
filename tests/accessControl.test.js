@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { ROUTE_NAMES, resolvePath } from "./helpers/routing.js";
 import { DEMO_ACCOUNTS, PERMISSIONS, REGISTERABLE_ROLES, ROLE_CODES } from "../src/config/roles.js";
 import {
   can,
@@ -14,8 +14,10 @@ import {
   dashboardResourceId,
   editableFieldsFor,
   filterTodosFor,
+  adminMenuFor,
   homePathFor,
   landingPathFor,
+  navigationRedirect,
   shortcutsFor,
   todoScopeFor,
 } from "../src/services/accessControl.js";
@@ -43,9 +45,8 @@ const findAssessment = (id) => ASSESSMENTS[id] ?? null;
 const route = (name, params = {}) => ({ name, params, fullPath: `/${name}`, matched: [{}], meta: routeMeta(name) });
 const allowed = (u, name, params) => checkRouteAccess(route(name, params), u, { findAssessment }).ok;
 
-test("路由表：router/index.js 的每個路由都列在權限表或公開頁，沒有遺漏", () => {
-  const source = readFileSync(new URL("../src/router/index.js", import.meta.url), "utf8");
-  const names = [...source.matchAll(/name: "([a-z-]+)"|meta\("([a-z-]+)"\)/g)].map((m) => m[1] ?? m[2]);
+test("路由表：router/routes.js 的每個路由都列在權限表或公開頁，沒有遺漏", () => {
+  const names = ROUTE_NAMES;
   assert.ok(names.length >= 18);
   for (const name of names) {
     assert.ok(name in ROUTE_ACCESS || PUBLIC_ROUTES.includes(name), `${name} 沒有設定權限`);
@@ -59,12 +60,12 @@ test("角色設定：每個角色都有功能清單；註冊不開放系統管�
 });
 
 test("資源管理員：可進入資源相關頁面與待辦；不能進入評估、個案、資源端後台", () => {
-  const ALLOWED = ["list", "resources-list", "form", "form-edit", "success", "resource-detail", "todo"];
+  const ALLOWED = ["admin-home", "list", "form", "form-edit", "success", "resource-detail", "todo"];
   const DENIED = ["assessment-new", "assessments", "assessment-review", "cases", "case-detail", "resource-dashboard"];
   for (const name of ALLOWED) assert.equal(allowed(RESOURCE_MANAGER, name, { id: RES_B }), true, name);
   for (const name of DENIED) assert.equal(allowed(RESOURCE_MANAGER, name, { id: "linked" }), false, name);
   assert.equal(canUseDashboard(RESOURCE_MANAGER, RES_A), false);
-  assert.equal(homePathFor(RESOURCE_MANAGER), "/");
+  assert.equal(homePathFor(RESOURCE_MANAGER), "/admin");
 });
 
 test("帳號管理只有系統管理員；忘記密碼、重設密碼、模擬信箱為公開頁", () => {
@@ -120,7 +121,6 @@ const MATRIX = {
   assessments:          [true, true, false, false, false],
   todo:                 [true, true, true, false, false],
   list:                 [true, false, false, false, false],
-  "resources-list":     [true, false, false, false, false],
   form:                 [true, false, false, false, false],
   "form-edit":          [true, false, false, false, false],
   success:              [true, false, false, false, false],
@@ -182,13 +182,13 @@ test("資源端後台：系統管理員可檢視任何資源；資源點固定�
 });
 
 test("登入後的頁面：資源點進入資源端後台；被擋下的頁面有權限才回去", () => {
-  assert.equal(homePathFor(PROVIDER), "/resource-dashboard");
-  assert.equal(homePathFor(READER), "/");
+  assert.equal(homePathFor(PROVIDER), "/admin/provider");
+  assert.equal(homePathFor(READER), "/admin");
   assert.equal(landingPathFor(READER, route("assessments")), "/assessments");
-  assert.equal(landingPathFor(MANAGER, route("assessments")), "/", "沒有權限就回預設頁");
-  assert.equal(landingPathFor(PROVIDER, route("cases")), "/resource-dashboard");
-  assert.equal(landingPathFor(READER, { ...route("x"), matched: [] }), "/", "不存在的頁面");
-  assert.equal(landingPathFor(ADMIN, route("login")), "/");
+  assert.equal(landingPathFor(MANAGER, route("assessments")), "/admin", "沒有權限就回預設頁");
+  assert.equal(landingPathFor(PROVIDER, route("cases")), "/admin/provider");
+  assert.equal(landingPathFor(READER, { ...route("x"), matched: [] }), "/admin", "不存在的頁面");
+  assert.equal(landingPathFor(ADMIN, route("login")), "/admin");
 });
 
 const TODOS = [
@@ -215,7 +215,7 @@ test("待辦依角色只顯示自己的項目，系統管理員可切換全部",
   assert.deepEqual(todoScopeFor(RESOURCE_MANAGER), { own: "admin", canViewAll: false });
 });
 
-test("首頁快捷區：只列出該角色能用的入口，且每個入口都能通過路由檢查", () => {
+test("後台首頁的快捷入口：只列出該角色能用的入口，且每個入口都能通過路由檢查", () => {
   const keys = (u) => shortcutsFor(u).map((s) => s.key);
   assert.deepEqual(keys(ADMIN), ["todo", "assessmentNew", "assessments", "cases", "resources", "resourceNew", "accounts"]);
   assert.deepEqual(keys(READER), ["todo", "assessmentNew", "assessments"]);
@@ -223,30 +223,65 @@ test("首頁快捷區：只列出該角色能用的入口，且每個入口都�
   assert.deepEqual(keys(RESOURCE_MANAGER), ["todo", "resources", "resourceNew"]);
   assert.deepEqual(keys(PROVIDER), ["dashboard", "myResource"]);
   assert.deepEqual(keys(NO_ROLE), []);
-  const NAME_BY_PATH = {
-    "/todo": "todo",
-    "/assessment/new": "assessment-new",
-    "/assessments": "assessments",
-    "/cases": "cases",
-    "/list": "list",
-    "/form": "form",
-    "/resource-dashboard": "resource-dashboard",
-    "/accounts": "accounts",
-  };
   for (const u of [ADMIN, RESOURCE_MANAGER, READER, MANAGER, PROVIDER]) {
     for (const s of shortcutsFor(u)) {
-      const name = NAME_BY_PATH[s.path] ?? "resource-detail";
-      const params = name === "resource-detail" ? { id: s.path.split("/").pop() } : {};
-      assert.equal(allowed(u, name, params), true, `${u.role} ${s.path}`);
+      assert.equal(checkRouteAccess(resolvePath(s.path), u, { findAssessment }).ok, true, `${u.role} ${s.path}`);
     }
   }
 });
 
+test("後台選單：依角色權限顯示，每一項都能通過權限檢查；資源點沒有後台首頁", () => {
+  const keys = (u) => adminMenuFor(u).map((s) => s.key);
+  assert.deepEqual(keys(ADMIN), ["home", "todo", "assessmentNew", "assessments", "cases", "resources", "resourceNew", "accounts"]);
+  assert.deepEqual(keys(RESOURCE_MANAGER), ["home", "todo", "resources", "resourceNew"]);
+  assert.deepEqual(keys(READER), ["home", "todo", "assessmentNew", "assessments"]);
+  assert.deepEqual(keys(MANAGER), ["home", "todo", "cases"]);
+  assert.deepEqual(keys(PROVIDER), ["dashboard", "myResource"]);
+  assert.deepEqual(keys(NO_ROLE), []);
+  // 選單項目與權限一致：每一項都能進入；權限表中可以進入的後台列表頁（不需指定資料）都在選單裡
+  const LIST_PAGES = ["admin-home", "todo", "assessment-new", "assessments", "cases", "list", "form", "accounts"];
+  for (const u of [ADMIN, RESOURCE_MANAGER, READER, MANAGER, PROVIDER]) {
+    const menu = adminMenuFor(u);
+    for (const item of menu) {
+      assert.equal(checkRouteAccess(resolvePath(item.path), u, { findAssessment }).ok, true, `${u.role} ${item.path}`);
+    }
+    const menuRoutes = menu.map((item) => resolvePath(item.path).name);
+    for (const name of LIST_PAGES) {
+      if (allowed(u, name)) assert.ok(menuRoutes.includes(name), `${u.role} 可以進入 ${name}，但選單沒有`);
+    }
+  }
+});
+
+test("每個角色登入後進入自己的後台首頁；沒有角色的帳號回民眾首頁", () => {
+  const HOME = { admin: "/admin", resource_manager: "/admin", reader: "/admin", manager: "/admin", provider: "/admin/provider" };
+  for (const u of [ADMIN, RESOURCE_MANAGER, READER, MANAGER, PROVIDER]) {
+    assert.equal(landingPathFor(u), HOME[u.role], u.role);
+    assert.equal(checkRouteAccess(resolvePath(HOME[u.role]), u, { findAssessment }).ok, true, u.role);
+  }
+  assert.equal(homePathFor(NO_ROLE), "/");
+});
+
+test("路由守衛：未登入到登入頁；已登入但沒權限回自己的後台首頁並提示；資源點打開 /admin 直接進入資源端後台", () => {
+  const options = { findAssessment };
+  assert.equal(navigationRedirect(resolvePath("/admin/cases"), MANAGER, options), null, "有權限");
+  assert.deepEqual(navigationRedirect(resolvePath("/admin/cases"), null, options), {
+    name: "login",
+    query: { redirect: "/admin/cases" },
+  });
+  assert.deepEqual(navigationRedirect(resolvePath("/admin/cases"), READER, options), { path: "/admin", query: { denied: "1" } });
+  assert.deepEqual(navigationRedirect(resolvePath("/admin/accounts"), PROVIDER, options), {
+    path: "/admin/provider",
+    query: { denied: "1" },
+  });
+  assert.deepEqual(navigationRedirect(resolvePath("/admin"), PROVIDER, options), { path: "/admin/provider" }, "不提示");
+  assert.deepEqual(navigationRedirect(resolvePath("/admin"), NO_ROLE, options), { path: "/", query: { denied: "1" } });
+});
+
 test("示範資源點帳號沒有綁定資源：仍進入資源端後台（顯示尚未綁定），沒有我的資源入口", () => {
   assert.equal(DEMO_PROVIDER.resourceId, "");
-  assert.equal(homePathFor(DEMO_PROVIDER), "/resource-dashboard");
+  assert.equal(homePathFor(DEMO_PROVIDER), "/admin/provider");
   assert.equal(allowed(DEMO_PROVIDER, "resource-dashboard"), true);
   assert.equal(dashboardResourceId(DEMO_PROVIDER, RES_A), "");
   assert.equal(canUseDashboard(DEMO_PROVIDER, RES_A), false);
-  assert.deepEqual(shortcutsFor(DEMO_PROVIDER), []);
+  assert.deepEqual(shortcutsFor(DEMO_PROVIDER).map((s) => s.key), ["dashboard"], "未綁定時只有資源端後台");
 });

@@ -2,12 +2,11 @@
   <div class="accounts-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="back">← 返回</button>
       </div>
       <div class="header-center">
         <h2>帳號管理</h2>
       </div>
-      <div class="header-right"><UserMenu /></div>
+      <div class="header-right"></div>
     </div>
 
     <div class="container main-content">
@@ -258,7 +257,6 @@
 </template>
 
 <script setup>
-import UserMenu from "../components/UserMenu.vue";
 import ChipSelect from "../components/ChipSelect.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -284,11 +282,9 @@ import {
 import { getAllResources, getResourceById } from "../services/resourceService.js";
 import { getBoundResourceId, getCurrentUser } from "../utils/auth.js";
 import { formatDateTime } from "../utils/resourceFormat.js";
-import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
 const route = useRoute();
-const back = () => goBack(router, "/");
 const currentUser = getCurrentUser();
 const actor = () => ({ name: currentUser?.name ?? "", email: currentUser?.email ?? "" });
 

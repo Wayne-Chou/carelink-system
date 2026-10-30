@@ -24,15 +24,9 @@ const { ROLE_PREVIEW_LINK } = await import("../src/config/help.js");
 // 樣板中直接使用的網址常數 → 網址
 const KNOWN_TARGETS = { ROLE_PREVIEW_LINK: ROLE_PREVIEW_LINK.path };
 
-// ── 路由表：網址 → 路由名稱 ──
-const ROUTER_SOURCE = readFileSync(new URL("../src/router/index.js", import.meta.url), "utf8");
-const ROUTES = [...ROUTER_SOURCE.matchAll(/path: "([^"]+)",[^}]*?(?:name: "([a-z-]+)"|meta\("([a-z-]+)"\))/g)].map(
-  ([, path, name, metaName]) => ({
-    name: name ?? metaName,
-    pattern: new RegExp(`^${path.replace(/:[a-zA-Z]+/g, "[^/]+")}$`),
-  })
-);
-const routeNameOf = (path) => ROUTES.find((r) => r.pattern.test(path.split("?")[0]))?.name ?? null;
+// ── 網址 → 路由名稱：以與實際相同的路由表解析（舊網址只是導向，不算數，頁面上必須用新網址）──
+const { resolvePath } = await import("./helpers/routing.js");
+const routeNameOf = (path) => resolvePath(path).name ?? null;
 
 // 以示意值代入網址中的變數：`/case/${id}` → /case/x
 const literalPath = (text) => {
@@ -131,8 +125,8 @@ const isPublicTarget = (target) => target === "" || (target !== null && PUBLIC_R
 describe("靜態檢查：導向需登入頁面的連結與按鈕都經過 canOpen", () => {
   test("找得到各頁的導向（檢查本身有效）", () => {
     assert.ok(NAVIGATIONS.length > 40, `只找到 ${NAVIGATIONS.length} 個`);
-    const personal = NAVIGATIONS.find((n) => n.file === "ResourceList.vue" && n.target === "/cases");
-    assert.ok(personal?.guarded, "資源列表的「個人端」（/cases）經過 canOpen");
+    const personal = NAVIGATIONS.find((n) => n.file === "ResourceList.vue" && n.target === "/admin/cases");
+    assert.ok(personal?.guarded, "資源列表的「個人端」（/admin/cases）經過 canOpen");
   });
 
   test("每個導向的目標都是公開頁，或經過 canOpen", () => {

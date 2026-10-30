@@ -16,17 +16,11 @@ const { HELP_HIDDEN_ROUTES, visibleHelpItems } = await import("../src/config/hel
 
 const { PAGE_TOURS, WELCOME_CARDS, PUBLIC_ROLE, stepsFor, tourKeyOf } = tours;
 const read = (path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
-const ROUTER_SOURCE = read("router/index.js");
+const { ROUTES, isAdminArea } = await import("../src/router/routes.js");
 
-// 路由名稱 → 頁面元件檔（router/index.js 的 import 與 component）
-const IMPORTS = Object.fromEntries(
-  [...ROUTER_SOURCE.matchAll(/^import (\w+) from "\.\.\/pages\/(\w+)\.vue";/gm)].map(([, v, f]) => [v, f])
-);
-const PAGE_FILE = Object.fromEntries(
-  [...ROUTER_SOURCE.matchAll(/(?:name: "([a-z-]+)"|meta\("([a-z-]+)"\))[^}]*?component: (?:(\w+)|\(\) => import\("\.\.\/pages\/(\w+)\.vue"\))/g)].map(
-    ([, name, metaName, varName, lazy]) => [name ?? metaName, `pages/${lazy ?? IMPORTS[varName]}.vue`]
-  )
-);
+// 路由名稱 → 頁面元件檔（router/routes.js 的 page）
+const PAGE_FILE = Object.fromEntries(ROUTES.filter((r) => r.page).map((r) => [r.name, `pages/${r.page}.vue`]));
+const ADMIN_LAYOUT = "components/AdminLayout.vue";
 
 // 頁面原始碼中的 data-tour 標記：data-tour="x"，或 :data-tour 運算式中的 'x'
 function tourMarks(source) {
@@ -36,11 +30,13 @@ function tourMarks(source) {
   }
   return marks;
 }
-// 共用元件的標記：頁面有用到 UserMenu 時可用 user-menu；「?」按鈕在 App.vue，不顯示的頁面除外
+// 共用元件的標記：頁面有用到 UserMenu 時可用 user-menu；「?」按鈕在 App.vue，不顯示的頁面除外；
+// 後台頁面另有後台版面（左側選單、上方列）的標記
 const SHARED = { "user-menu": "components/UserMenu.vue", "help-button": "components/HelpButton.vue" };
 const marksForRoute = (routeName) => {
   const source = read(PAGE_FILE[routeName]);
   const marks = tourMarks(source);
+  if (isAdminArea(routeName)) tourMarks(read(ADMIN_LAYOUT)).forEach((m) => marks.add(m));
   if (/<UserMenu\b/.test(source)) tourMarks(read(SHARED["user-menu"])).forEach((m) => marks.add(m));
   if (!HELP_HIDDEN_ROUTES.includes(routeName)) tourMarks(read(SHARED["help-button"])).forEach((m) => marks.add(m));
   return marks;
@@ -59,7 +55,6 @@ const ALL_TOUR_ROUTES = [...new Set([...PUBLIC_PAGES, ...Object.values(ROLE_PAGE
 describe("導覽腳本", () => {
   test("每個角色能進入的頁面與公開頁都有導覽", () => {
     for (const route of ALL_TOUR_ROUTES) assert.ok(PAGE_TOURS[tourKeyOf(route)]?.length, `${route} 沒有導覽`);
-    assert.equal(tourKeyOf("resources-list"), "list", "同一個頁面元件共用導覽");
   });
 
   test("每個導覽步驟指定的標記都存在於對應頁面", () => {
@@ -97,9 +92,11 @@ describe("導覽腳本", () => {
 
   test("說明中以「」標示的按鈕與欄位名稱，與畫面上的文字一致", () => {
     // 畫面文字來自資料的頁面：模擬信箱的信件按鈕寫在 accountService
+    // 後台頁面的文字也可能在後台版面（例：「回到民眾首頁」）
     const EXTRA_SOURCES = { mailbox: ["services/accountService.js"] };
     for (const [key, steps] of Object.entries(PAGE_TOURS)) {
-      const source = [PAGE_FILE[key], ...(EXTRA_SOURCES[key] ?? [])].map(read).join("\n");
+      const files = [PAGE_FILE[key], ...(EXTRA_SOURCES[key] ?? []), ...(isAdminArea(key) ? [ADMIN_LAYOUT] : [])];
+      const source = files.map(read).join("\n");
       for (const step of steps) {
         for (const [, label] of step.text.matchAll(/「([^「」…]+)」/g)) {
           assert.ok(source.includes(label), `${key} ${step.target}：畫面上沒有「${label}」`);
@@ -157,8 +154,6 @@ describe("紀錄與自動執行", () => {
     assert.equal(state.shouldAutoRunPageTour(user("admin"), "home"), false);
     assert.equal(state.shouldAutoRunPageTour(user("reader"), "home"), true);
     assert.equal(state.shouldAutoRunPageTour(null, "explore"), true);
-    state.markPageTourSeen(PUBLIC_ROLE, "list");
-    assert.equal(state.hasSeenPageTour(PUBLIC_ROLE, "resources-list"), true, "共用導覽的路由共用紀錄");
   });
 
   test("評估填寫頁不自動執行導覽與歡迎卡片（可手動開啟）", () => {

@@ -2,28 +2,27 @@
   <div class="resource-dashboard-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="back">← 返回</button>
       </div>
       <div class="header-center">
         <h2>資源端管理面板</h2>
         <p v-if="resource" data-tour="dashboard-resource">
           目前登入資源：
-          <router-link v-if="canOpen(`/resources/${resource.id}`)" :to="`/resources/${resource.id}`" class="resource-link">{{ resource.name }}</router-link>
+          <router-link v-if="canOpen(`/admin/resources/${resource.id}`)" :to="`/admin/resources/${resource.id}`" class="resource-link">{{ resource.name }}</router-link>
           <span v-else>{{ resource.name }}</span>
           <span v-if="resource.code" class="code">{{ resource.code }}</span>
-          <router-link v-if="canOpen(`/form/${resource.id}`)" :to="`/form/${resource.id}`" class="resource-link edit-link">
+          <router-link v-if="canOpen(`/admin/resources/${resource.id}/edit`)" :to="`/admin/resources/${resource.id}/edit`" class="resource-link edit-link">
             <i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> 編輯資源
           </router-link>
         </p>
       </div>
-      <div class="header-right"><UserMenu /></div>
+      <div class="header-right"></div>
     </div>
 
     <div class="container main-content">
       <div v-if="!resource" class="empty-state">
         <template v-if="canPickAny">
           請先到「資源管理」選擇要登入的資源
-          <button v-if="canOpen('/list')" type="button" class="outline-btn" @click="$router.push('/list')">前往資源管理</button>
+          <button v-if="canOpen('/admin/resources')" type="button" class="outline-btn" @click="$router.push('/admin/resources')">前往資源管理</button>
         </template>
         <!-- 資源點：帳號還沒有綁定資源 -->
         <span v-else-if="!boundResourceId" data-tour="dashboard-empty">尚未綁定資源，請聯絡管理員</span>
@@ -115,7 +114,6 @@
 
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
-import UserMenu from "../components/UserMenu.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import {
@@ -127,7 +125,6 @@ import { referralRows } from "../services/listViews.js";
 import { getResourceById } from "../services/resourceService.js";
 import { clearCurrentResourceId, getCurrentResourceId, getCurrentUser } from "../utils/auth.js";
 import { can, dashboardResourceId } from "../services/accessControl.js";
-import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
 // 導向沒有權限的頁面的連結與按鈕一律不顯示
@@ -135,7 +132,6 @@ const canOpen = useCanOpen();
 // 角色權限（原型階段）：系統管理員可從資源管理選擇任何資源進入；資源點固定為自己綁定的資源
 const currentUser = getCurrentUser();
 const canPickAny = can(currentUser, "resource.dashboardAny");
-const back = () => goBack(router, canPickAny ? "/list" : "/");
 
 // 系統管理員選擇的資源由 auth.js 存放（測試階段為 sessionStorage，關閉瀏覽器即清除）
 // 資源點帳號綁定的資源 id（未綁定時為空字串）

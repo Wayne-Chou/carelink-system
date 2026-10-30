@@ -2,14 +2,12 @@
   <div class="case-list-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="back">← 返回</button>
       </div>
       <div class="header-center">
         <h2>個案管理</h2>
       </div>
       <div class="header-right">
         <button class="add-btn" data-tour="cases-new" @click="addCase">＋新增個案</button>
-        <UserMenu />
       </div>
     </div>
 
@@ -90,7 +88,6 @@
 
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
-import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { FIRST_CONTACT_HOURS } from "../config/assessmentRules.js";
@@ -99,12 +96,10 @@ import { createCase, deleteCase, getAllCases } from "../services/caseService.js"
 import { caseRows } from "../services/listViews.js";
 import { getCurrentUser } from "../utils/auth.js";
 import { toDateString } from "../utils/date.js";
-import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
 // 導向沒有權限的頁面的連結與按鈕一律不顯示
 const canOpen = useCanOpen();
-const back = () => goBack(router, "/");
 
 const cases = ref(getAllCases());
 const searchQuery = ref("");
@@ -151,7 +146,7 @@ const addCase = () => {
   reload();
 };
 
-const caseLink = (id) => `/case/${id}`;
+const caseLink = (id) => `/admin/cases/${id}`;
 const goDetail = (id) => router.push(caseLink(id));
 
 // 只有第 1 階段、沒有連結與追蹤紀錄的個案可以刪除（例如誤建），其他提示改用結案

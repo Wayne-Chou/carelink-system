@@ -7,13 +7,13 @@
       <div class="header-center">
         <h2>個案詳情</h2>
       </div>
-      <div class="header-right"><UserMenu /></div>
+      <div class="header-right"></div>
     </div>
 
     <div v-if="!caseItem" class="container main-content">
       <div class="empty-state">
         找不到個案資料
-        <button v-if="canOpen('/cases')" type="button" class="outline-btn" @click="$router.push('/cases')">回個案列表</button>
+        <button v-if="canOpen('/admin/cases')" type="button" class="outline-btn" @click="$router.push('/admin/cases')">回個案列表</button>
       </div>
     </div>
 
@@ -94,8 +94,8 @@
               <i class="fa-solid fa-clipboard-list" aria-hidden="true"></i>
               由生活近況評估開案：
               <router-link
-                v-if="canOpen(`/assessments/${caseItem.referral.assessmentId}`)"
-                :to="`/assessments/${caseItem.referral.assessmentId}`"
+                v-if="canOpen(`/admin/assessments/${caseItem.referral.assessmentId}`)"
+                :to="`/admin/assessments/${caseItem.referral.assessmentId}`"
               >
                 {{ caseItem.referral.assessmentCode || "查看評估" }}（前往判讀頁）
               </router-link>
@@ -222,7 +222,7 @@
             >
               <div class="linkage-head">
                 <span class="linkage-no">第 {{ i + 1 }} 次</span>
-                <router-link v-if="canOpen(`/resources/${l.resourceId}`)" :to="`/resources/${l.resourceId}`" class="linkage-name">
+                <router-link v-if="canOpen(`/admin/resources/${l.resourceId}`)" :to="`/admin/resources/${l.resourceId}`" class="linkage-name">
                   {{ l.resourceName || "未知資源" }}
                 </router-link>
                 <span v-else class="linkage-name">{{ l.resourceName || "未知資源" }}</span>
@@ -495,7 +495,6 @@
 
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
-import UserMenu from "../components/UserMenu.vue";
 import { computed, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import ChipSelect from "../components/ChipSelect.vue";
@@ -541,7 +540,7 @@ const route = useRoute();
 const router = useRouter();
 // 導向沒有權限的頁面的連結與按鈕一律不顯示
 const canOpen = useCanOpen();
-const back = () => goBack(router, "/cases");
+const back = () => goBack(router, "/admin/cases");
 
 const STEPS = STAGE_OPTIONS;
 const FOLLOW_UP_STATUS_LABELS = { done: "已完成", due: "已到期", upcoming: "未到期", unscheduled: "未排程" };

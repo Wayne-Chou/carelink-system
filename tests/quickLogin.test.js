@@ -41,7 +41,7 @@ test("資源點示範帳號只有一個", () => {
 });
 
 test("快速登入與一般登入相同：以示範帳號登入後依角色導向", () => {
-  const LANDING = { admin: "/", resource_manager: "/", reader: "/", manager: "/", provider: "/resource-dashboard" };
+  const LANDING = { admin: "/admin", resource_manager: "/admin", reader: "/admin", manager: "/admin", provider: "/admin/provider" };
   for (const q of QUICK_LOGINS) {
     const account = DEMO_ACCOUNTS.find((a) => a.email === q.email);
     const result = login({ email: account.email, password: account.password });

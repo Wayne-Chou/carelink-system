@@ -2,12 +2,11 @@
   <div class="list-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="back">← 返回</button>
       </div>
       <div class="header-center">
         <h2>待辦</h2>
       </div>
-      <div class="header-right"><UserMenu /></div>
+      <div class="header-right"></div>
     </div>
 
     <div class="filter-container">
@@ -85,19 +84,16 @@
 
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
-import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { AUDIENCES, TODO_TYPES, computeTodos } from "../services/todoService.js";
 import { todayString } from "../utils/date.js";
-import { goBack } from "../utils/navigation.js";
 import { getCurrentUser } from "../utils/auth.js";
 import { filterTodosFor, todoScopeFor } from "../services/accessControl.js";
 
 const router = useRouter();
 // 導向沒有權限的頁面的項目不可點
 const canOpen = useCanOpen();
-const back = () => goBack(router, "/");
 
 const AUDIENCE_LABELS = Object.fromEntries(AUDIENCES.map((a) => [a.code, a.label]));
 

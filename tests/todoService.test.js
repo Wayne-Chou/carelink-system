@@ -40,7 +40,7 @@ test("尚未判讀：所有未判讀的評估，以填表日為到期日", () =>
   assert.deepEqual(types(todos), [["unreviewed", "Ast001"]]);
   assert.equal(todos[0].overdueDays, 4);
   assert.equal(todos[0].audience, "reader");
-  assert.equal(todos[0].link, "/assessments/Ast001");
+  assert.equal(todos[0].link, "/admin/assessments/Ast001");
 });
 
 test("黃燈、綠燈：下次確認日期已到才列出", () => {
@@ -89,7 +89,7 @@ test("逾期未聯繫：開案超過 72 小時沒有首次聯繫，到期日為�
   assert.deepEqual(types(todos), [["first_contact_overdue", "Case001"]]);
   assert.equal(todos[0].dueDate, "2026-10-06");
   assert.equal(todos[0].overdueDays, 8);
-  assert.equal(todos[0].link, "/case/Case001");
+  assert.equal(todos[0].link, "/admin/cases/Case001");
 });
 
 test("追蹤到期：只有第 4 階段", () => {
@@ -123,7 +123,7 @@ test("資源待驗證：超過預計驗證日期，已終止的不列入", () =>
   });
   assert.deepEqual(types(todos), [["resource_verify", "Res001"]]);
   assert.equal(todos[0].audience, "admin");
-  assert.equal(todos[0].link, "/resources/r1");
+  assert.equal(todos[0].link, "/admin/resources/r1");
 });
 
 test("排序：逾期最多的在前，沒有日期的在最後；逾期數只算已過期的", () => {

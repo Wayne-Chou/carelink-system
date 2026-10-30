@@ -90,7 +90,7 @@ export function computeTodos({
 
   // ── 評估紀錄（判讀人員）──
   for (const a of activeAssessments) {
-    const base = { name: a.person?.name || "未填姓名", code: a.code, link: `/assessments/${a.id}` };
+    const base = { name: a.person?.name || "未填姓名", code: a.code, link: `/admin/assessments/${a.id}` };
     const light = a.review?.light;
 
     if (a.status === "filled") {
@@ -127,7 +127,7 @@ export function computeTodos({
 
   // ── 個案（健康管理員）──
   for (const c of openCases) {
-    const base = { name: c.person?.name || "未命名個案", code: c.code, link: `/case/${c.id}` };
+    const base = { name: c.person?.name || "未命名個案", code: c.code, link: `/admin/cases/${c.id}` };
 
     if (isFirstContactOverdue(c, now)) {
       todos.push(
@@ -165,7 +165,7 @@ export function computeTodos({
     todos.push(
       makeTodo(
         "resource_verify",
-        { name: r.name || "未命名資源", code: r.code || "", link: `/resources/${r.id}`, dueDate: r.nextVerifyAt, detail: `預計驗證日期 ${r.nextVerifyAt}` },
+        { name: r.name || "未命名資源", code: r.code || "", link: `/admin/resources/${r.id}`, dueDate: r.nextVerifyAt, detail: `預計驗證日期 ${r.nextVerifyAt}` },
         today
       )
     );
@@ -179,7 +179,7 @@ export function computeTodos({
         {
           name: a.name || "未填姓名",
           code: a.email,
-          link: `/accounts?review=${a.id}`,
+          link: `/admin/accounts?review=${a.id}`,
           dateText: `申請時間 ${a.createdAt ?? "—"}`,
           detail: [`申請角色：${getRoleLabel(a.role)}`, a.organization].filter(Boolean).join("｜"),
         },

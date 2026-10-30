@@ -38,6 +38,7 @@ export function getRoleLabel(code) {
 //   assessment.review      判讀、修改判讀、作廢
 //   assessment.viewLinked  已開案評估的判讀頁（唯讀）
 //   case.manage            個案列表、個案頁
+//   workspace.home         後台首頁（/admin）：快捷入口與待辦摘要；資源點沒有，直接進入資源端後台
 //   todo.view              待辦（只看自己角色的項目）
 //   todo.viewAll           待辦可切換查看全部
 //   account.manage         帳號管理：審核註冊申請、停用與重新啟用、建立帳號（doc/specs/account-schema.md）
@@ -57,12 +58,20 @@ export const PERMISSIONS = {
     "todo.view",
     "todo.viewAll",
     "account.manage",
+    "workspace.home",
   ],
   // 資源管理員：不能進入評估、個案、資源端後台（後台會看到轉介個案）
-  resource_manager: ["resource.manage", "resource.view", "resource.bindProvider", "resource.viewChangeLog", "todo.view"],
-  reader: ["resource.view", "assessment.fill", "assessment.list", "assessment.review", "todo.view"],
+  resource_manager: [
+    "resource.manage",
+    "resource.view",
+    "resource.bindProvider",
+    "resource.viewChangeLog",
+    "todo.view",
+    "workspace.home",
+  ],
+  reader: ["resource.view", "assessment.fill", "assessment.list", "assessment.review", "todo.view", "workspace.home"],
   // 待確認事項：「健康管理員只看分派給自己的個案，還是看全部？」原型階段看全部
-  manager: ["resource.view", "assessment.viewLinked", "case.manage", "todo.view"],
+  manager: ["resource.view", "assessment.viewLinked", "case.manage", "todo.view", "workspace.home"],
   provider: ["resource.view", "resource.dashboard", "resource.editOwn"],
 };
 

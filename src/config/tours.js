@@ -18,8 +18,8 @@ export const PUBLIC_ROLE = "public";
 // 不自動執行導覽的頁面（仍可手動開啟）：評估填寫頁由民眾操作
 export const MANUAL_ONLY_TOURS = ["assessment-new"];
 
-// 共用同一份導覽的路由（同一個頁面元件）
-export const TOUR_ALIASES = { "resources-list": "list" };
+// 共用同一份導覽的路由（同一個頁面元件）；目前沒有
+export const TOUR_ALIASES = {};
 
 const START_CARD = {
   title: "開始使用",
@@ -32,7 +32,7 @@ export const WELCOME_CARDS = {
     { title: "你是系統管理員", text: "負責維護整個平台：資源、帳號，以及所有評估與個案資料都看得到。" },
     {
       title: "從這裡開始",
-      text: "首頁的「待辦」會提醒資源待驗證與待審核的帳號申請；新的註冊申請在「帳號管理」審核。",
+      text: "登入後進入後台首頁，待辦摘要會提醒資源待驗證與待審核的帳號申請；新的註冊申請在「帳號管理」審核。",
     },
     {
       title: "你在流程中的位置",
@@ -42,7 +42,7 @@ export const WELCOME_CARDS = {
   ],
   resource_manager: [
     { title: "你是資源管理員", text: "負責社區資源的資料正確：新增、編輯、定期驗證，並綁定資源點帳號。" },
-    { title: "從這裡開始", text: "「待辦」列出超過驗證日期的資源；在「資源管理」新增或維護資源。" },
+    { title: "從這裡開始", text: "後台首頁的待辦摘要列出超過驗證日期的資源；在左側選單的「資源管理」新增或維護資源。" },
     {
       title: "你在流程中的位置",
       text: "健康管理員在「連結」階段從你維護的資源挑選轉介對象。只有活躍中、合作已確認、綠燈或黃燈的資源，會出現在轉介選單與民眾探索頁。",
@@ -51,7 +51,7 @@ export const WELCOME_CARDS = {
   ],
   reader: [
     { title: "你是判讀人員", text: "讓民眾填寫生活近況評估表，閱讀填答、和民眾談話，再判定燈號。" },
-    { title: "從這裡開始", text: "用「填寫評估」把平板交給民眾，或從「待辦」的「尚未判讀」開始判讀。" },
+    { title: "從這裡開始", text: "在後台用「填寫評估」把平板交給民眾，或從待辦摘要的「尚未判讀」開始判讀。" },
     {
       title: "你在流程中的位置",
       text: "你負責第 1 階段「辨識」。判為橘燈轉介並取得同意後，系統自動開案交給健康管理員；黃燈則當場提供資源資訊。",
@@ -62,7 +62,7 @@ export const WELCOME_CARDS = {
     { title: "你是健康管理員", text: "陪伴橘燈個案，從晤談、轉介資源、追蹤到結案。" },
     {
       title: "從這裡開始",
-      text: "「待辦」會列出逾期未聯繫、追蹤到期、資源點未回報的個案；所有個案在「個案管理」。",
+      text: "後台首頁的待辦摘要列出逾期未聯繫、追蹤到期、資源點未回報的個案；所有個案在左側選單的「個案管理」。",
     },
     {
       title: "你在流程中的位置",
@@ -91,16 +91,11 @@ export const PAGE_TOURS = {
   home: [
     { target: "home-search", title: "搜尋", text: "輸入關鍵字後按「搜尋」，或點下方熱門標籤，到探索頁找資源。" },
     { target: "home-nearby", title: "找我附近的資源", text: "依目前位置由近到遠排序；位置只在這個頁面使用，不會儲存。" },
-    {
-      target: "home-shortcuts",
-      title: "你的工作入口",
-      text: "依你的角色只顯示能用的功能；待辦有逾期時會顯示數量。",
-      roles: STAFF,
-    },
     { target: "home-region", title: "選擇行政區", text: "先選縣市、再選行政區，帶著條件前往探索頁。" },
     { target: "home-categories", title: "服務分類", text: "依處方類型瀏覽，例如身心健康促進、社會連結。" },
     { target: "home-featured", title: "精選資源", text: "最近更新、目前可以參加的資源。" },
-    { target: "user-menu", title: "目前登入的帳號", text: "右上角顯示姓名與角色，也可以在這裡登出。", roles: STAFF },
+    { target: "home-admin-link", title: "進入後台", text: "你的工作功能都在後台，按「進入後台」前往。", roles: STAFF },
+    { target: "home-user-menu", title: "目前登入的帳號", text: "點右上角的使用者圖示，可以看到姓名、角色，也可以登出。", roles: STAFF },
     { target: "help-button", title: "需要幫忙時", text: "右下角的「?」可以重看導覽與歡迎介紹，或開啟角色預覽、模擬信箱。" },
   ],
   explore: [
@@ -165,7 +160,14 @@ export const PAGE_TOURS = {
     },
   ],
 
-  // ── 登入後的頁面 ──
+  // ── 後台 ──
+  "admin-home": [
+    { target: "admin-menu", title: "左側選單", text: "依你的角色只顯示能用的功能；手機上按左上角的選單按鈕開啟。" },
+    { target: "admin-topbar", title: "上方列", text: "顯示姓名、角色與登出，也可以「回到民眾首頁」。" },
+    { target: "admin-home-shortcuts", title: "快捷入口", text: "常用功能的大按鈕；待辦有逾期時會顯示數量。" },
+    { target: "admin-home-todos", title: "待辦摘要", text: "依你的角色列出待辦，按「查看全部待辦」看完整清單。" },
+    { target: "admin-home-dashboard", title: "儀表板", text: "儀表板規劃中，之後會放在這裡。" },
+  ],
   todo: [
     { target: "todo-audience", title: "給誰", text: "切換查看各角色的待辦。", roles: ["admin"] },
     { target: "todo-types", title: "類型", text: "點類型只看這一類的待辦，再點一次取消。" },

@@ -7,13 +7,13 @@
       <div class="header-center">
         <h2>評估判讀</h2>
       </div>
-      <div class="header-right"><UserMenu /></div>
+      <div class="header-right"></div>
     </div>
 
     <div v-if="!assessment" class="container main">
       <div class="empty-state">
         <p>找不到這筆評估紀錄。</p>
-        <button v-if="canOpen('/assessments')" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+        <button v-if="canOpen('/admin/assessments')" type="button" class="outline-btn" @click="$router.push('/admin/assessments')">回評估列表</button>
       </div>
     </div>
 
@@ -42,7 +42,7 @@
           <div><dt>操作者</dt><dd>{{ assessment.voidedBy || "未記錄" }}</dd></div>
         </dl>
         <p class="hint">已作廢的評估保留原始資料供查詢，不列入待辦提醒與下次確認日期</p>
-        <button v-if="canOpen('/assessments')" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+        <button v-if="canOpen('/admin/assessments')" type="button" class="outline-btn" @click="$router.push('/admin/assessments')">回評估列表</button>
       </section>
 
       <!-- 已判讀：結果摘要 -->
@@ -55,7 +55,7 @@
           <li v-if="result.case" class="case-created">
             已建立個案
             <!-- 沒有個案頁權限的角色（判讀人員）只顯示編碼，不顯示連結 -->
-            <router-link v-if="canOpen(`/case/${result.case.id}`)" :to="`/case/${result.case.id}`" class="case-link">
+            <router-link v-if="canOpen(`/admin/cases/${result.case.id}`)" :to="`/admin/cases/${result.case.id}`" class="case-link">
               {{ result.case.code }}
               <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
             </router-link>
@@ -70,7 +70,7 @@
             <template v-if="providedResourceItems.length">
               <ul class="provided-result">
                 <li v-for="item in providedResourceItems" :key="item.id">
-                  <router-link v-if="item.exists && canOpen(`/resources/${item.id}`)" :to="`/resources/${item.id}`">{{ item.name }}</router-link>
+                  <router-link v-if="item.exists && canOpen(`/admin/resources/${item.id}`)" :to="`/admin/resources/${item.id}`">{{ item.name }}</router-link>
                   <span v-else>{{ item.name }}</span>
                   <small v-if="item.phone">（{{ item.contact }} {{ item.phone }}）</small>
                 </li>
@@ -89,10 +89,10 @@
           </li>
         </ul>
         <div class="result-actions">
-          <button v-if="nextPendingId && canOpen(`/assessments/${nextPendingId}`)" type="button" class="primary-btn" @click="goNextPending">
+          <button v-if="nextPendingId && canOpen(`/admin/assessments/${nextPendingId}`)" type="button" class="primary-btn" @click="goNextPending">
             下一筆未判讀
           </button>
-          <button v-if="canOpen('/assessments')" type="button" class="outline-btn" @click="$router.push('/assessments')">回評估列表</button>
+          <button v-if="canOpen('/admin/assessments')" type="button" class="outline-btn" @click="$router.push('/admin/assessments')">回評估列表</button>
           <button v-if="canReview && !result.assessment.caseId && !editing" type="button" class="text-btn" @click="startEdit">
             修改判讀
           </button>
@@ -509,7 +509,6 @@
 
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
-import UserMenu from "../components/UserMenu.vue";
 import { computed, nextTick, reactive, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { FILL_MODE_OPTIONS, QUESTIONS, Q12_TEXT, getQ11Label } from "../config/assessmentForm.js";
@@ -563,7 +562,7 @@ const currentUser = getCurrentUser();
 const canReview = canReviewAssessment(currentUser);
 const canList = can(currentUser, "assessment.list");
 
-const back = () => goBack(router, canList ? "/assessments" : "/");
+const back = () => goBack(router, canList ? "/admin/assessments" : homePathFor(currentUser));
 
 const assessment = ref(null);
 
@@ -836,7 +835,7 @@ const nextPendingId = computed(() => {
   if (!result.value) return null;
   return sortForList(getAllAssessments()).find((a) => a.status === "filled" && a.id !== assessment.value.id)?.id ?? null;
 });
-const goNextPending = () => router.replace(`/assessments/${nextPendingId.value}`);
+const goNextPending = () => router.replace(`/admin/assessments/${nextPendingId.value}`);
 </script>
 
 <style scoped>

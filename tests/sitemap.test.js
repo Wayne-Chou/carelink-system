@@ -1,6 +1,5 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { memoryStorage } from "./helpers/memoryStorage.js";
 
 const session = memoryStorage();
@@ -19,8 +18,8 @@ const { getAllResources, getRecommendableResources, createResource } = await imp
 const auth = await import("../src/utils/auth.js");
 const { ROLE_CODES } = await import("../src/config/roles.js");
 
-const ROUTER_SOURCE = readFileSync(new URL("../src/router/index.js", import.meta.url), "utf8");
-const ROUTE_NAMES = [...ROUTER_SOURCE.matchAll(/name: "([a-z-]+)"|meta\("([a-z-]+)"\)/g)].map((m) => m[1] ?? m[2]);
+const { ROUTE_NAMES, resolvePath } = await import("./helpers/routing.js");
+const { routeByName } = await import("../src/router/routes.js");
 const ALL_PAGES = SITEMAP_GROUPS.flatMap((g) => g.pages);
 // 沒有 :id 的網址 → 路由名稱（用來檢查 fallback 開的頁面）
 const NAME_BY_PATH = Object.fromEntries(ALL_PAGES.filter((p) => !p.path.includes(":")).map((p) => [p.path, p.route]));
@@ -31,12 +30,13 @@ const loginAs = (role) => {
   return auth.getCurrentUser();
 };
 
-// 依解析出的網址組成路由物件，交給權限檢查
+// 以與實際相同的路由表解析網址，交給權限檢查
 function routeFor(page, target) {
-  const name = target.source === "fallback" ? NAME_BY_PATH[target.path] : page.route;
-  assert.ok(name, `${page.route} 的 fallback ${target.path} 不在網站地圖中`);
-  const id = target.source === "demo" && page.needs ? target.path.split("/").pop() : undefined;
-  return { name, params: id ? { id } : {}, fullPath: target.path, matched: [{}], meta: routeMeta(name) };
+  const route = resolvePath(target.path);
+  const expected = target.source === "fallback" ? NAME_BY_PATH[target.path] : page.route;
+  assert.ok(expected, `${page.route} 的 fallback ${target.path} 不在網站地圖中`);
+  assert.equal(route.name, expected, `${target.path} 應解析為 ${expected}`);
+  return route;
 }
 const allowed = (user, page, target) =>
   checkRouteAccess(routeFor(page, target), user, { findAssessment: getAssessmentById }).ok;
@@ -71,7 +71,7 @@ describe("網站地圖設定", () => {
   });
 
   test("/sitemap 導向首頁並自動打開角色預覽面板，不另外列為頁面", () => {
-    assert.ok(ROUTER_SOURCE.includes(`{ path: "/sitemap", name: "sitemap", redirect: ROLE_PREVIEW_LINK }`));
+    assert.deepEqual(routeByName("sitemap").redirect, ROLE_PREVIEW_LINK);
     assert.equal(ROLE_PREVIEW_LINK.path, "/");
     assert.ok(PUBLIC_ROUTES.includes("sitemap"));
     assert.ok(SITEMAP_EXCLUDED.sitemap);
@@ -121,14 +121,14 @@ describe("各角色的頁面都能進入", () => {
 
   test("系統管理員的資源端後台：先選好示範資源", () => {
     const page = SITEMAP_GROUPS.find((g) => g.role === "admin").pages.find((p) => p.route === "resource-dashboard");
-    assert.deepEqual(resolvePage(page, findDemoData()), { path: "/resource-dashboard", source: "page" });
+    assert.deepEqual(resolvePage(page, findDemoData()), { path: "/admin/provider", source: "page" });
     const demo = loadDemoData();
     assert.equal(resolvePage(page, demo).resourceId, String(demo.resource.id));
   });
 
   test("資源點以示範帳號登入後進入資源端後台", () => {
     loadDemoData();
-    assert.equal(homePathFor(loginAs("provider")), "/resource-dashboard");
+    assert.equal(homePathFor(loginAs("provider")), "/admin/provider");
   });
 });
 

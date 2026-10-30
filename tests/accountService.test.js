@@ -128,7 +128,7 @@ describe("註冊申請", () => {
       const m = lastMailTo(to);
       assert.equal(m.type, "application_new", to);
       assert.match(m.subject, /有新的註冊申請/);
-      assert.deepEqual(m.links, [{ label: "前往審核", path: `/accounts?review=${account.id}` }]);
+      assert.deepEqual(m.links, [{ label: "前往審核", path: `/admin/accounts?review=${account.id}` }]);
     }
     assert.deepEqual(mailTypes("admin3@example.com"), [], "停用的系統管理員不寄");
     assert.deepEqual(mailTypes("resource@demo.carelink"), [], "資源管理員不寄");
@@ -443,7 +443,7 @@ describe("帳號列表、待辦與模擬信箱", () => {
     const resourceManager = DEMO_ACCOUNTS.find((a) => a.role === "resource_manager");
     const forAdmin = filterTodosFor(admin, todos).filter((t) => t.type === "account_review");
     assert.deepEqual(forAdmin.map((t) => t.name), ["甲範例", "乙範例"]);
-    assert.equal(forAdmin[0].link, `/accounts?review=${account.id}`);
+    assert.equal(forAdmin[0].link, `/admin/accounts?review=${account.id}`);
     assert.match(forAdmin[0].detail, /申請角色：健康管理員/);
     assert.deepEqual(filterTodosFor(resourceManager, todos), [], "資源管理員看不到");
     assert.deepEqual(filterTodosFor(admin, todos, "all").length, 2);

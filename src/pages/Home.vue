@@ -1,24 +1,46 @@
 <template>
-  <div class="platform-home">
-    <!-- Navbar -->
-    <header class="site-header">
+  <div ref="homeEl" class="platform-home">
+    <!-- Navbar：品牌、頁內錨點（寬度不足時收進漢堡選單）、右側動作（登入／註冊，或進入後台與使用者選單） -->
+    <header ref="headerEl" class="site-header">
       <div class="container header-inner">
         <a href="#" class="brand" @click.prevent="scrollToTop">
           <img :src="logo" alt="CareLink" class="brand-logo" />
           <span class="brand-text">CareLink 社區資源平台</span>
         </a>
-        <nav class="header-nav">
-          <a href="#near-me" @click.prevent="scrollTo('near-me')">附近服務</a>
-          <a href="#region" @click.prevent="scrollTo('region')">行政區</a>
-          <a href="#useful-info" @click.prevent="scrollTo('useful-info')">實用資訊</a>
-          <a href="#categories" @click.prevent="scrollTo('categories')">服務分類</a>
+        <nav id="home-anchor-nav" :class="['header-nav', { open: navOpen }]" aria-label="首頁區塊">
+          <a href="#near-me" @click.prevent="goSection('near-me')">附近服務</a>
+          <a href="#region" @click.prevent="goSection('region')">行政區</a>
+          <a href="#useful-info" @click.prevent="goSection('useful-info')">實用資訊</a>
+          <a href="#categories" @click.prevent="goSection('categories')">服務分類</a>
+        </nav>
+        <div class="header-actions">
           <template v-if="!currentUser">
             <button type="button" class="btn-auth-link" @click="goLogin">登入</button>
             <button type="button" class="btn-admin" @click="goRegister">註冊</button>
           </template>
-          <!-- 登入後 header 一律只顯示姓名、角色與登出；功能入口都在下方「登入後快捷區」 -->
-          <UserMenu v-else variant="light" @logout="onLogout" />
-        </nav>
+          <!-- 登入後：「進入後台」與使用者圖示（點開看姓名、角色、登出）；工作功能都在後台 -->
+          <template v-else>
+            <router-link
+              v-if="adminHomePath !== '/' && canOpen(adminHomePath)"
+              :to="adminHomePath"
+              class="btn-admin btn-admin-link"
+              data-tour="home-admin-link"
+            >
+              <i class="fa-solid fa-gauge" aria-hidden="true"></i> 進入後台
+            </router-link>
+            <HomeUserMenu data-tour="home-user-menu" @logout="onLogout" />
+          </template>
+          <button
+            type="button"
+            class="nav-toggle"
+            :aria-expanded="navOpen"
+            aria-controls="home-anchor-nav"
+            :aria-label="navOpen ? '關閉選單' : '開啟選單'"
+            @click="navOpen = !navOpen"
+          >
+            <i :class="navOpen ? 'fa-solid fa-xmark' : 'fa-solid fa-bars'" aria-hidden="true"></i>
+          </button>
+        </div>
       </div>
       <p v-if="deniedNotice" class="denied-notice container" role="alert">
         <i class="fa-solid fa-lock" aria-hidden="true"></i>
@@ -71,35 +93,6 @@
           </p>
         </div>
 
-      </div>
-    </section>
-
-    <!-- Provider quick actions (logged in only) -->
-    <section
-      v-if="currentUser"
-      class="provider-quick-section"
-      aria-label="登入後快捷工作區"
-    >
-      <div class="container">
-        <div class="provider-quick-panel">
-          <p class="provider-quick-greeting">
-            歡迎回來，<strong>{{ currentUser.name }}</strong>
-            <span v-if="roleLabel" class="role-chip">{{ roleLabel }}</span>
-          </p>
-          <!-- 只列出該角色可以使用的入口（services/accessControl.js 的 shortcutsFor） -->
-          <div v-if="shortcuts.length" class="provider-quick-actions" data-tour="home-shortcuts">
-            <template v-for="s in shortcuts" :key="s.key">
-              <button v-if="canOpen(s.path)" type="button" class="provider-quick-btn" @click="go(s.path)">
-                <i :class="['fa-solid', s.icon]" aria-hidden="true"></i>
-                {{ s.label }}
-                <span v-if="s.key === 'todo' && overdueCount" class="todo-badge">逾期 {{ overdueCount }}</span>
-              </button>
-            </template>
-          </div>
-          <p v-else class="no-role-note">
-            這個帳號尚未設定角色，目前只能查看公開頁面（首頁、探索頁、資源介紹）。如需使用工作功能，請聯絡系統管理員。
-          </p>
-        </div>
       </div>
     </section>
 
@@ -402,35 +395,26 @@
 
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { getRoleLabel } from "../config/roles.js";
-import {
-  NO_PERMISSION_MESSAGE,
-  filterTodosFor,
-  shortcutsFor,
-  todoScopeFor,
-} from "../services/accessControl.js";
+import { NO_PERMISSION_MESSAGE, homePathFor } from "../services/accessControl.js";
 import logo from "../assets/logo.png";
 import heroBg from "../assets/bg-community-brown.png";
 import { getCurrentUser } from "../utils/auth.js";
-import UserMenu from "../components/UserMenu.vue";
+import HomeUserMenu from "../components/HomeUserMenu.vue";
 import { getNeedTagLabel } from "../config/needTags.js";
 import { getRecommendableResources } from "../services/resourceService.js";
 import { cityOptionGroups, countByDistrict, districtOptions } from "../services/resourceSearch.js";
-import { computeTodos, countOverdue } from "../services/todoService.js";
 import { formatAudience, formatRegion } from "../utils/resourceFormat.js";
 
 const router = useRouter();
 // 導向沒有權限的頁面的連結與按鈕一律不顯示
 const canOpen = useCanOpen();
 const currentUser = ref(null);
-const overdueCount = ref(0);
 const route = useRoute();
 
-const roleLabel = computed(() => getRoleLabel(currentUser.value?.role));
-const shortcuts = computed(() => shortcutsFor(currentUser.value));
-const go = (path) => router.push(path);
+// 已登入：右上角「進入後台」前往自己的後台首頁（資源點為資源端後台）
+const adminHomePath = computed(() => homePathFor(currentUser.value));
 
 // 沒有權限時路由導回首頁並帶 denied=1；顯示提示後把參數移除（停留在首頁時也能再次顯示）
 const deniedNotice = ref("");
@@ -572,19 +556,45 @@ const goExplore = (params = {}) => {
   router.push({ path: "/explore", query });
 };
 
-// 首頁的資料：登入者、逾期待辦數、可推薦的資源（載入示範資料後也重新讀取）
+// 首頁的資料：登入者、可推薦的資源（載入示範資料後也重新讀取）
 const loadHomeData = () => {
   currentUser.value = getCurrentUser();
-  // 逾期數只算自己角色的待辦（系統管理員為「管理員」項目）
-  if (currentUser.value && todoScopeFor(currentUser.value).own) {
-    overdueCount.value = countOverdue(filterTodosFor(currentUser.value, computeTodos()));
-  }
   allResources.value = getRecommendableResources("explore").sort((a, b) =>
     String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? ""))
   );
 };
 
 onMounted(loadHomeData);
+
+// ── header ──
+// 錨點的漢堡選單（寬度不足時）；點錨點後收起
+const navOpen = ref(false);
+const goSection = (id) => {
+  navOpen.value = false;
+  scrollTo(id);
+};
+
+// header 固定在畫面頂端：依實際高度設定 --header-height（Hero 的上方留白、錨點捲動位置），
+// 不再假設固定高度，避免 header 換行變高時蓋住下方內容
+const homeEl = ref(null);
+const headerEl = ref(null);
+let headerObserver = null;
+const onKeydown = (event) => {
+  if (event.key === "Escape") navOpen.value = false;
+};
+onMounted(() => {
+  document.addEventListener("keydown", onKeydown);
+  if (typeof ResizeObserver === "undefined" || !headerEl.value) return;
+  headerObserver = new ResizeObserver(([entry]) => {
+    const height = Math.ceil(entry.borderBoxSize?.[0]?.blockSize ?? entry.target.offsetHeight);
+    homeEl.value?.style.setProperty("--header-height", `${height}px`);
+  });
+  headerObserver.observe(headerEl.value);
+});
+onBeforeUnmount(() => {
+  document.removeEventListener("keydown", onKeydown);
+  headerObserver?.disconnect();
+});
 
 const scrollTo = (id) => {
   document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -614,10 +624,9 @@ const handleRegionChange = () => {
 const goLogin = () => router.push("/login");
 const goRegister = () => router.push("/register");
 const goResource = (id) => router.push(`/user/resources/${id}`);
-// UserMenu 已清除登入狀態；首頁仍停在原頁，這裡清除畫面上的登入者與待辦數
+// UserMenu 已清除登入狀態；首頁仍停在原頁，這裡清除畫面上的登入者
 const onLogout = () => {
   currentUser.value = null;
-  overdueCount.value = 0;
 };
 </script>
 
@@ -670,15 +679,16 @@ const onLogout = () => {
 .header-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 20px;
   padding: 14px 0;
 }
 
 .brand {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: 12px;
+  min-width: 0;
   text-decoration: none;
   color: #3e2723;
 }
@@ -698,7 +708,43 @@ const onLogout = () => {
 .header-nav {
   display: flex;
   align-items: center;
-  gap: 28px;
+  gap: 24px;
+  margin-left: auto;
+}
+
+/* 右側動作：登入／註冊，或進入後台與使用者圖示 */
+.header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-nav + .header-actions {
+  margin-left: 4px;
+}
+
+/* 漢堡按鈕：寬度足夠時不顯示 */
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid #eadfd8;
+  border-radius: 10px;
+  background: #fff;
+  color: #5d4037;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.nav-toggle:focus-visible,
+.header-nav a:focus-visible,
+.btn-admin:focus-visible {
+  outline: 3px solid #c8a27c;
+  outline-offset: 2px;
 }
 
 .header-nav a {
@@ -714,6 +760,9 @@ const onLogout = () => {
 }
 
 .btn-admin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: none;
   background: #b98158;
   color: #fff;
@@ -1082,77 +1131,6 @@ const onLogout = () => {
   box-shadow: 0 0 0 3px rgba(194, 149, 110, 0.12);
 }
 
-/* Provider quick actions */
-.provider-quick-section {
-  padding: var(--space-3) 0 var(--space-2);
-  background: linear-gradient(180deg, #fffaf7 0%, #faf8f5 100%);
-}
-
-.provider-quick-panel {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: rgba(255, 255, 255, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(234, 223, 216, 0.9);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-soft);
-}
-
-.provider-quick-greeting {
-  margin: 0;
-  font-size: 15px;
-  color: #6d4c41;
-  line-height: 1.5;
-}
-
-.provider-quick-greeting strong {
-  color: #3e2723;
-  font-weight: 700;
-}
-
-.provider-quick-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.provider-quick-btn {
-  border: 1px solid rgba(194, 149, 110, 0.35);
-  background: #fff;
-  color: #5d4037;
-  padding: 10px 18px;
-  border-radius: var(--radius-btn);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: var(--card-transition);
-}
-
-
-.role-chip {
-  margin-left: 8px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: #f5ebe3;
-  color: #8a5a3c;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.no-role-note {
-  margin: 0;
-  font-size: 14px;
-  color: #8d6e63;
-}
-
 .denied-notice {
   display: flex;
   align-items: center;
@@ -1173,22 +1151,6 @@ const onLogout = () => {
   color: inherit;
   font-size: 18px;
   cursor: pointer;
-}
-
-.todo-badge {
-  background: #c62828;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  padding: 1px 8px;
-  border-radius: 999px;
-}
-
-.provider-quick-btn:hover {
-  background: #f5ebe3;
-  border-color: #c2956e;
-  box-shadow: var(--shadow-soft);
-  transform: var(--card-hover-transform);
 }
 
 /* Platform quick access */
@@ -2288,24 +2250,17 @@ const onLogout = () => {
 }
 
 @media (max-width: 768px) {
-  .platform-home {
-    --header-height: 108px;
-  }
-
   .platform-home .container {
     padding: 16px;
   }
 
   .header-inner {
-    flex-wrap: wrap;
-    align-items: center;
     padding: 10px 0;
-    gap: 10px 14px;
+    gap: 10px;
   }
 
   .brand {
     flex: 1 1 auto;
-    min-width: 0;
   }
 
   .brand-logo {
@@ -2318,19 +2273,12 @@ const onLogout = () => {
     line-height: 1.3;
   }
 
-  .header-nav {
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-    gap: 10px 14px;
-    justify-content: flex-start;
-  }
-
-  .header-nav a {
-    font-size: 13px;
+  .header-actions {
+    gap: 8px;
   }
 
   .btn-admin {
-    padding: 8px 16px;
+    padding: 8px 14px;
     font-size: 13px;
   }
 
@@ -2364,21 +2312,6 @@ const onLogout = () => {
     background-position: center bottom;
     background-size: cover;
     opacity: 1;
-  }
-
-  .provider-quick-panel {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .provider-quick-actions {
-    width: 100%;
-  }
-
-  .provider-quick-btn {
-    flex: 1 1 auto;
-    justify-content: center;
-    min-width: calc(50% - 4px);
   }
 
   .section {
@@ -2461,6 +2394,64 @@ const onLogout = () => {
   .footer-nav {
     flex-wrap: wrap;
     gap: 14px;
+  }
+}
+
+/* 已登入：進入後台（與「註冊」按鈕同樣式，改用連結） */
+.btn-admin-link {
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-admin-link:hover {
+  color: #fff;
+}
+
+/* 寬度不足時：錨點收進漢堡選單，從 header 下方展開 */
+@media (max-width: 991px) {
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .header-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin: 0;
+    padding: 6px 16px 12px;
+    background: #fff;
+    border-bottom: 1px solid #efe7dc;
+    box-shadow: 0 10px 20px rgba(62, 39, 35, 0.08);
+  }
+
+  .header-nav.open {
+    display: flex;
+  }
+
+  .header-nav a {
+    padding: 12px 4px;
+    border-bottom: 1px solid #f5ede6;
+    font-size: 15px;
+  }
+
+  .header-nav a:last-child {
+    border-bottom: none;
+  }
+
+  .header-actions {
+    margin-left: auto;
+  }
+}
+
+/* 很窄的畫面（例：375px）：品牌文字可換成兩行，讓右側按鈕保有空間 */
+@media (max-width: 480px) {
+  .brand-text {
+    font-size: 13px;
   }
 }
 </style>

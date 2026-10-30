@@ -187,7 +187,7 @@
         <h1 ref="heading" tabindex="-1">評估已送出（{{ created?.code }}）</h1>
         <div class="done-actions">
           <button type="button" class="primary-btn" @click="reset">填寫下一份</button>
-          <button v-if="canOpen('/assessments')" type="button" class="secondary-btn" @click="$router.push('/assessments')">前往評估列表</button>
+          <button v-if="canOpen('/admin/assessments')" type="button" class="secondary-btn" @click="$router.push('/admin/assessments')">前往評估列表</button>
         </div>
       </section>
     </main>

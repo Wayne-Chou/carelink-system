@@ -2,14 +2,12 @@
   <div class="list-page">
     <div class="top-bar">
       <div class="header-left">
-        <button class="back-btn" @click="back">← 返回</button>
       </div>
       <div class="header-center">
         <h2>評估列表</h2>
       </div>
       <div class="header-right">
-        <button v-if="canOpen('/assessment/new')" class="add-btn" data-tour="assessments-new" @click="$router.push('/assessment/new')">＋ 填寫評估</button>
-        <UserMenu />
+        <button v-if="canOpen('/admin/assessments/new')" class="add-btn" data-tour="assessments-new" @click="$router.push('/admin/assessments/new')">＋ 填寫評估</button>
       </div>
     </div>
 
@@ -84,18 +82,15 @@
 
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
-import UserMenu from "../components/UserMenu.vue";
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { STATUS_LABELS } from "../config/assessmentLabels.js";
 import { getAllAssessments, isVoided, maskNationalId, sortForList } from "../services/assessmentService.js";
 import { assessmentRows } from "../services/listViews.js";
-import { goBack } from "../utils/navigation.js";
 
 const router = useRouter();
 // 導向沒有權限的頁面的連結與按鈕一律不顯示
 const canOpen = useCanOpen();
-const back = () => goBack(router, "/");
 
 const assessments = ref(sortForList(getAllAssessments()));
 const searchQuery = ref("");
@@ -125,7 +120,7 @@ const filtered = computed(() => {
   });
 });
 
-const linkOf = (item) => `/assessments/${item.id}`;
+const linkOf = (item) => `/admin/assessments/${item.id}`;
 const open = (item) => router.push(linkOf(item));
 </script>
 

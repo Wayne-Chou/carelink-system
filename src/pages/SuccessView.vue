@@ -25,13 +25,13 @@
       </div>
 
       <div class="action-buttons" data-tour="success-actions">
-        <button v-if="resource && canOpen(`/resources/${resource.id}`)" class="btn-primary" @click="$router.push(`/resources/${resource.id}`)">
+        <button v-if="resource && canOpen(`/admin/resources/${resource.id}`)" class="btn-primary" @click="$router.push(`/admin/resources/${resource.id}`)">
           前往資源詳細頁
         </button>
-        <button v-if="canOpen('/list')" class="btn-again" @click="$router.push('/list')">
+        <button v-if="canOpen('/admin/resources')" class="btn-again" @click="$router.push('/admin/resources')">
           查看資源列表
         </button>
-        <button v-if="canOpen('/form')" class="btn-again" @click="$router.push('/form')">
+        <button v-if="canOpen('/admin/resources/new')" class="btn-again" @click="$router.push('/admin/resources/new')">
           再新增一筆
         </button>
         <button class="btn-home" @click="$router.push('/')">回到首頁</button>

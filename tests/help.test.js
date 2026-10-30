@@ -14,8 +14,7 @@ const {
 } = await import("../src/config/help.js");
 
 const read = (path) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
-const ROUTER_SOURCE = read("router/index.js");
-const ROUTE_NAMES = [...ROUTER_SOURCE.matchAll(/name: "([a-z-]+)"|meta\("([a-z-]+)"\)/g)].map((m) => m[1] ?? m[2]);
+const { ROUTE_NAMES, navigateTo } = await import("./helpers/routing.js");
 
 test("選單：角色預覽、模擬信箱、重看這一頁的導覽、重看歡迎介紹、自動導覽開關", () => {
   assert.deepEqual(
@@ -66,9 +65,11 @@ test("模擬信箱入口：登入頁移除；註冊送出後、忘記密碼頁�
   }
 });
 
-test("/sitemap：導向首頁並自動打開角色預覽面板", () => {
+test("/sitemap：導向首頁並自動打開角色預覽面板", async () => {
   assert.deepEqual(ROLE_PREVIEW_LINK, { path: "/", query: { [HELP_QUERY_KEY]: HELP_ROLE_PREVIEW } });
-  assert.ok(ROUTER_SOURCE.includes(`{ path: "/sitemap", name: "sitemap", redirect: ROLE_PREVIEW_LINK }`));
+  const arrived = await navigateTo("/sitemap");
+  assert.equal(arrived.name, "home");
+  assert.equal(arrived.query[HELP_QUERY_KEY], HELP_ROLE_PREVIEW);
   const button = read("components/HelpButton.vue");
   assert.match(button, /route\.query\[HELP_QUERY_KEY\]/, "依網址參數自動打開");
 });
