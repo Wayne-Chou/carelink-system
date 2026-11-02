@@ -19,10 +19,9 @@ const { getAssessmentById } = await import("../src/services/assessmentService.js
 const { loadDemoData } = await import("../src/services/demoData.js");
 const { DEMO_ACCOUNTS, ROLE_CODES } = await import("../src/config/roles.js");
 const auth = await import("../src/utils/auth.js");
-const { ROLE_PREVIEW_LINK } = await import("../src/config/help.js");
 
 // 樣板中直接使用的網址常數 → 網址
-const KNOWN_TARGETS = { ROLE_PREVIEW_LINK: ROLE_PREVIEW_LINK.path };
+const KNOWN_TARGETS = {};
 
 // ── 網址 → 路由名稱：以與實際相同的路由表解析（舊網址只是導向，不算數，頁面上必須用新網址）──
 const { resolvePath } = await import("./helpers/routing.js");
@@ -69,9 +68,7 @@ function functionBody(script, name) {
 }
 
 // 不需檢查的導向與原因
-const EXEMPT = {
-  "RolePreview.vue enterAsRole": "先以該角色的示範帳號登入，再前往該角色的首頁（tests/rolePreview.test.js 檢查首頁網址）",
-};
+const EXEMPT = {};
 
 function collectNavigations(file, source) {
   const { descriptor } = parse(source, { filename: file });

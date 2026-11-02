@@ -87,12 +87,6 @@ export const FILL_MODE_OPTIONS = [
   { code: "proxy", label: "家屬（或陪同者）協助回答" },
 ];
 
-export function getQuestionText(key) {
-  if (key === "q11") return Q11_TEXT;
-  if (key === "q12") return Q12_TEXT;
-  return QUESTIONS.find((q) => q.key === key)?.text ?? "";
-}
-
 // Q11 代碼 → 原文標題（判讀頁顯示用）
 export function getQ11Label(code) {
   for (const group of Q11_GROUPS) {

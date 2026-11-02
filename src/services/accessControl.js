@@ -37,12 +37,6 @@ export function editableFieldsFor(user) {
 export const canBindProvider = (user) => can(user, "resource.bindProvider");
 export const canViewChangeLog = (user) => can(user, "resource.viewChangeLog");
 
-// 資源端後台：可檢視任何資源，或只限自己綁定的資源
-export function canUseDashboard(user, resourceId) {
-  if (can(user, "resource.dashboardAny")) return true;
-  return can(user, "resource.dashboard") && !!user.resourceId && String(user.resourceId) === String(resourceId);
-}
-
 // 資源點進入資源端後台時固定使用綁定的資源；其他角色沿用資源列表選擇的資源
 export function dashboardResourceId(user, selectedId = "") {
   if (can(user, "resource.dashboardAny")) return selectedId;
@@ -57,7 +51,6 @@ export function canViewAssessment(user, assessment) {
 
 export const canReviewAssessment = (user) => can(user, "assessment.review");
 export const canManageResources = (user) => can(user, "resource.manage");
-export const canOpenCase = (user) => can(user, "case.manage");
 
 /**
  * 路由檢查（router.beforeEach 使用）

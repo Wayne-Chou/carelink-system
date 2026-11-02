@@ -503,6 +503,7 @@
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, ref, watch } from "vue";
+import { confirmDialog } from "../services/dialogService.js";
 import { useRoute, useRouter } from "vue-router";
 import FieldValue from "../components/FieldValue.vue";
 import { getNeedTagLabel, getPrescriptionTypeLabel } from "../config/needTags.js";
@@ -688,14 +689,17 @@ const bindCandidates = computed(() => {
     .map((a) => ({ ...a, boundLabel: a.resourceId ? resourceLabel(a.resourceId) : "" }));
 });
 
-const bindSelected = () => {
+const bindSelected = async () => {
   const account = bindCandidates.value.find((a) => a.email === selectedAccount.value);
   if (!account || !resource.value) return;
   if (
     account.boundLabel &&
-    !confirm(
-      `「${account.name || account.email}」目前已綁定「${account.boundLabel}」。\n\n一個資源點帳號只能綁定一筆資源，改綁後會解除原本的綁定。確定要改綁到這筆資源？`
-    )
+    !(await confirmDialog({
+      id: "resource-rebind",
+      title: "確定要改綁到這筆資源？",
+      message: `「${account.name || account.email}」目前已綁定「${account.boundLabel}」。\n\n一個資源點帳號只能綁定一筆資源，改綁後會解除原本的綁定。`,
+      confirmText: "改綁",
+    }))
   ) {
     return;
   }
@@ -707,8 +711,15 @@ const bindSelected = () => {
   bindingVersion.value += 1;
 };
 
-const unbind = (account) => {
-  if (!confirm(`確定要解除「${account.name || account.email}」的綁定？\n\n解除後這個帳號無法進入資源端後台。`)) return;
+const unbind = async (account) => {
+  const ok = await confirmDialog({
+    id: "resource-unbind",
+    title: "確定要解除綁定？",
+    message: `解除「${account.name || account.email}」的綁定後，這個帳號無法進入資源端後台。`,
+    confirmText: "解除綁定",
+    tone: "danger",
+  });
+  if (!ok) return;
   const result = unbindProviderAccount(account.email);
   bindingMessage.value = result.ok ? `已解除 ${account.name || account.email} 的綁定` : result.error;
   bindingVersion.value += 1;

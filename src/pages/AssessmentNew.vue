@@ -198,6 +198,7 @@
 import { startPageTour } from "../services/tourController.js";
 import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, nextTick, reactive, ref, watch } from "vue";
+import { confirmDialog } from "../services/dialogService.js";
 import { useRouter } from "vue-router";
 import {
   ANSWER_OPTIONS,
@@ -342,8 +343,19 @@ const reset = () => {
 const hasInput = () =>
   !!form.person.name || Object.values(form.answers).some((v) => (Array.isArray(v) ? v.length : v));
 
-const exit = () => {
-  if (current.value !== "done" && hasInput() && !confirm("尚未送出，離開後填寫內容不會保存。確定要離開嗎？")) {
+const exit = async () => {
+  if (
+    current.value !== "done" &&
+    hasInput() &&
+    !(await confirmDialog({
+      id: "assessment-leave",
+      title: "確定要離開嗎？",
+      message: "這份評估尚未送出，離開後填寫內容不會保存。",
+      confirmText: "離開",
+      cancelText: "繼續填寫",
+      tone: "danger",
+    }))
+  ) {
     return;
   }
   goBack(router, "/");

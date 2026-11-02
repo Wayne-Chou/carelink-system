@@ -10,7 +10,8 @@ globalThis.sessionStorage = session;
 
 const tours = await import("../src/config/tours.js");
 const state = await import("../src/services/tourState.js");
-const { SITEMAP_GROUPS } = await import("../src/config/sitemap.js");
+const { routeMeta } = await import("../src/router/access.js");
+const { can } = await import("../src/services/accessControl.js");
 const { ROLE_CODES, DEMO_ACCOUNTS } = await import("../src/config/roles.js");
 const { HELP_HIDDEN_ROUTES, visibleHelpItems } = await import("../src/config/help.js");
 
@@ -42,14 +43,16 @@ const marksForRoute = (routeName) => {
   return marks;
 };
 
-// 需要導覽的頁面：每個角色能進入的頁面，以及公開頁
+// 需要導覽的頁面：每個角色有權限進入的頁面（依路由的 permission），以及公開頁
 const PUBLIC_PAGES = ["login", "register", "forgot-password", "reset-password", "mailbox", "home", "explore", "user-resource-detail"];
 const ROLE_PAGES = Object.fromEntries(
-  SITEMAP_GROUPS.filter((g) => g.role).map((g) => [g.role, g.pages.map((p) => p.route)])
+  ROLE_CODES.map((role) => [
+    role,
+    ROUTES.filter((r) => r.page && routeMeta(r.name).requiresAuth)
+      .filter((r) => !routeMeta(r.name).permission || can({ role }, routeMeta(r.name).permission))
+      .map((r) => r.name),
+  ])
 );
-// 網站地圖沒有列出、但角色能進入的頁面
-ROLE_PAGES.admin.push("success");
-ROLE_PAGES.resource_manager.push("success");
 const ALL_TOUR_ROUTES = [...new Set([...PUBLIC_PAGES, ...Object.values(ROLE_PAGES).flat()])];
 
 describe("導覽腳本", () => {
@@ -185,8 +188,8 @@ describe("紀錄與自動執行", () => {
 
   test("角落選單：重看這一頁的導覽（有導覽的頁面）、重看歡迎介紹（登入後）、自動導覽開關", () => {
     const keys = (ctx) => visibleHelpItems(ctx).map((i) => i.key);
-    assert.deepEqual(keys({ routeName: "home", user: user("admin") }), ["rolePreview", "mailbox", "pageTour", "welcome", "autoTour"]);
-    assert.deepEqual(keys({ routeName: "home", user: null }), ["rolePreview", "mailbox", "pageTour", "autoTour"], "未登入沒有歡迎介紹");
-    assert.deepEqual(keys({ routeName: "sitemap", user: null }), ["rolePreview", "mailbox", "autoTour"], "沒有導覽的頁面不顯示重看");
+    assert.deepEqual(keys({ routeName: "home", user: user("admin") }), ["loadDemo", "mailbox", "pageTour", "welcome", "autoTour"]);
+    assert.deepEqual(keys({ routeName: "home", user: null }), ["loadDemo", "mailbox", "pageTour", "autoTour"], "未登入沒有歡迎介紹");
+    assert.deepEqual(keys({ routeName: "sitemap", user: null }), ["loadDemo", "mailbox", "autoTour"], "沒有導覽的頁面不顯示重看");
   });
 });

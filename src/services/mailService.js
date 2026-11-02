@@ -46,14 +46,6 @@ export function getMails() {
   return readAccountList(MAILS_KEY);
 }
 
-export function getMailById(id) {
-  return getMails().find((m) => m.id === id) ?? null;
-}
-
-export function getMailsTo(email) {
-  return getMails().filter((m) => m.to === normalizeEmail(email));
-}
-
 // 依收件人分組：收件人依 Email 排序，每組的信件新的在前
 export function getMailboxes() {
   const groups = new Map();

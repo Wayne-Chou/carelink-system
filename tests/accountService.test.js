@@ -49,8 +49,10 @@ function application(role = "reader", patch = {}, details = {}) {
 }
 
 const apply = (role, patch, details, options) => svc.submitApplication(application(role, patch, details), options);
-const mailTypes = (to) => mail.getMailsTo(to).map((m) => m.type);
-const lastMailTo = (to) => mail.getMailsTo(to).at(-1);
+const mailsTo = (to) => mail.getMails().filter((m) => m.to === to);
+const mailTypes = (to) => mailsTo(to).map((m) => m.type);
+const lastMailTo = (to) => mailsTo(to).at(-1);
+const accountById = (id) => svc.listAccounts().find((a) => String(a.id) === String(id)) ?? null;
 const approve = (id, extra = {}, options) =>
   svc.reviewAccount(id, { decision: "approve", methods: ["phone"], ...extra }, ADMIN, options);
 const tokenIn = (m) => m.links[0].path.split("token=")[1];
@@ -108,7 +110,7 @@ describe("註冊申請", () => {
   test("送出後為待審核、沒有密碼，只保留所選角色的額外欄位，不能登入", () => {
     const result = apply("reader");
     assert.equal(result.ok, true);
-    const account = svc.getAccountById(result.account.id);
+    const account = accountById(result.account.id);
     assert.equal(account.status, "pending");
     assert.deepEqual(account.details, { medicalType: "nurse", licenseNo: "範例字第 001 號", institution: "範例醫院" });
     assert.equal("password" in account, false, "帳號列表不列出密碼");
@@ -153,7 +155,7 @@ describe("審核", () => {
       { now: at("10:00") }
     );
     assert.equal(result.ok, true);
-    const reviewed = svc.getAccountById(account.id);
+    const reviewed = accountById(account.id);
     assert.equal(reviewed.status, "active");
     assert.deepEqual(reviewed.review.methods, ["phone", "medical_license"]);
     assert.deepEqual(reviewed.review.reviewer, ADMIN);
@@ -178,7 +180,7 @@ describe("審核", () => {
     assert.ok(svc.reviewAccount(account.id, { decision: "approve", methods: ["other"] }, ADMIN).errors.methodOther);
     assert.ok(svc.reviewAccount(account.id, { decision: "reject", methods: ["phone"] }, ADMIN).errors.reason);
     assert.ok(svc.reviewAccount(account.id, { methods: ["phone"] }, ADMIN).errors.decision);
-    assert.equal(svc.getAccountById(account.id).status, "pending", "沒通過檢查時狀態不變");
+    assert.equal(accountById(account.id).status, "pending", "沒通過檢查時狀態不變");
   });
 
   test("資源點通過時完成綁定；審核者可以改成其他資源", () => {
@@ -190,14 +192,14 @@ describe("審核", () => {
     assert.equal(auth.getProviderAccountsForResource(RES_A).length, 1, "待審核的申請還沒綁定");
     approve(second.account.id, { resourceId: RES_B });
     assert.deepEqual(auth.getProviderAccountsForResource(RES_B).map((a) => a.email), ["chen@example.com"]);
-    assert.equal(svc.getAccountById(second.account.id).review.resourceId, RES_B);
+    assert.equal(accountById(second.account.id).review.resourceId, RES_B);
     assert.match(lastMailTo("chen@example.com").body, /綁定的資源：Res102/);
   });
 
   test("退回：登入時與密碼錯誤相同（原因只寫在退回信中）；退回信附重新申請連結", () => {
     const { account } = apply("reader");
     svc.reviewAccount(account.id, { decision: "reject", methods: ["phone"], reason: "查無醫事人員證書" }, ADMIN);
-    assert.equal(svc.getAccountById(account.id).status, "rejected");
+    assert.equal(accountById(account.id).status, "rejected");
     assert.deepEqual(auth.login({ email: "li@example.com", password: "anything1" }), FAILED);
     const m = lastMailTo("li@example.com");
     assert.equal(m.type, "rejected");
@@ -270,7 +272,7 @@ describe("停用與重新啟用", () => {
     assert.equal(svc.reactivateAccount(id, { note: "復職" }, ADMIN).ok, true);
     assert.equal(auth.login({ email: "w@example.com", password: "test1234" }).ok, true);
     assert.equal(lastMailTo("w@example.com").type, "reactivated");
-    assert.deepEqual(svc.getAccountById(id).history.map((h) => [h.action, h.reason]), [
+    assert.deepEqual(accountById(id).history.map((h) => [h.action, h.reason]), [
       ["suspend", "已離職"],
       ["reactivate", "復職"],
     ]);
@@ -284,7 +286,7 @@ describe("系統管理員建立帳號", () => {
       const result = svc.createAccount({ ...svc.createEmptyAccountForm(), name: `${role}範例`, email: `${role}@example.com`, role }, ADMIN);
       assert.equal(result.ok, true, role);
       assert.equal(result.account.status, "active");
-      assert.equal(svc.getAccountById(result.account.id).hasPassword, false);
+      assert.equal(accountById(result.account.id).hasPassword, false);
       assert.deepEqual(result.account.createdBy, ADMIN);
     }
     assert.deepEqual(auth.login({ email: "admin@example.com", password: "" }), FAILED, "尚未設定密碼不能登入");
@@ -456,6 +458,6 @@ describe("帳號列表、待辦與模擬信箱", () => {
     assert.deepEqual(boxes.map((b) => b.to), ["admin@demo.carelink", "li@example.com"]);
     assert.deepEqual(boxes[1].mails.map((m) => m.type), ["approved", "application_received"]);
     assert.ok(session.data.mockMails, "存在 sessionStorage");
-    assert.equal(mail.getMailById(boxes[1].mails[0].id).subject, "【CareLink】帳號已開通，請設定密碼");
+    assert.equal(mail.getMails().find((m) => m.id === boxes[1].mails[0].id).subject, "【CareLink】帳號已開通，請設定密碼");
   });
 });

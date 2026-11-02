@@ -96,7 +96,7 @@ export const PAGE_TOURS = {
     { target: "home-featured", title: "精選資源", text: "最近更新、目前可以參加的資源。" },
     { target: "home-admin-link", title: "進入後台", text: "你的工作功能都在後台，按「進入後台」前往。", roles: STAFF },
     { target: "home-user-menu", title: "目前登入的帳號", text: "點右上角的使用者圖示，可以看到姓名、角色，也可以登出。", roles: STAFF },
-    { target: "help-button", title: "需要幫忙時", text: "右下角的「?」可以重看導覽與歡迎介紹，或開啟角色預覽、模擬信箱。" },
+    { target: "help-button", title: "需要幫忙時", text: "右下角的「?」可以重看導覽與歡迎介紹、開啟模擬信箱或載入示範資料。" },
   ],
   explore: [
     { target: "explore-search", title: "搜尋", text: "輸入關鍵字或地址後按「搜尋」。" },

@@ -1,12 +1,12 @@
 // 執行：node --test "tests/**/*.test.js"
-// 使用 Node 內建 node:test，不需額外安裝套件；localStorage 以記憶體物件模擬
+// 使用 Node 內建 node:test，不需額外安裝套件；瀏覽器儲存以記憶體物件模擬
 
 import { describe, test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { memoryStorage } from "./helpers/memoryStorage.js";
 
 let store;
-// 資料存在 sessionStorage（storage.js 的 DATA_STORAGE）；localStorage 另外模擬，供清除舊資料使用
+// 資料存在 sessionStorage（storage.js 的 DATA_STORAGE）；localStorage 另外模擬
 globalThis.localStorage = memoryStorage();
 globalThis.sessionStorage = {
   getItem: (key) => (key in store ? store[key] : null),
@@ -207,26 +207,14 @@ test("geo 預設為 null，資料結構不再有 mapUrl", () => {
   assert.equal("mapUrl" in created, false);
 });
 
-test("讀取時清除既有資料中的 mapUrl，保留有效的 geo", () => {
+test("讀取時保留有效的 geo，座標不完整時為 null", () => {
   store.resources = JSON.stringify([
-    { ...createEmptyResource(), id: "a", name: "有座標", needTags: [], mapUrl: "https://maps.example", geo: { lat: 25, lng: 121.4 } },
+    { ...createEmptyResource(), id: "a", name: "有座標", needTags: [], geo: { lat: 25, lng: 121.4 } },
     { ...createEmptyResource(), id: "b", name: "座標不完整", needTags: [], geo: { lat: 25, lng: null } },
   ]);
   const [a, b] = getAllResources();
-  assert.equal("mapUrl" in a, false);
   assert.deepEqual(a.geo, { lat: 25, lng: 121.4 });
   assert.equal(b.geo, null);
-});
-
-test("舊格式資料的 lat/lng 轉到 geo，沒有座標則為 null", () => {
-  store.resources = JSON.stringify([
-    { id: 1745000000000, name: "舊有座標", address: "新北市板橋區", lat: "25.01", lng: 121.46, tags: [] },
-    { id: 1745000000001, name: "舊無座標", address: "新北市板橋區", lat: null, lng: null, tags: [] },
-  ]);
-  const [withGeo, withoutGeo] = getAllResources();
-  assert.deepEqual(withGeo.geo, { lat: 25.01, lng: 121.46 });
-  assert.equal(withoutGeo.geo, null);
-  assert.equal("lat" in withGeo, false);
 });
 
 test("getRecommendableResources 排除未做風險評估的資源", () => {
@@ -266,22 +254,22 @@ describe("資源編碼", () => {
   });
 
   test("流水號取目前最大編號加一，超過 999 時位數自動增加", async () => {
-    const { formatResourceCode, getNextResourceCode } = await import("../src/services/resourceService.js");
-    assert.equal(formatResourceCode(7), "Res007");
-    assert.equal(formatResourceCode(1000), "Res1000");
+    const { getNextResourceCode } = await import("../src/services/resourceService.js");
+    assert.equal(getNextResourceCode([{ code: "Res006" }]), "Res007");
+    assert.equal(getNextResourceCode([{ code: "Res999" }]), "Res1000");
     assert.equal(getNextResourceCode([{ code: "Res009" }, { code: "Res002" }, { code: null }, { code: "X1" }]), "Res010");
     assert.equal(getNextResourceCode([]), "Res001");
   });
 
-  test("編輯時不可修改編碼；沒有編碼的舊資料在儲存時補上", () => {
+  test("編輯時不可修改編碼；沒有編碼的資料在儲存時補上", () => {
     const a = createResource({ name: "A" });
     assert.equal(updateResource(a.id, { code: "Res999", name: "A2" }).code, "Res001");
 
     const raw = JSON.parse(store.resources);
-    raw.push({ id: 1745000000000, name: "舊資料", address: "新北市板橋區", tags: [] });
+    raw.push({ ...createEmptyResource(), id: "no-code", name: "沒有編碼", code: null });
     store.resources = JSON.stringify(raw);
-    assert.equal(getResourceById("1745000000000").code, null, "讀取時不自動產生");
-    assert.equal(updateResource("1745000000000", { name: "舊資料（已編輯）" }).code, "Res002");
+    assert.equal(getResourceById("no-code").code, null, "讀取時不自動產生");
+    assert.equal(updateResource("no-code", { name: "沒有編碼（已編輯）" }).code, "Res002");
   });
 
   test("已有資源時，新增的資源接在目前最大編號之後", () => {

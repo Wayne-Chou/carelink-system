@@ -4,7 +4,6 @@ import {
   RED_REMINDER,
   adviseAssessment,
   buildSuggestedTags,
-  getOrangeTypeHint,
 } from "../src/services/assessmentAdvisor.js";
 
 const ALL_YES = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`q${i + 1}`, "yes"]));
@@ -86,12 +85,6 @@ describe("各題提示", () => {
   test("黃燈且民眾選擇請專人陪同時提示考慮改判橘燈", () => {
     const advice = adviseAssessment(make({}, { light: "yellow", escortOffered: true }));
     assert.ok(advice.prompts.general.some((p) => p.includes("改判橘燈")));
-  });
-
-  test("橘燈類型提示", () => {
-    assert.match(getOrangeTypeHint("hesitant"), /封閉提問/);
-    assert.match(getOrangeTypeHint("reserved"), /婉拒原因/);
-    assert.equal(getOrangeTypeHint("refer"), "");
   });
 });
 

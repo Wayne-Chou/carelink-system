@@ -496,6 +496,7 @@
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, reactive, ref, watch } from "vue";
+import { confirmDialog } from "../services/dialogService.js";
 import { useRoute, useRouter } from "vue-router";
 import ChipSelect from "../components/ChipSelect.vue";
 import {
@@ -730,7 +731,7 @@ const submitLinkage = () => {
 };
 
 // 連結失敗時詢問是否退回第 2 階段（不自動退回）
-const submitReport = () => {
+const submitReport = async () => {
   const result = updateLinkageStatus(
     caseItem.value.id,
     { status: reportForm.status, attendance: reportForm.attendance || null, providerNote: reportForm.providerNote },
@@ -740,15 +741,27 @@ const submitReport = () => {
   refresh("已記錄連結結果");
   if (
     result?.suggestReturnToConsultation &&
-    confirm("連結失敗，是否退回第 2 階段重新評估？\n\n選「取消」則留在連結階段，可以直接重新選擇資源。")
+    (await confirmDialog({
+      id: "case-return-after-failure",
+      title: "連結失敗，是否退回第 2 階段重新評估？",
+      message: "選「留在連結階段」則可以直接重新選擇資源。",
+      confirmText: "退回第 2 階段",
+      cancelText: "留在連結階段",
+    }))
   ) {
     returnToConsultation(caseItem.value.id, { actor: actor(), note: "連結失敗，退回諮詢重新評估" });
     refresh("已退回「諮詢」階段");
   }
 };
 
-const confirmReturn = (note) => {
-  if (!confirm("確定要退回第 2 階段重新評估嗎？")) return;
+const confirmReturn = async (note) => {
+  const ok = await confirmDialog({
+    id: "case-return",
+    title: "確定要退回第 2 階段重新評估嗎？",
+    message: "退回後回到「諮詢」階段，重新和民眾討論需要與目標；原本的連結紀錄會保留。",
+    confirmText: "退回第 2 階段",
+  });
+  if (!ok) return;
   returnToConsultation(caseItem.value.id, { actor: actor(), note });
   refresh("已退回「諮詢」階段");
 };
@@ -772,12 +785,21 @@ const closeFollowForm = () => {
 };
 
 // 影響為惡化時詢問是否退回第 2 階段（不自動退回）
-const submitFollowUp = () => {
+const submitFollowUp = async () => {
   const { round, ...entry } = followForm;
   const result = recordFollowUp(caseItem.value.id, round, { ...entry }, { actor: actor() });
   closeFollowForm();
   refresh(`已記錄 ${round} 個月追蹤`);
-  if (result?.suggestReturnToConsultation && confirm("追蹤結果為「惡化」，是否退回第 2 階段重新評估？")) {
+  if (
+    result?.suggestReturnToConsultation &&
+    (await confirmDialog({
+      id: "case-return-after-worse",
+      title: "追蹤結果為「惡化」，是否退回第 2 階段重新評估？",
+      message: "選「留在追蹤階段」則繼續依排程追蹤。",
+      confirmText: "退回第 2 階段",
+      cancelText: "留在追蹤階段",
+    }))
+  ) {
     returnToConsultation(caseItem.value.id, { actor: actor(), note: "追蹤惡化，退回諮詢重新評估" });
     refresh("已退回「諮詢」階段");
   }

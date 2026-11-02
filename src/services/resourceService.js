@@ -1,12 +1,10 @@
 // 社區資源資料層：所有資源的讀寫集中在這裡（規格見 doc/specs/resource-schema.md）
-// 讀取時會把舊格式資料在記憶體中轉成新格式；只有呼叫寫入函式時才會把整份新格式寫回儲存區（經 storage.js）。
+// 讀取時在記憶體中補齊預設欄位；只有呼叫寫入函式時才會把整份資料寫回儲存區（經 storage.js）。
 
-import { NEED_TAGS, derivePrescriptionTypes } from "../config/needTags.js";
-import { parseCityDistrict } from "../config/districts.js";
+import { derivePrescriptionTypes } from "../config/needTags.js";
 import {
   DERIVE_PRESCRIPTION_TYPES_FROM_TAGS,
   NEW_RESOURCE_WINDOW_MONTHS,
-  RISK_LEVELS,
   VERIFY_INTERVAL_MONTHS,
   VERIFY_INTERVAL_MONTHS_NEW_OR_YELLOW,
   applyHighRiskRule,
@@ -18,11 +16,10 @@ import { readList, writeList } from "./storage.js";
 import { addMonths, formatDate, nowDateTime, todayString } from "../utils/date.js";
 import { generateId } from "../utils/id.js";
 import { deepMerge, isPlainObject } from "../utils/object.js";
-import { codePattern, formatCode, nextCode } from "../utils/sequenceCode.js";
+import { codePattern, nextCode } from "../utils/sequenceCode.js";
 
 const STORAGE_KEY = "resources";
 
-const toArray = (v) => (Array.isArray(v) ? v : []);
 const toNumberOrNull = (v) => (v === null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
 // ── 儲存（經 storage.js）────────────────────────────────────
@@ -122,7 +119,6 @@ function normalizeGeo(lat, lng) {
 }
 
 // 以預設值補齊缺漏欄位；巢狀物件逐層補、型別不符的陣列改用預設值
-// 已從資料結構移除的欄位（mapUrl）在這裡一併清掉
 function mergeWithDefaults(raw) {
   const defaults = createEmptyResource();
   const merged = { ...raw };
@@ -141,130 +137,14 @@ function mergeWithDefaults(raw) {
     }
   }
   merged.geo = isPlainObject(merged.geo) ? normalizeGeo(merged.geo.lat, merged.geo.lng) : null;
-  delete merged.mapUrl;
   if (merged.id !== null && merged.id !== undefined) merged.id = String(merged.id);
   return merged;
 }
 
-// ── 舊資料轉換 ────────────────────────────────────────────
-// 舊格式來自目前的 ResourceForm.vue：中文選項值、address 為字串、沒有 needTags
-
-const LEGACY_STATUS = { active: "active", approved: "active", pause: "paused", end: "terminated", season: "seasonal" };
-const LEGACY_PARTNERSHIP = { formal: "formal", oral: "verbal", none: "unconfirmed" };
-const LEGACY_SCHEDULE_TYPE = { normal: "regular", batch: "batch", once: "once" };
-const LEGACY_PARTICIPATION = { 自由參加: "walk_in", 須報名: "registration", 僅接受轉介: "referral_only" };
-const LEGACY_FEE = { 免費: "free", 自費: "paid", 補助: "subsidized" };
-const LEGACY_ACCESSIBILITY = {
-  無障礙空間: "barrier_free",
-  失智者友善: "dementia_friendly",
-  長者友善: "senior_friendly",
-  兒童友善: "child_friendly",
-  性別友善: "gender_friendly",
-};
-const LEGACY_AGE_GROUPS = { 長者: "senior", 成人: "adult" };
-const LEGACY_IDENTITIES = { 慢性病: "chronic", 照顧者: "caregiver", 身心障礙: "disability" };
-// 舊表單標籤文字與新代碼表不同的另列
-const LEGACY_TAG_ALIASES = { 藝術文化: "arts_culture" };
-const TAG_CODE_BY_LABEL = {
-  ...Object.fromEntries(NEED_TAGS.map((t) => [t.label, t.code])),
-  ...LEGACY_TAG_ALIASES,
-};
-
-function isLegacyResource(raw) {
-  return typeof raw.address === "string" || !Array.isArray(raw.needTags);
-}
-
-function convertLegacyTags(tags) {
-  const codes = [];
-  const unknown = [];
-  for (const tag of toArray(tags)) {
-    const code = TAG_CODE_BY_LABEL[tag];
-    if (code) codes.push(code);
-    else if (tag) unknown.push(tag);
-  }
-  if (unknown.length) codes.push("other");
-  return { needTags: [...new Set(codes)], needTagOther: unknown.length ? unknown.join("、") : null };
-}
-
-function convertLegacyCapacity(value) {
-  const text = String(value ?? "").trim();
-  if (!text) return { type: "", limit: null };
-  if (text.includes("不限")) return { type: "open", limit: null };
-  const number = /\d+/.exec(text);
-  return number ? { type: "limited", limit: Number(number[0]) } : { type: "other", limit: null };
-}
-
-function convertLegacyStatus(value) {
-  if (LEGACY_STATUS[value]) return { status: LEGACY_STATUS[value], pauseReason: null };
-  // 無法辨識的狀態一律暫停，避免出現在民眾端
-  return { status: "paused", pauseReason: `舊資料狀態無法辨識（原值：${value ?? "空白"}）` };
-}
-
-// 舊資料的數字 id 是 Date.now() 產生的，可還原為建立時間
-function legacyCreatedAt(id) {
-  return typeof id === "number" && id > 1e12 ? new Date(id).toISOString() : null;
-}
-
-function convertLegacyResource(raw, index) {
-  const { status, pauseReason } = convertLegacyStatus(raw.status);
-  const { needTags, needTagOther } = convertLegacyTags(raw.tags);
-  const addressText = typeof raw.address === "string" ? raw.address : "";
-  const { city, district, zip } = parseCityDistrict(addressText);
-  const targetGroups = toArray(raw.targetGroups);
-  const ageGroups = targetGroups.map((g) => LEGACY_AGE_GROUPS[g]).filter(Boolean);
-  const identities = targetGroups.map((g) => LEGACY_IDENTITIES[g]).filter(Boolean);
-  const participation = LEGACY_PARTICIPATION[raw.participation];
-  const createdAt = legacyCreatedAt(raw.id);
-
-  return mergeWithDefaults({
-    id: raw.id ?? `legacy-${index}`,
-    lastVerifiedAt: raw.lastVerifyDate || "",
-    nextVerifyAt: raw.nextVerifyDate || "",
-    status,
-    pauseReason,
-    createdAt,
-    updatedAt: createdAt,
-
-    name: raw.name || "",
-    organization: raw.organization || "",
-    description: raw.content || "",
-    needTags,
-    needTagOther,
-    prescriptionTypes: derivePrescriptionTypes(needTags),
-    capacity: convertLegacyCapacity(raw.capacity),
-    availability: { type: raw.capacityStatus || "", slots: null, nextBatch: null },
-    schedule: createEmptySchedule(LEGACY_SCHEDULE_TYPE[raw.cycle] || "regular"),
-    placeName: raw.locationName || "",
-    address: { zip, city, district, detail: addressText },
-    // 舊資料若有 lat/lng 保留到 geo
-    geo: normalizeGeo(raw.lat, raw.lng),
-
-    // 舊資料沒有五項判斷條件，保留原本的整體等級；缺值時保守視為黃燈
-    riskLevel: RISK_LEVELS.includes(raw.riskLevel) ? raw.riskLevel : "yellow",
-    riskChangeNote: raw.riskNote || null,
-
-    ageGroups: ageGroups.length ? ageGroups : ["all"],
-    identities: identities.length ? identities : ["all"],
-    participation: participation || (raw.participation ? "other" : ""),
-    participationOther: !participation && raw.participation ? raw.participation : null,
-    accessibility: toArray(raw.accessibility).map((a) => LEGACY_ACCESSIBILITY[a]).filter(Boolean),
-    fee: { type: LEGACY_FEE[raw.feeType] || "", detail: null },
-
-    partnership: LEGACY_PARTNERSHIP[raw.coopStatus] || "unconfirmed",
-    publicContact: { name: raw.contactName || "", phone: raw.contactPhone || "", emailOrLine: null },
-
-    keywords: String(raw.keywords ?? "")
-      .split(/[,，、\s]+/)
-      .map((k) => k.trim())
-      .filter(Boolean),
-    scenarios: raw.aiContext || null,
-  });
-}
-
-// 任一筆資料（新或舊格式）轉成完整的新格式；非物件回傳 null
-export function normalizeResource(raw, index = 0) {
+// 任一筆資料補齊預設欄位；非物件回傳 null
+export function normalizeResource(raw) {
   if (!isPlainObject(raw)) return null;
-  return isLegacyResource(raw) ? convertLegacyResource(raw, index) : mergeWithDefaults(raw);
+  return mergeWithDefaults(raw);
 }
 
 // ── 驗證週期 ──────────────────────────────────────────────
@@ -309,7 +189,7 @@ function applyRules(resource) {
 
 export function getAllResources() {
   return readRaw()
-    .map((raw, index) => normalizeResource(raw, index))
+    .map((raw) => normalizeResource(raw))
     .filter(Boolean);
 }
 
@@ -328,10 +208,6 @@ export function getRecommendableResources(context = "referral") {
 
 const CODE_PREFIX = "Res";
 export const RESOURCE_CODE_PATTERN = codePattern(CODE_PREFIX);
-
-export function formatResourceCode(number) {
-  return formatCode(CODE_PREFIX, number);
-}
 
 // 下一個可用的資源編碼（新增表單用來預覽）
 export function getNextResourceCode(resources = getAllResources()) {
@@ -402,7 +278,7 @@ export function pickFields(patch = {}, allowed = null) {
 // patch 為深層合併：例如只傳 { address: { city } }，address 其他欄位保留；陣列整個替換
 // schedule.type 變更時以新類型的空白結構為底，避免殘留舊類型欄位
 // patch 若明確帶 nextVerifyAt 視為手動調整；否則在最後驗證日或風險等級變動時重新計算
-// 資源編碼不可修改；沒有編碼的舊資料在這次儲存時補上
+// 資源編碼不可修改；沒有編碼的資料在這次儲存時補上
 /**
  * 修改資源
  * options.actor：修改者 { name, role }，寫入修改紀錄

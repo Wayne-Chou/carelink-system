@@ -89,10 +89,11 @@
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, ref } from "vue";
+import { alertDialog, confirmDialog, promptDialog } from "../services/dialogService.js";
 import { useRouter } from "vue-router";
 import { FIRST_CONTACT_HOURS } from "../config/assessmentRules.js";
 import { STAGE_OPTIONS } from "../config/caseLabels.js";
-import { createCase, deleteCase, getAllCases } from "../services/caseService.js";
+import { canDeleteCase, createCase, deleteCase, getAllCases } from "../services/caseService.js";
 import { caseRows } from "../services/listViews.js";
 import { getCurrentUser } from "../utils/auth.js";
 import { toDateString } from "../utils/date.js";
@@ -110,7 +111,7 @@ const reload = () => {
   cases.value = getAllCases();
 };
 
-// 列表需要的衍生資料一次算好；卡片顯示資料與角色預覽面板共用（services/listViews.js）
+// 列表需要的衍生資料一次算好；卡片顯示資料見 services/listViews.js
 const rows = computed(() => caseRows(cases.value));
 
 const tabs = computed(() => [
@@ -137,10 +138,16 @@ const filtered = computed(() => {
 });
 
 // 不經評估表的轉介（守望員或民眾自我轉介），先建立基本資料，轉介資訊在個案頁補齊
-const addCase = () => {
-  const name = prompt("請輸入個案姓名");
-  if (!name?.trim()) return;
-  const created = createCase({ person: { name: name.trim() } }, { actor: getCurrentUser()?.name ?? "" });
+const addCase = async () => {
+  const name = await promptDialog({
+    id: "case-create",
+    title: "新增個案",
+    message: "守望員通報或民眾自我轉介時，不經評估表直接建立個案。建立後在個案頁補齊轉介來源與其他資料。",
+    input: { label: "個案姓名", required: true },
+    confirmText: "建立",
+  });
+  if (!name) return;
+  const created = createCase({ person: { name } }, { actor: getCurrentUser()?.name ?? "" });
   notice.value = `已建立個案 ${created.code}`;
   currentTab.value = "open";
   reload();
@@ -150,17 +157,23 @@ const caseLink = (id) => `/admin/cases/${id}`;
 const goDetail = (id) => router.push(caseLink(id));
 
 // 只有第 1 階段、沒有連結與追蹤紀錄的個案可以刪除（例如誤建），其他提示改用結案
-const removeCase = (item) => {
+const removeCase = async (item) => {
   const check = canDeleteCase(item);
   if (!check.ok) {
-    alert(check.reason);
+    await alertDialog({ id: "case-delete-blocked", title: `${item.code} 無法刪除`, message: check.reason });
     return;
   }
-  const ok = confirm(`確定要刪除 ${item.code}（${item.person.name || "未命名個案"}）？\n\n刪除後無法復原。`);
+  const ok = await confirmDialog({
+    id: "case-delete",
+    title: `確定要刪除 ${item.code}（${item.person.name || "未命名個案"}）？`,
+    message: "刪除後無法復原。",
+    confirmText: "刪除",
+    tone: "danger",
+  });
   if (!ok) return;
   const result = deleteCase(item.id);
   if (!result.ok) {
-    alert(result.reason);
+    await alertDialog({ id: "case-delete-blocked", title: `${item.code} 無法刪除`, message: result.reason });
     return;
   }
   notice.value = `已刪除個案 ${item.code}`;

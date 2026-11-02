@@ -1,5 +1,5 @@
 <template>
-  <!-- 右下角的「?」按鈕（原型展示用）：小選單 → 角色預覽面板（從右側滑出） -->
+  <!-- 右下角的「?」按鈕（原型展示用）：小選單（載入示範資料、模擬信箱、重看導覽、自動導覽開關） -->
   <div class="help-root">
     <div v-if="menuOpen" ref="menuEl" class="help-menu" role="menu" aria-label="說明與原型工具">
       <p class="menu-head">原型展示用</p>
@@ -36,45 +36,19 @@
     >
       ?
     </button>
-
-    <Teleport to="body">
-      <Transition name="fade">
-        <div v-if="panelOpen" class="panel-backdrop" @click="closePanel"></div>
-      </Transition>
-      <Transition name="slide">
-        <aside
-          v-if="panelOpen"
-          class="side-panel"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="role-preview-title"
-        >
-          <header class="panel-head">
-            <h2 id="role-preview-title">角色預覽 <span class="prototype-badge">原型展示用</span></h2>
-            <button ref="closeEl" type="button" class="close-btn" aria-label="關閉角色預覽" @click="closePanel">
-              <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-            </button>
-          </header>
-          <div class="panel-body">
-            <RolePreview @loaded="refreshView" @session-changed="onSessionChanged" />
-          </div>
-        </aside>
-      </Transition>
-    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { HELP_QUERY_KEY, HELP_ROLE_PREVIEW, visibleHelpItems } from "../config/help.js";
+import { visibleHelpItems } from "../config/help.js";
+import { countData, loadDemoData } from "../services/demoData.js";
+import { alertDialog, confirmDialog } from "../services/dialogService.js";
 import { refreshView } from "../utils/viewRefresh.js";
 import { getCurrentUser } from "../utils/auth.js";
 import { openWelcome, startPageTour } from "../services/tourController.js";
 import { autoTourEnabled, setAutoTourEnabled } from "../services/tourState.js";
-
-// 角色預覽在打開面板時才載入
-const RolePreview = defineAsyncComponent(() => import("./RolePreview.vue"));
 
 const route = useRoute();
 const router = useRouter();
@@ -84,30 +58,41 @@ const items = computed(() => {
   menuOpen.value;
   return visibleHelpItems({ routeName: route.name, user: getCurrentUser() });
 });
-const panelOpen = ref(false);
 const menuEl = ref(null);
 const buttonEl = ref(null);
-const closeEl = ref(null);
 
-const openPanel = async () => {
-  menuOpen.value = false;
-  panelOpen.value = true;
-  document.body.style.overflow = "hidden";
-  await nextTick();
-  closeEl.value?.focus();
-};
+// 載入示範資料：確認會清空現有的資源、評估、個案後載入，並重新載入目前頁面
+const loadDemo = async () => {
+  const counts = countData();
+  const ok = await confirmDialog({
+    id: "demo-load",
+    title: "確定要載入示範資料？",
+    message: `會清空目前全部 ${counts.resources} 筆資源、${counts.assessments} 筆評估、${counts.cases} 筆個案（含自建資料），只保留示範資料。此動作無法復原。
 
-const closePanel = () => {
-  if (!panelOpen.value) return;
-  panelOpen.value = false;
-  document.body.style.overflow = "";
-  buttonEl.value?.focus();
+帳號不受影響；資源點示範帳號會改綁到示範資源。`,
+    confirmText: "載入示範資料",
+    tone: "danger",
+  });
+  if (!ok) return;
+  try {
+    const demo = loadDemoData();
+    refreshView();
+    await alertDialog({
+      id: "demo-loaded",
+      title: "已載入示範資料",
+      message: `資源 ${demo.resource.code}、評估 ${demo.assessment.code}、個案 ${demo.case.code}。
+
+一位虛構民眾的一串資料：1 筆綠燈資源（綁定 provider@demo.carelink）、1 筆已判讀為橘燈轉介的評估、1 筆已晤談並轉介、等待資源點回報的個案。`,
+    });
+  } catch (e) {
+    await alertDialog({ id: "demo-load-failed", title: "載入失敗", message: e.message });
+  }
 };
 
 const choose = (key) => {
-  if (key === "rolePreview") return openPanel();
   menuOpen.value = false;
-  if (key === "mailbox") router.push("/mailbox");
+  if (key === "loadDemo") loadDemo();
+  else if (key === "mailbox") router.push("/mailbox");
   else if (key === "pageTour") startPageTour(route.name);
   else if (key === "welcome") {
     const user = getCurrentUser();
@@ -115,32 +100,11 @@ const choose = (key) => {
   } else if (key === "autoTour") setAutoTourEnabled(!autoTourEnabled.value);
 };
 
-// 以某角色進入後關閉面板，並重新載入目前頁面（停在同一頁時也會更新登入者）
-const onSessionChanged = () => {
-  closePanel();
-  refreshView();
-};
-
-// /sitemap 導向帶 help=role-preview：自動打開角色預覽，並把參數移除
-watch(
-  () => route.query[HELP_QUERY_KEY],
-  (value) => {
-    if (value !== HELP_ROLE_PREVIEW) return;
-    openPanel();
-    const { [HELP_QUERY_KEY]: _removed, ...query } = route.query;
-    router.replace({ query });
-  },
-  { immediate: true }
-);
-
-// Esc：先關面板，再關選單；點選單外的地方關閉選單
+// Esc 關閉選單；點選單外的地方關閉選單
 const onKeydown = (event) => {
-  if (event.key !== "Escape") return;
-  if (panelOpen.value) closePanel();
-  else if (menuOpen.value) {
-    menuOpen.value = false;
-    buttonEl.value?.focus();
-  }
+  if (event.key !== "Escape" || !menuOpen.value) return;
+  menuOpen.value = false;
+  buttonEl.value?.focus();
 };
 const onDocumentClick = (event) => {
   if (menuOpen.value && !menuEl.value?.contains(event.target)) menuOpen.value = false;
@@ -153,7 +117,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   document.removeEventListener("keydown", onKeydown);
   document.removeEventListener("click", onDocumentClick);
-  document.body.style.overflow = "";
 });
 </script>
 
@@ -190,8 +153,7 @@ onBeforeUnmount(() => {
 }
 
 .help-btn:focus-visible,
-.menu-item:focus-visible,
-.close-btn:focus-visible {
+.menu-item:focus-visible {
   outline: 3px solid #90caf9;
   outline-offset: 2px;
 }
@@ -230,108 +192,12 @@ onBeforeUnmount(() => {
   background: #eceff1;
 }
 
-.panel-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1600;
-  background: rgba(38, 50, 56, 0.45);
-}
-
-.side-panel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 1700;
-  width: min(760px, 92vw);
-  display: flex;
-  flex-direction: column;
-  background: #eceff1;
-  box-shadow: -8px 0 24px rgba(38, 50, 56, 0.25);
-}
-
-.panel-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 14px 18px;
-  background: #37474f;
-  color: #fff;
-}
-
-.panel-head h2 {
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.prototype-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 10px;
-  border-radius: 999px;
-  background: #fff;
-  color: #37474f;
-}
-
-.close-btn {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.15);
-  color: #fff;
-  font-size: 18px;
-}
-
-.panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-}
-
-/* 手機：面板佔滿畫面寬度 */
+/* 手機：按鈕靠近角落 */
 @media (max-width: 576px) {
-  .side-panel {
-    width: 100vw;
-  }
-
   .help-root {
     right: 14px;
     bottom: 14px;
   }
 }
 
-.slide-enter-active,
-.slide-leave-active {
-  transition: transform 0.25s ease;
-}
-
-.slide-enter-from,
-.slide-leave-to {
-  transform: translateX(100%);
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.25s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .slide-enter-active,
-  .slide-leave-active,
-  .fade-enter-active,
-  .fade-leave-active {
-    transition: none;
-  }
-}
 </style>

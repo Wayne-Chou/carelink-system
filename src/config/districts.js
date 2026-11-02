@@ -150,10 +150,6 @@ export function normalizeCityName(name) {
   return String(name ?? "").trim().replace(/台/g, "臺");
 }
 
-export function getCityNames() {
-  return CITIES.map((c) => c.name);
-}
-
 // 依類型分組的縣市名稱（選單的 optgroup 用）：[{ type: "直轄市", cities: ["新北市", …] }, …]
 export function getCityGroups() {
   return CITY_TYPES.map((type) => ({ type, cities: CITIES.filter((c) => c.type === type).map((c) => c.name) }));

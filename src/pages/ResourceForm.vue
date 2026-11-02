@@ -928,6 +928,7 @@
 
 <script setup>
 import { computed, nextTick, reactive, ref, watch } from "vue";
+import { alertDialog } from "../services/dialogService.js";
 import { useRoute, useRouter } from "vue-router";
 import ChipSelect from "../components/ChipSelect.vue";
 import FieldMark from "../components/FieldMark.vue";
@@ -1017,7 +1018,7 @@ const initialForm = () => {
 
 const form = reactive(initialForm());
 
-// 資源編碼：新增時預覽下一個編號，編輯時顯示既有編號（舊資料沒有編號時於儲存時補上）
+// 資源編碼：新增時預覽下一個編號，編輯時顯示既有編號（沒有編號的資料於儲存時補上）
 const codeDisplay = isEdit
   ? original?.code || "儲存時自動補上"
   : `${getNextResourceCode()}（預計）`;
@@ -1127,7 +1128,11 @@ const fullAddress = computed(
 
 const openMap = () => {
   if (!form.address.detail) {
-    alert("請先輸入詳細地址");
+    alertDialog({
+      id: "resource-map-address",
+      title: "請先輸入詳細地址",
+      message: "填好縣市、行政區與詳細地址後，才能在地圖中確認位置。",
+    });
     return;
   }
   window.open(

@@ -61,10 +61,6 @@ export function listAccounts() {
     .sort(compareAccounts);
 }
 
-export function getAccountById(id) {
-  return listAccounts().find((a) => String(a.id) === String(id)) ?? null;
-}
-
 // 待審核的申請，先申請的在前（待辦使用）
 export function getPendingApplications() {
   return listAccounts().filter((a) => a.status === "pending");

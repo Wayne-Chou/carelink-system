@@ -68,7 +68,6 @@ test("程式中不再使用舊網址（舊網址只靠導向維持相容）", ()
     "services/todoService.js",
     "services/accountService.js",
     "services/accessControl.js",
-    "config/sitemap.js",
     "config/tours.js",
   ];
   for (const file of files) {

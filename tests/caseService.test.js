@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { memoryStorage } from "./helpers/memoryStorage.js";
 
 let store;
-// 資料存在 sessionStorage（storage.js 的 DATA_STORAGE）；localStorage 另外模擬，供清除舊資料使用
+// 資料存在 sessionStorage（storage.js 的 DATA_STORAGE）；localStorage 另外模擬
 globalThis.localStorage = memoryStorage();
 globalThis.sessionStorage = {
   getItem: (key) => (key in store ? store[key] : null),
@@ -16,16 +16,12 @@ globalThis.sessionStorage = {
 };
 
 const svc = await import("../src/services/caseService.js");
-// 舊格式個案，驗證舊個案轉換
-const { LEGACY_CASES } = await import("./fixtures/legacyCases.js");
 const { FIXTURE_RESOURCES } = await import("./fixtures/resources.js");
 const { FOLLOW_UP_START } = await import("../src/config/assessmentRules.js");
 const { addMonths, todayString } = await import("../src/utils/date.js");
 
 const WALKING = FIXTURE_RESOURCES.find((r) => r.code === "Res103"); // 黃燈（範例關懷據點歌唱班）
 const MEAL = FIXTURE_RESOURCES.find((r) => r.code === "Res102");
-// 舊個案資料（tests/fixtures/legacyCases.js）連結的是已不存在的舊資源
-const LEGACY_WALKING = { id: "7c1e2a40-5b3d-4f1a-9e2c-1a2b3c4d5e6f", name: "湳興河濱長者健走班" };
 
 const newCase = (patch = {}) => svc.createCase({ person: { name: "測試個案" }, ...patch });
 
@@ -59,107 +55,6 @@ describe("新增、讀取、修改", () => {
   test("資料損壞時以空陣列處理", () => {
     store.cases = "{壞掉";
     assert.deepEqual(svc.getAllCases(), []);
-  });
-});
-
-describe("舊個案轉換（以 7 筆舊格式個案為例）", () => {
-  const loadLegacy = () => {
-    store.cases = JSON.stringify(LEGACY_CASES);
-    return svc.getAllCases();
-  };
-  const byName = (cases, name) => cases.find((c) => c.person.name === name);
-
-  test("讀取時轉換但不寫回", () => {
-    const before = JSON.stringify(LEGACY_CASES);
-    store.cases = before;
-    svc.getAllCases();
-    assert.equal(store.cases, before);
-  });
-
-  test("依序補上 Case001～Case007，id 保留", () => {
-    const cases = loadLegacy();
-    assert.deepEqual(cases.map((c) => c.code), ["Case001", "Case002", "Case003", "Case004", "Case005", "Case006", "Case007"]);
-    assert.deepEqual(cases.map((c) => c.id), LEGACY_CASES.map((c) => c.id));
-  });
-
-  test("已有編碼的個案保留，沒有的接在後面", () => {
-    store.cases = JSON.stringify([{ ...LEGACY_CASES[0], code: "Case010" }, LEGACY_CASES[1]]);
-    assert.deepEqual(svc.getAllCases().map((c) => c.code), ["Case010", "Case011"]);
-  });
-
-  test("基本資料、轉介來源、同意與首次聯繫", () => {
-    const cases = loadLegacy();
-    const first = byName(cases, "李示範");
-    assert.equal(first.stage, 1);
-    assert.equal(first.person.livingAlone, true);
-    assert.equal(first.referral.referrerType, "medical");
-    assert.match(first.referral.reason, /很少出門/);
-    assert.equal(first.referral.consent, false, "第 1 階段尚未同意");
-    assert.equal(first.consultation.firstContactAt, null);
-    assert.deepEqual(first.legacy, { age: "78", gender: "女", identity: ["獨居長者"], source: "醫療", needLevel: "", motivation: "" });
-
-    const second = byName(cases, "周範例");
-    assert.equal(second.referral.referrerType, "watcher", "社區 → 守望員");
-    assert.equal(second.referral.consent, true);
-    assert.equal(second.consultation.firstContactAt, "2026-09-28");
-    assert.match(second.consultation.note, /需求程度：中/);
-  });
-
-  test("單一 linkage 轉成 linkages 第一筆，含陪同與狀態", () => {
-    const cases = loadLegacy();
-    const yellow = byName(cases, "呂示例");
-    assert.equal(yellow.linkages.length, 1);
-    assert.deepEqual(yellow.linkages[0], {
-      resourceId: LEGACY_WALKING.id,
-      resourceName: LEGACY_WALKING.name,
-      reason: yellow.linkages[0].reason,
-      linkedAt: "2026-09-24",
-      escortNeeded: true,
-      status: "pending",
-      attendance: null,
-      providerNote: "",
-    });
-    assert.equal(byName(cases, "謝示範").linkages[0].status, "success");
-    assert.deepEqual(byName(cases, "李示範").linkages, []);
-  });
-
-  test("追蹤紀錄轉成 followUps", () => {
-    const followUps = byName(loadLegacy(), "謝示範").followUps;
-    assert.equal(followUps.length, 2);
-    assert.deepEqual(followUps[0], {
-      round: 1,
-      plannedAt: "2026-09-12",
-      doneAt: "2026-09-12",
-      attendance: "attended",
-      participation: "success",
-      impact: "improved",
-      note: followUps[0].note,
-    });
-    assert.equal(followUps[1].round, 3);
-    assert.equal(followUps[1].impact, "same");
-  });
-
-  test("已結案：stage 6 轉為 closed，結案原因對應代碼並保留原文", () => {
-    const closed = byName(loadLegacy(), "葉示例");
-    assert.equal(closed.stage, "closed");
-    assert.equal(closed.closure.reason, "goal_met");
-    assert.equal(closed.closure.closedAt, "2026-09-01");
-    assert.match(closed.closure.note, /^目標達成｜已能自行參加健走班/);
-  });
-
-  test("歷程補上操作者與動作，說明去掉角色前綴", () => {
-    const history = byName(loadLegacy(), "呂示例").history;
-    assert.deepEqual(history[0], { stage: 1, date: "2026-09-15", at: null, actor: "", action: "legacy", note: "初始建立" });
-    assert.equal(history[1].actor, "健康管理員");
-    assert.equal(history[1].note, "流程推進");
-  });
-
-  test("寫入任一筆時整份以新格式存回，編碼固定下來", () => {
-    const cases = loadLegacy();
-    svc.updateCase(cases[0].id, { managerName: "陳管理" });
-    const raw = JSON.parse(store.cases);
-    assert.ok(raw.every((c) => Array.isArray(c.linkages) && !("basic" in c) && !("linkage" in c)));
-    assert.deepEqual(raw.map((c) => c.code), cases.map((c) => c.code));
   });
 });
 
@@ -327,6 +222,18 @@ describe("刪除與追蹤到期狀態", () => {
 describe("刪除限制：只有第 1 階段、沒有連結與追蹤紀錄的個案可以刪除", () => {
   test("第 1 階段、沒有連結與追蹤：可以刪除", () => {
     assert.equal(svc.canDeleteCase(newCase()).ok, true);
+  });
+
+  test("個案列表傳入的卡片資料（caseRows）判斷結果與個案本身相同", async () => {
+    const { caseRows } = await import("../src/services/listViews.js");
+    const deletable = newCase();
+    const blocked = newCase({ stage: 2 });
+    const [row1, row2] = caseRows([deletable, blocked]);
+    assert.equal(row1.deletable, true);
+    assert.equal(svc.canDeleteCase(row1).ok, true);
+    assert.equal(row2.deletable, false);
+    assert.match(svc.canDeleteCase(row2).reason, /結案/);
+    assert.equal(svc.deleteCase(row1.id).ok, true);
   });
 
   test("其他情況一律不能刪除，提示改用結案", () => {

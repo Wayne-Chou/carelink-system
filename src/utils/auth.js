@@ -12,24 +12,10 @@ const USERS_KEY = "users"; // 註冊的帳號清單：儲存位置依 storage.js
 const BINDINGS_KEY = "providerBindings"; // 資源點帳號綁定的資源 [{ email, resourceId }]，儲存位置同帳號清單
 const CURRENT_USER_KEY = "currentUser"; // 目前登入者
 const CURRENT_RESOURCE_KEY = "currentResourceId"; // 資源端目前登入的資源
-const LOGIN_KEYS = [CURRENT_USER_KEY, CURRENT_RESOURCE_KEY];
 
 const loginStorage = () => (LOGIN_STORAGE === "local" ? localStorage : sessionStorage);
 
-// 改用 sessionStorage 之前，登入狀態存在 localStorage；第一次讀取時清掉，避免殘留的登入狀態
-let legacyCleaned = false;
-function cleanLegacyLogin() {
-  if (legacyCleaned || LOGIN_STORAGE !== "session") return;
-  legacyCleaned = true;
-  try {
-    for (const key of LOGIN_KEYS) localStorage.removeItem(key);
-  } catch {
-    // 瀏覽器禁止存取儲存空間時略過
-  }
-}
-
 function readLogin(key) {
-  cleanLegacyLogin();
   try {
     return loginStorage().getItem(key);
   } catch {
@@ -38,7 +24,6 @@ function readLogin(key) {
 }
 
 function writeLogin(key, value) {
-  cleanLegacyLogin();
   try {
     if (value === null) loginStorage().removeItem(key);
     else loginStorage().setItem(key, value);
@@ -114,9 +99,6 @@ const toSessionUser = (user) => ({
 const withBinding = (user) =>
   user.role === "provider" ? { ...user, resourceId: getBoundResourceId(user.email, user.resourceId) } : user;
 
-// 某個帳號登入後 getCurrentUser() 會取得的資料（不實際登入；角色預覽面板使用）
-export const sessionUserOf = (account) => withBinding(toSessionUser(account));
-
 export function setCurrentUser(user) {
   writeLogin(CURRENT_USER_KEY, JSON.stringify(toSessionUser(user)));
 }
@@ -146,21 +128,11 @@ export function currentActor(user = getCurrentUser()) {
   return { name: user?.name ?? "", role: user?.role ?? "" };
 }
 
-export function isAuthenticated() {
-  return !!getCurrentUser();
-}
-
 // 目前登入者的角色：未登入回傳 null；已登入但沒有角色（或角色已不存在，例如舊帳號的 "user"、"citizen"）回傳 ""
 // 角色一律以帳號的 role 欄位為準（不再依 Email 判斷）；沒有角色的帳號只能看公開頁面
 export function getCurrentRole(user = getCurrentUser()) {
   if (!user) return null;
   return isValidRole(user.role) ? user.role : "";
-}
-
-// 目前登入者是否具備任一指定角色
-export function hasRole(...roles) {
-  const role = getCurrentRole();
-  return !!role && roles.includes(role);
 }
 
 export const isDemoEmail = (email) => DEMO_ACCOUNTS.some((a) => a.email === normalizeEmail(email));

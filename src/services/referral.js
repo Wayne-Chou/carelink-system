@@ -37,12 +37,3 @@ export function getLinkedResourceStatus(resourceId, resources) {
   };
 }
 
-// 資源被刪除後仍要顯示名稱：優先用連結時存下的名稱，舊個案則從歷程紀錄「連結資源：xxx」找最後一筆
-export function getLinkedResourceName(linkage, history = []) {
-  if (linkage?.resourceName) return linkage.resourceName;
-  for (let i = history.length - 1; i >= 0; i--) {
-    const match = /連結資源：(.+?)(（|$)/.exec(history[i]?.note ?? "");
-    if (match) return match[1];
-  }
-  return "";
-}

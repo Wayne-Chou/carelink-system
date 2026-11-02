@@ -6,7 +6,6 @@ import {
   can,
   canBindProvider,
   canEditResource,
-  canUseDashboard,
   canViewChangeLog,
   canViewAssessment,
   canViewResource,
@@ -64,7 +63,6 @@ test("資源管理員：可進入資源相關頁面與待辦；不能進入評�
   const DENIED = ["assessment-new", "assessments", "assessment-review", "cases", "case-detail", "resource-dashboard"];
   for (const name of ALLOWED) assert.equal(allowed(RESOURCE_MANAGER, name, { id: RES_B }), true, name);
   for (const name of DENIED) assert.equal(allowed(RESOURCE_MANAGER, name, { id: "linked" }), false, name);
-  assert.equal(canUseDashboard(RESOURCE_MANAGER, RES_A), false);
   assert.equal(homePathFor(RESOURCE_MANAGER), "/admin");
 });
 
@@ -172,10 +170,6 @@ test("唯讀與連結：判讀人員沒有個案頁權限；健康管理員不�
 });
 
 test("資源端後台：系統管理員可檢視任何資源；資源點固定為綁定的資源", () => {
-  assert.equal(canUseDashboard(ADMIN, RES_B), true);
-  assert.equal(canUseDashboard(PROVIDER, RES_A), true);
-  assert.equal(canUseDashboard(PROVIDER, RES_B), false);
-  assert.equal(canUseDashboard(READER, RES_A), false);
   assert.equal(dashboardResourceId(ADMIN, RES_B), RES_B, "系統管理員沿用資源列表選擇的資源");
   assert.equal(dashboardResourceId(PROVIDER, RES_B), RES_A, "資源點不能切換");
   assert.equal(dashboardResourceId(READER, RES_A), "");
@@ -282,6 +276,5 @@ test("示範資源點帳號沒有綁定資源：仍進入資源端後台（顯�
   assert.equal(homePathFor(DEMO_PROVIDER), "/admin/provider");
   assert.equal(allowed(DEMO_PROVIDER, "resource-dashboard"), true);
   assert.equal(dashboardResourceId(DEMO_PROVIDER, RES_A), "");
-  assert.equal(canUseDashboard(DEMO_PROVIDER, RES_A), false);
   assert.deepEqual(shortcutsFor(DEMO_PROVIDER).map((s) => s.key), ["dashboard"], "未綁定時只有資源端後台");
 });

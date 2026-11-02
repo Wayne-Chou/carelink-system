@@ -7,12 +7,6 @@ const session = memoryStorage();
 globalThis.localStorage = local;
 globalThis.sessionStorage = session;
 
-// 模擬改版前殘留在 localStorage 的資料與帳號（必須在第一次讀寫之前放好）
-local.data.resources = JSON.stringify([{ id: "old-res", name: "舊資源" }]);
-local.data.cases = JSON.stringify([{ id: "old-case" }]);
-local.data.assessments = JSON.stringify([{ id: "old-ast" }]);
-local.data.users = JSON.stringify([{ id: 1, email: "keep@example.com" }]);
-
 const storage = await import("../src/services/storage.js");
 const { getAllResources, createResource } = await import("../src/services/resourceService.js");
 const { getUsers } = await import("../src/utils/auth.js");
@@ -22,24 +16,6 @@ const { addUser } = await import("./helpers/accounts.js");
 const closeBrowser = () => {
   session.data = {};
 };
-
-// 這組測試不能套用下方的 beforeEach（會先清空殘留資料，測試就失去意義），所以獨立成一組
-describe("第一次讀取（改版前的殘留資料）", () => {
-  test("清掉 localStorage 殘留的 resources、cases、assessments，保留帳號", () => {
-    assert.ok(local.data.resources, "測試前提：殘留資料存在");
-    assert.deepEqual(getAllResources(), [], "不讀到舊資料");
-    for (const key of ["resources", "cases", "assessments"]) {
-      assert.equal(key in local.data, false, `清除 ${key}`);
-    }
-    assert.equal(JSON.parse(local.data.users).length, 1, "資料清除不影響帳號清單");
-  });
-
-  test("第一次讀取帳號清單時，清掉 localStorage 殘留的 users", () => {
-    assert.ok(local.data.users, "測試前提：殘留的帳號清單存在");
-    assert.deepEqual(getUsers(), [], "不讀到舊帳號");
-    assert.equal("users" in local.data, false, "清除殘留的 users");
-  });
-});
 
 describe("一般讀寫", () => {
   beforeEach(() => {

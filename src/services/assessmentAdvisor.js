@@ -27,15 +27,6 @@ const PROMPTS = {
   skip: SKIP_PROMPT,
 };
 
-const ORANGE_TYPE_HINTS = {
-  hesitant: "建議封閉提問，直接提議下一步",
-  reserved: "請先回應民眾的顧慮再問一次；婉拒原因必填",
-};
-
-export function getOrangeTypeHint(type) {
-  return ORANGE_TYPE_HINTS[type] ?? "";
-}
-
 const q11Label = (code) => Q11_OPTIONS.find((o) => o.code === code)?.label ?? code;
 const isBlank = (v) => String(v ?? "").trim() === "";
 

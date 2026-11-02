@@ -70,7 +70,7 @@ export const PERMISSIONS = {
     "workspace.home",
   ],
   reader: ["resource.view", "assessment.fill", "assessment.list", "assessment.review", "todo.view", "workspace.home"],
-  // 待確認事項：「健康管理員只看分派給自己的個案，還是看全部？」原型階段看全部
+  // 待確認事項（doc/open-questions.md B 節）：健康管理員與判讀人員未來可能分等級、看不同範圍；原型階段看全部
   manager: ["resource.view", "assessment.viewLinked", "case.manage", "todo.view", "workspace.home"],
   provider: ["resource.view", "resource.dashboard", "resource.editOwn"],
 };

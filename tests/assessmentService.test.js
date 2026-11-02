@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { memoryStorage } from "./helpers/memoryStorage.js";
 
 let store;
-// 資料存在 sessionStorage（storage.js 的 DATA_STORAGE）；localStorage 另外模擬，供清除舊資料使用
+// 資料存在 sessionStorage（storage.js 的 DATA_STORAGE）；localStorage 另外模擬
 globalThis.localStorage = memoryStorage();
 globalThis.sessionStorage = {
   getItem: (key) => (key in store ? store[key] : null),

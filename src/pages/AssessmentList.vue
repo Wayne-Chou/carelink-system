@@ -96,7 +96,7 @@ const assessments = ref(sortForList(getAllAssessments()));
 const searchQuery = ref("");
 const currentTab = ref("all");
 
-// 卡片顯示資料（狀態、燈號、開案情形）與角色預覽面板共用（services/listViews.js）
+// 卡片顯示資料（狀態、燈號、開案情形）見 services/listViews.js
 const rows = computed(() => assessmentRows(assessments.value));
 
 // 「全部」不含已作廢；已作廢只在「已作廢」分頁查看

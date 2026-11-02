@@ -20,10 +20,6 @@ const session = makeStorage();
 globalThis.localStorage = local;
 globalThis.sessionStorage = session;
 
-// 模擬改版前殘留在 localStorage 的登入狀態（必須在第一次呼叫 auth.js 之前放好）
-local.data.currentUser = JSON.stringify({ id: 1, name: "舊登入", email: "old@example.com", role: "admin" });
-local.data.currentResourceId = "res-old";
-
 const auth = await import("../src/utils/auth.js");
 const { ROLE_CODES } = await import("../src/config/roles.js");
 const { addUser, TEST_PASSWORD } = await import("./helpers/accounts.js");
@@ -32,19 +28,6 @@ const { addUser, TEST_PASSWORD } = await import("./helpers/accounts.js");
 const closeBrowser = () => {
   session.data = {};
 };
-
-// 這組測試不能套用下方的 beforeEach（會先清空殘留資料，測試就失去意義），所以獨立成一組
-describe("第一次讀取（改版前的殘留登入狀態）", () => {
-  test("清掉 localStorage 殘留的登入狀態，帳號清單不受影響", () => {
-    assert.ok(local.data.currentUser, "測試前提：殘留的登入者存在");
-    assert.ok(local.data.currentResourceId, "測試前提：殘留的資源端登入存在");
-    local.data.users = JSON.stringify([{ id: 9, email: "keep@example.com" }]);
-    assert.equal(auth.getCurrentUser(), null, "不沿用殘留的登入者");
-    assert.equal("currentUser" in local.data, false);
-    assert.equal("currentResourceId" in local.data, false);
-    assert.equal(JSON.parse(local.data.users).length, 1, "帳號清單保留");
-  });
-});
 
 describe("一般操作", () => {
   beforeEach(() => {
@@ -67,13 +50,13 @@ describe("一般操作", () => {
   test("關閉瀏覽器後自動登出，註冊的帳號也清除；示範帳號仍可登入", () => {
     addUser({ name: "王示範", email: "w@example.com", role: "reader" });
     auth.login({ email: "w@example.com", password: TEST_PASSWORD });
-    assert.equal(auth.isAuthenticated(), true);
+    assert.ok(auth.getCurrentUser());
     closeBrowser();
-    assert.equal(auth.isAuthenticated(), false);
+    assert.equal(auth.getCurrentUser(), null);
     assert.equal(auth.getUsers().length, 0, "註冊的帳號已清除");
     assert.equal(auth.login({ email: "w@example.com", password: TEST_PASSWORD }).ok, false);
     assert.equal(auth.login({ email: "reader@demo.carelink", password: "demo1234" }).ok, true, "示範帳號寫在程式裡");
-    assert.equal(auth.isAuthenticated(), true);
+    assert.ok(auth.getCurrentUser());
   });
 
   test("資源端登入的資源存 sessionStorage，關閉瀏覽器後清除", () => {
@@ -101,8 +84,6 @@ describe("一般操作", () => {
     addUser({ name: "判讀", email: "reader@example.com", role: "reader" });
     auth.login({ email: "reader@example.com", password: TEST_PASSWORD });
     assert.equal(auth.getCurrentRole(), "reader");
-    assert.equal(auth.hasRole("reader", "admin"), true);
-    assert.equal(auth.hasRole("manager"), false);
   });
 
   test("Email 含 admin 不會自動成為管理員；舊的自行註冊函式已移除（改為申請與審核）", () => {
@@ -125,9 +106,8 @@ describe("一般操作", () => {
   test("沒有角色的舊帳號（user、citizen 或空白）：已登入但角色為空，只能看公開頁", () => {
     for (const role of ["user", "citizen", undefined]) {
       auth.setCurrentUser({ id: 1, name: "舊帳號", email: "admin@example.com", role });
-      assert.equal(auth.isAuthenticated(), true);
+      assert.ok(auth.getCurrentUser());
       assert.equal(auth.getCurrentRole(), "", String(role));
-      assert.equal(auth.hasRole("admin"), false);
     }
   });
 
@@ -163,7 +143,6 @@ describe("一般操作", () => {
 
   test("未登入時沒有角色", () => {
     assert.equal(auth.getCurrentRole(), null);
-    assert.equal(auth.hasRole("admin"), false);
   });
 
   test("資料損壞時不會出錯", () => {

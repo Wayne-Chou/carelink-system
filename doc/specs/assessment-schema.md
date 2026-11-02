@@ -29,14 +29,9 @@ Oct 5, 2026 · @hank
 | provider | 資源點 | 資源點 | 回報出席與參與狀況；維護自己資源的基本資訊 | 自己綁定資源的資源端後台、資源詳細頁；編輯該資源的部分欄位（見 doc/specs/resource-schema.md 第十四節），修改後直接生效 | 只限綁定的資源（一個帳號綁定一筆資源，由系統管理員或資源管理員綁定） |
 
 - 首頁、探索頁、民眾資源頁、登入、註冊、忘記密碼、重設密碼、模擬信箱（原型展示用）為公開頁，不需登入。民眾不需要帳號。
-- 「?」按鈕與角色預覽（原型展示用，src/components/HelpButton.vue、src/components/RolePreview.vue、src/services/rolePreview.js、設定在 src/config/help.js）：所有頁面右下角固定一個圓形「?」按鈕（評估填寫頁不顯示，避免民眾誤按），以冷灰藍配色、虛線框和「原型展示用」標示與民眾內容區隔。點開是小選單：角色預覽、模擬信箱（未登入也可以開啟；在模擬信箱頁本身不顯示）、重看這一頁的導覽（這一頁有導覽時）、重看歡迎介紹（登入後）、自動導覽：開／關。選「角色預覽」從右側滑出面板，可用關閉按鈕、點面板外的區域或 Esc 關閉；手機上面板佔滿畫面寬度。/sitemap 導向首頁並自動打開面板。登入頁不放原型展示用的連結。面板內容：
-  - 上方為「載入示範資料」與示範資料狀態；載入後或以某角色進入後，重新載入目前的頁面（src/utils/viewRefresh.js）。
-  - 角色分頁：民眾、系統管理員、資源管理員、判讀人員、健康管理員、資源點；點選分頁不會切換登入帳號。
-  - 每個分頁顯示該角色登入後畫面的縮小模擬：姓名與角色（示範帳號）、後台選單（只顯示，不可點）、待辦（最多列 3 筆並顯示總數）、示範資料在此角色畫面的樣子（民眾：探索頁的資源卡片；系統管理員：待審核帳號數與各列表筆數；資源管理員：資源列表卡片；判讀人員：評估列表卡片；健康管理員：個案列表卡片；資源點：資源端後台的轉介紀錄）。沒有示範資料時顯示「載入示範資料後可看到此角色的畫面內容」。
-  - 預覽沿用實際頁面的設定與資料函式：後台選單用 accessControl.adminMenuFor，待辦用 todoService.computeTodos 與 accessControl.filterTodosFor（待辦頁的預設範圍），卡片資料用 src/services/listViews.js（評估列表、個案列表、資源列表、探索頁、資源端後台共用）。
-  - 分頁下方有「能進入的頁面」清單（可收合，頁面清單在 src/config/sitemap.js），以及「實際以此角色進入」按鈕：按下才以示範帳號登入並前往該角色的後台首頁（資源點為資源端後台）；民眾分頁為登出後回民眾首頁。
+- 「?」按鈕（原型展示用，src/components/HelpButton.vue、設定在 src/config/help.js）：所有頁面右下角固定一個圓形「?」按鈕（評估填寫頁不顯示，避免民眾誤按），以冷灰藍配色、虛線框和「原型展示用」標示與民眾內容區隔。點開是小選單：載入示範資料、模擬信箱（未登入也可以開啟；在模擬信箱頁本身不顯示）、重看這一頁的導覽（這一頁有導覽時）、重看歡迎介紹（登入後）、自動導覽：開／關。可用 Esc 或點選單外的地方關閉選單。登入頁不放原型展示用的連結。/sitemap（原本的網站地圖網址）導向首頁。
 - 操作導覽（原型展示用，文字與步驟集中在 src/config/tours.js；src/services/tourState.js、src/services/tourController.js、src/components/WelcomeCards.vue、src/components/TourManager.vue）：
-  - 歡迎卡片：每個角色第一次登入（含快速登入與角色預覽的「實際以此角色進入」）時自動顯示，4 張（你是誰、從哪裡開始、在流程中的位置、開始使用）；可左右切換（按鈕、方向鍵、手機滑動），有進度點、「略過」與「下一步」。看完或略過後，接著執行目前這一頁的聚光燈導覽；「略過」只跳過歡迎卡片。
+  - 歡迎卡片：每個角色第一次登入（含快速登入）時自動顯示，4 張（你是誰、從哪裡開始、在流程中的位置、開始使用）；可左右切換（按鈕、方向鍵、手機滑動），有進度點、「略過」與「下一步」。看完或略過後，接著執行目前這一頁的聚光燈導覽；「略過」只跳過歡迎卡片。
   - 聚光燈導覽：使用 driver.js 1.4.0（固定版本），畫面變暗並依序框起重要區塊，顯示步驟數（例：2／5）、「略過」「上一步」「下一步」。範圍為每個角色能進入的所有頁面，以及登入、申請帳號、忘記密碼、重設密碼、模擬信箱、首頁、探索頁、民眾資源頁。每一步對應頁面上的 data-tour 標記；步驟可限定角色，畫面上沒有的區塊自動跳過（可指定替代的標記）。
   - 每頁第一次進入時自動執行（同一頁不同角色分開記錄，未登入的民眾記為 public）；評估填寫頁不自動執行，開頭說明畫面有「工作人員：查看操作導覽」小連結可手動開啟。
   - 已看過的歡迎卡片、各頁導覽與自動導覽開關，以 storage.js 的 readUiState／writeUiState 記在 sessionStorage，關閉瀏覽器後重置。自動導覽關閉後，這次不再自動執行任何導覽與歡迎卡片，仍可從「?」選單手動重看。
@@ -79,7 +74,7 @@ Oct 5, 2026 · @hank
 - 登入頁的「快速登入（示範用）」：上述 5 個示範帳號各一個按鈕，按下即登入，導向與一般登入相同。
 - 資源點帳號綁定：一個資源點帳號只綁定一筆資源，一筆資源可綁定多個資源點帳號。綁定關係存在帳號儲存區（與帳號清單相同，測試階段為 sessionStorage），綁定或解除後不必重新登入就生效。
 - 系統沒有預設的資源、評估、個案，從空白開始；資源由系統管理員或資源管理員新增。
-- 示範資料（原型展示用，src/services/demoData.js）：在角色預覽面板按「載入示範資料」，確認後清空所有資源、評估、個案，建立一位虛構民眾的一串資料：1 筆綠燈、正式合作的資源（綁定 provider@demo.carelink）、1 筆判讀為橘燈轉介並取得同意的評估、1 筆由該評估開案、已晤談並轉介到該資源、等待資源點回報的個案。「能進入的頁面」中需要指定資料的頁面（判讀頁、個案頁、資源詳細頁等）有示範資料時開啟這一筆，沒有時開啟對應的列表頁。
+- 示範資料（原型展示用，src/services/demoData.js）：在「?」選單按「載入示範資料」，以畫面內對話框確認會清空目前所有資源、評估、個案（列出筆數；帳號不受影響）後，建立一位虛構民眾的一串資料：1 筆綠燈、正式合作的資源（綁定 provider@demo.carelink）、1 筆判讀為橘燈轉介並取得同意的評估、1 筆由該評估開案、已晤談並轉介到該資源、等待資源點回報的個案。載入後顯示建立的編碼，並重新載入目前的頁面（src/utils/viewRefresh.js）。
 - 註冊與帳號管理見 doc/specs/account-schema.md：
   - 可申請判讀人員、健康管理員、資源點；送出後為「待審核」，由系統管理員審核通過才能登入。資源點通過時同時完成資源綁定。
   - 系統管理員、資源管理員不開放申請，只能由系統管理員在帳號管理頁建立。
@@ -197,7 +192,7 @@ Oct 5, 2026 · @hank
 
 ## 六、個案新架構
 
-個案依運作模式簡報的五階段整理，編碼 Case001，資料集中由 src/services/caseService.js 讀寫，比照資源的做法：讀取時轉換舊格式，寫入時才存回。連結與追蹤改成陣列，保留每一次嘗試。
+個案依運作模式簡報的五階段整理，編碼 Case001，資料集中由 src/services/caseService.js 讀寫：讀取時補齊預設欄位，寫入時才存回。連結與追蹤改成陣列，保留每一次嘗試。
 
 | 階段 | 欄位 | 型別 | 說明（對應簡報的個管紀錄） |
 | --- | --- | --- | --- |
@@ -207,9 +202,8 @@ Oct 5, 2026 · @hank
 | 2 諮詢 | consultation | object | 個管紀錄-晤談：firstContactAt、whatMatters（對我而言什麼最重要）、needTags、goals\[\]（共同設定的目標）、note |
 | 3 連結 | linkages\[\] | object\[\] | 個管紀錄-連結：resourceId、resourceName、reason、linkedAt、escortNeeded、status（pending、success、failed）、attendance、providerNote |
 | 4 追蹤 | followUps\[\] | object\[\] | 個管紀錄-追蹤：round（1、3、6 個月）、plannedAt、doneAt、attendance、participation（success、failed）、impact（improved、same、worse）、note |
-| 5 結案 | closure | object | 個管紀錄-結案：reason（goal\_met 達成目標、integrated 自主融入、withdrew 主動退出、other）、closedAt、returnedToMedical、reentryExplained、note（規格外補充：結案說明；reason 為 other 時的文字，以及舊個案的結案原因與成果都放這裡） |
+| 5 結案 | closure | object | 個管紀錄-結案：reason（goal\_met 達成目標、integrated 自主融入、withdrew 主動退出、other）、closedAt、returnedToMedical、reentryExplained、note（規格外補充：結案說明；reason 為 other 時的文字放這裡） |
 | 全程 | history\[\] | object\[\] | 沿用現有格式的 stage、date、note，另加 at（時間）、actor（操作者）、action（動作代碼，例 create、advance、link、open\_from\_assessment） |
-| 全程 | legacy | object | 規格外補充：舊個案轉換時，新架構沒有對應位置的欄位（age、gender、identity、source、needLevel、motivation）保留在這裡，避免資料遺失；新建立的個案沒有此欄位 |
 
 階段推進規則：
 
@@ -219,9 +213,7 @@ Oct 5, 2026 · @hank
 - 連結 failed 或追蹤 impact 為 worse：提示退回第 2 階段重新評估，現有行為保留。
 - 結案：需填 reason；說明再入口機制（reentryExplained）為必勾。
 
-舊個案轉換：現有欄位對應到新結構，單一 linkage 轉成 linkages 的第一筆；沒有編碼的補上 Case 流水號。
-
-舊欄位對應摘要：basic.name → person.name；basic.identity 含「獨居長者」→ person.livingAlone；basic.source 醫療／社區／自主 → referrerType medical／watcher／self；basic.problem → referral.reason；已進入第 2 階段以後的個案視為 consent = true，firstContactAt 取第一筆第 2 階段歷程的日期；consultation.goal → goals 第一筆，needLevel 與 motivation 附在 note；linkage.status 成功／失敗／中斷 → success／failed／failed（中斷記在 providerNote）；tracking → followUps；stage 6 → closed；closure 的原因與成果文字 → closure.note。轉換只在記憶體中進行，寫入任一筆時才整份存回。
+沒有編碼的個案在讀取時依序補上 Case 流水號（只在記憶體中，寫入任一筆時才存回）。
 
 ## 七、待辦與提醒
 
@@ -245,7 +237,7 @@ Oct 5, 2026 · @hank
 
 | 步驟 | 內容 | 新增或修改的頁面 |
 | --- | --- | --- |
-| 1 資料層 | assessmentService、caseService、舊個案轉換、角色 role 欄位、設定值、測試 | 不改頁面 |
+| 1 資料層 | assessmentService、caseService、角色 role 欄位、設定值、測試 | 不改頁面 |
 | 2 評估填寫與判讀 | 填寫頁（大字、一題一屏，適合平板；也可由工作人員代填）、評估列表、判讀頁（依 Q12 → Q11 → Q1–Q10 呈現，含追問提示與燈號選擇） | /admin/assessments/new、/admin/assessments、/admin/assessments/:id |
 | 3 分流與個案 | 橘燈自動開案、黃燈程序串接探索頁、個案頁改用 caseService 並依第六節欄位改寫五階段 | CaseList、CaseDetail、Explore（接收帶入條件） |
 | 4 待辦 | 待辦頁 | /admin/todo |

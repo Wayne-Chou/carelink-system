@@ -6,7 +6,6 @@
 //   admin       後台：放在 /admin 底下，使用後台版面（components/AdminLayout.vue：左側選單、上方列）
 //   fullscreen  網址在 /admin 底下，但不使用後台版面（評估填寫頁：由民眾操作，全螢幕、沒有選單）
 
-import { ROLE_PREVIEW_LINK } from "../config/help.js";
 
 export const ADMIN_BASE = "/admin";
 
@@ -21,8 +20,8 @@ export const ROUTES = [
   { name: "reset-password", path: "/reset-password", page: "ResetPassword", area: "public" },
   // 模擬信箱：原型展示用，正式版改由後端寄送 Email
   { name: "mailbox", path: "/mailbox", page: "Mailbox", area: "public" },
-  // 角色預覽（原型展示用）在右下角「?」按鈕的面板；/sitemap 導向首頁並自動打開面板
-  { name: "sitemap", path: "/sitemap", redirect: ROLE_PREVIEW_LINK, area: "public" },
+  // 舊的網站地圖網址：導向首頁
+  { name: "sitemap", path: "/sitemap", redirect: "/", area: "public" },
 
   // ── 評估填寫：由工作人員登入後把平板交給民眾填寫，不使用後台版面 ──
   { name: "assessment-new", path: "/admin/assessments/new", page: "AssessmentNew", area: "fullscreen" },

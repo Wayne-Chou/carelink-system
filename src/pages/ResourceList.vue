@@ -148,6 +148,7 @@
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, nextTick, onMounted, ref } from "vue";
+import { confirmDialog, promptDialog } from "../services/dialogService.js";
 import { useRouter } from "vue-router";
 import FieldValue from "../components/FieldValue.vue";
 import { getNeedTagLabel } from "../config/needTags.js";
@@ -180,7 +181,7 @@ const reload = () => {
 };
 
 // 列表需要的衍生資料一次算好
-// 卡片顯示資料（狀態、風險、合作狀態、探索頁是否顯示）與角色預覽面板共用（services/listViews.js）
+// 卡片顯示資料（狀態、風險、合作狀態、探索頁是否顯示）見 services/listViews.js
 const rows = computed(() => resourceRows(resources.value));
 
 const tabs = computed(() => [
@@ -214,28 +215,31 @@ const filteredResources = computed(() => {
   });
 });
 
-const terminate = (item) => {
-  const ok = confirm(
-    `確定要終止「${item.name || "未命名資源"}」？\n\n終止後不會出現在探索頁與轉介選單，資料會保留供歷史個案查詢。`
-  );
+const terminate = async (item) => {
+  const ok = await confirmDialog({
+    id: "resource-terminate",
+    title: `確定要終止「${item.name || "未命名資源"}」？`,
+    message: "終止後不會出現在探索頁與轉介選單，資料會保留供歷史個案查詢。",
+    confirmText: "終止",
+    tone: "danger",
+  });
   if (!ok) return;
   terminateResource(item.id, { actor: currentActor() });
   reload();
 };
 
-// 永久刪除需二次確認：先確認風險，再輸入資源名稱
-const removeResource = (item) => {
-  const ok = confirm(
-    "永久刪除後無法復原，連結過此資源的歷史個案將查不到資源資料。\n\n一般情況請改用「終止」。確定要繼續刪除嗎？"
-  );
-  if (!ok) return;
+// 永久刪除需二次確認：說明風險，並輸入資源名稱後才能按「永久刪除」
+const removeResource = async (item) => {
   const expected = item.name || "刪除";
-  const input = prompt(`請輸入「${expected}」以確認永久刪除`);
+  const input = await promptDialog({
+    id: "resource-delete",
+    title: "確定要永久刪除？",
+    message: "永久刪除後無法復原，連結過此資源的歷史個案將查不到資源資料。\n\n一般情況請改用「終止」。",
+    input: { label: `請輸入「${expected}」以確認永久刪除`, expected },
+    confirmText: "永久刪除",
+    tone: "danger",
+  });
   if (input === null) return;
-  if (input.trim() !== expected) {
-    alert("輸入內容不符，已取消刪除");
-    return;
-  }
   deleteResource(item.id);
   reload();
 };

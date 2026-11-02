@@ -39,8 +39,6 @@ export const PROVIDER_EDITABLE_FIELDS = [
   "links",
 ];
 
-export const isProviderEditable = (field) => PROVIDER_EDITABLE_FIELDS.includes(field);
-
 // 修改紀錄不記錄的欄位：識別資料、系統時間，以及由其他欄位自動推得的欄位
 export const CHANGE_LOG_IGNORED_FIELDS = ["id", "code", "createdAt", "updatedAt", "changeLog", "prescriptionTypes", "nextVerifyAt"];
 

@@ -238,7 +238,7 @@ VERIFY_INTERVAL_MONTHS_NEW_OR_YELLOW = 3
 5. **沒有座標的資源**：無法判斷距離，一律排在最後並標示「未提供位置」；選擇距離範圍時仍保留在最後，不會被排除。
 6. **無法定位**：民眾拒絕定位、定位失敗、逾時（10 秒）、瀏覽器不支援或非安全連線（https）時，顯示原因，並提示改用縣市、行政區篩選。
 
-距離計算為共用函式（src/utils/geo.js 的 distanceKm、rankByDistance），之後若改為據點結構（doc/plans/sites-plan.md），改取資源最近的對外招收時段計算。
+距離計算為共用函式（src/utils/geo.js 的 distanceKm、rankByDistance）。是否改為一個資源多個據點的結構仍待確認（見 doc/open-questions.md F 節），若採用，距離改取資源最近的據點計算。
 
 ## 十、完整 JSON 範例
 
@@ -259,7 +259,7 @@ VERIFY_INTERVAL_MONTHS_NEW_OR_YELLOW = 3
   "updatedAt": "2026-10-01T09:00:00+08:00",
   "changeLog": [],
 
-  "name": "湳興河濱長者健走班",
+  "name": "範例河濱長者健走班",
   "organization": "示範社區發展協會",
   "description": "健走老師每週二早上 7 點於河濱公園帶領 1 小時團體步行，適合能自行行走的社區長者。",
   "prescriptionTypes": ["health", "social"],
@@ -360,7 +360,7 @@ VERIFY_INTERVAL_MONTHS_NEW_OR_YELLOW = 3
 | 民眾資源頁 | 民眾 | 只顯示可公開的欄位；不顯示風險評級、驗證資訊與行政聯絡人；不開放的資源只顯示簡短說明，不透露原因 |
 | 個案詳情的資源連結 | 健康管理員 | 轉介選單只列出可推薦資源，黃燈資源提示「需健康管理員陪同至少一次」；已連結的資源若後來暫停、終止或刪除，個案頁會標示目前狀態 |
 
-系統沒有預設的資源，從空白開始，由系統管理員或資源管理員在後台新增；展示時可在右下角「?」按鈕的角色預覽面板載入示範資料（見 doc/specs/assessment-schema.md 第一節）。
+系統沒有預設的資源，從空白開始，由系統管理員或資源管理員在後台新增；展示時可在右下角「?」選單載入示範資料（見 doc/specs/assessment-schema.md 第一節）。
 
 ### 設定開關與待確認事項
 

@@ -259,6 +259,7 @@
 <script setup>
 import ChipSelect from "../components/ChipSelect.vue";
 import { computed, reactive, ref, watch } from "vue";
+import { confirmDialog } from "../services/dialogService.js";
 import { useRoute, useRouter } from "vue-router";
 import { ROLES, getRoleLabel } from "../config/roles.js";
 import {
@@ -383,8 +384,15 @@ const submitReview = () => {
   );
 };
 
-const submitSuspend = () => {
-  if (!confirm(`確定要停用「${selected.value.name}」的帳號？\n\n停用後無法登入，已登入的也會被登出。`)) return;
+const submitSuspend = async () => {
+  const ok = await confirmDialog({
+    id: "account-suspend",
+    title: "確定要停用帳號？",
+    message: `停用「${selected.value.name}」的帳號後無法登入，已登入的也會被登出。\n\n之後可以按「重新啟用」恢復。`,
+    confirmText: "停用帳號",
+    tone: "danger",
+  });
+  if (!ok) return;
   const result = suspendAccount(selected.value.id, { reason: suspendReason.value }, actor());
   if (!result.ok) {
     formErrors.value = result.errors;
@@ -417,10 +425,15 @@ const openCreate = () => {
   formErrors.value = {};
   creating.value = true;
 };
-const submitCreate = () => {
+const submitCreate = async () => {
   if (
     createForm.role === "admin" &&
-    !confirm(`確定要建立「系統管理員」帳號？\n\n${createForm.name || "此帳號"}將可使用全部功能，包括審核、停用與建立其他帳號。`)
+    !(await confirmDialog({
+      id: "account-create-admin",
+      title: "確定要建立「系統管理員」帳號？",
+      message: `${createForm.name || "此帳號"}將可使用全部功能，包括審核、停用與建立其他帳號。`,
+      confirmText: "建立系統管理員",
+    }))
   ) {
     return;
   }

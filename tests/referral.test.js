@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FIXTURE_RESOURCES } from "./fixtures/resources.js";
 import {
-  getLinkedResourceName,
   getLinkedResourceStatus,
   getReferralOptions,
 } from "../src/services/referral.js";
@@ -52,20 +51,4 @@ test("連結的資源已被刪除", () => {
     deleted: true,
     resourceId: "gone-123",
   });
-});
-
-test("舊資料的數字 id 也能比對", () => {
-  const legacy = { ...fixture("Res102"), id: "1745000000000" };
-  assert.equal(getLinkedResourceStatus(1745000000000, [legacy]).deleted, false);
-});
-
-test("被刪除資源的名稱：優先用連結時存的名稱，其次從歷程找最後一筆", () => {
-  assert.equal(getLinkedResourceName({ resourceName: "共餐食堂" }, []), "共餐食堂");
-  const history = [
-    { note: "[健康管理員] 連結資源：舊資源A" },
-    { note: "[健康管理員] 連結資源：新資源B（需健康管理員陪同至少一次）" },
-    { note: "[健康管理員] 流程推進" },
-  ];
-  assert.equal(getLinkedResourceName({}, history), "新資源B");
-  assert.equal(getLinkedResourceName({}, []), "");
 });

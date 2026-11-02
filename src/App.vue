@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { useRoute } from "vue-router";
+import AppDialog from "./components/AppDialog.vue";
 import HelpButton from "./components/HelpButton.vue";
 import TourManager from "./components/TourManager.vue";
 import { isHelpVisible } from "./config/help.js";
@@ -12,11 +13,13 @@ const showHelp = computed(() => isHelpVisible(route.name));
 </script>
 
 <template>
-  <!-- viewVersion 變動時重新載入目前頁面（角色預覽載入示範資料或切換角色後） -->
+  <!-- viewVersion 變動時重新載入目前頁面（「?」選單載入示範資料後） -->
   <router-view v-slot="{ Component }">
     <component :is="Component" :key="viewVersion" />
   </router-view>
   <HelpButton v-if="showHelp" />
   <!-- 操作導覽：歡迎卡片與各頁聚光燈導覽（原型展示用） -->
   <TourManager />
+  <!-- 畫面內的確認、輸入、提示對話框（取代瀏覽器原生視窗） -->
+  <AppDialog />
 </template>

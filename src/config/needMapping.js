@@ -69,12 +69,6 @@ export const Q1_Q10_SUGGESTIONS = {
 
 const Q11_BY_CODE = Object.fromEntries(Q11_OPTIONS.map((o) => [o.code, o]));
 
-// Q11 勾選代碼 → 去重複的需求標籤
-export function tagsFromQ11(codes = []) {
-  const tags = (Array.isArray(codes) ? codes : []).flatMap((c) => Q11_BY_CODE[c]?.tags ?? []);
-  return [...new Set(tags)];
-}
-
 // Q11 是否勾選「想找人聊聊」（直接轉介健康管理員）
 export function needsManagerReferral(codes = []) {
   return (Array.isArray(codes) ? codes : []).some(

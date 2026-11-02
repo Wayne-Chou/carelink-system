@@ -408,7 +408,7 @@ const rankedResults = computed(() =>
     : filteredResources.value.map((resource) => ({ resource, distanceKm: null }))
 );
 
-// 卡片顯示資料與角色預覽面板共用（services/listViews.js 的 exploreCard）
+// 卡片顯示資料見 services/listViews.js 的 exploreCard
 const rankedCards = computed(() => rankedResults.value.map((r) => ({ ...r, card: exploreCard(r.resource) })));
 
 const focusRegion = () => {

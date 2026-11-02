@@ -1,8 +1,5 @@
 // 個案資料層（doc/specs/assessment-schema.md 第六節）
-// 比照資源的做法：讀取時把舊格式在記憶體中轉成新格式，只有呼叫寫入函式時才整份寫回「cases」（經 storage.js）
-//
-// 注意：CaseList、CaseDetail、ResourceDashboard 目前仍直接讀寫舊格式，
-// 步驟 3 改寫這些頁面之前，頁面不應呼叫本檔的寫入函式，以免新格式讓舊頁面顯示錯誤。
+// 所有個案的讀寫集中在這裡，寫入時整份寫回「cases」（經 storage.js）
 
 import {
   CASE_OPENING_ORANGE_TYPES,
@@ -31,12 +28,6 @@ const CODE_PREFIX = "Case";
 export const CASE_STAGES = [1, 2, 3, 4, 5, "closed"];
 export const STAGE_LABELS = Object.fromEntries(STAGE_OPTIONS.map((o) => [o.code, o.label]));
 
-// 待確認事項：「第 1 階段的轉介來源除了評估表，是否也要支援守望員轉介與民眾自我轉介？」
-// 目前 createCase 三種來源都支援；只有 medical 會帶入 assessmentId
-export const REFERRER_TYPES = ["medical", "watcher", "self"];
-export const LINKAGE_STATUSES = ["pending", "success", "failed"];
-export const CLOSURE_REASONS = ["goal_met", "integrated", "withdrew", "other"];
-
 // ── 預設值 ────────────────────────────────────────────────
 
 export function createEmptyCase() {
@@ -64,11 +55,10 @@ export function createEmptyCase() {
     closure: {
       reason: "",
       closedAt: null,
-      // 待確認事項：「結案時『轉回醫療端執行結案評估』是否需要醫療端在系統內確認？」
-      // 目前只記錄是否已轉回（布林值），不需醫療端在系統內確認
+      // 已確認（doc/open-questions.md E 節）：只記錄是否已轉回（布林值），不需醫療端在系統內確認
       returnedToMedical: false,
       reentryExplained: false,
-      // 規格外補充欄位：結案說明（舊個案的結案原因與成果文字也放這裡）
+      // 規格外補充欄位：結案說明（reason 為 other 時的文字）
       note: "",
     },
     history: [],
@@ -87,132 +77,13 @@ function historyEntry(stage, action, note, actor = "") {
   return { stage, date: todayString(), at: nowDateTime(), actor, action, note };
 }
 
-// ── 舊個案轉換 ────────────────────────────────────────────
-// 舊格式來自目前的 CaseList／CaseDetail：basic、單一 linkage、tracking、stage 1–6
-
-const LEGACY_SOURCE = { 醫療: "medical", 社區: "watcher", 自主: "self" };
-const LEGACY_LINK_STATUS = { 成功: "success", 失敗: "failed", 中斷: "failed" };
-const LEGACY_ATTENDANCE = { 出席: "attended", 未出席: "absent" };
-const LEGACY_IMPACT = { 改善: "improved", 無變化: "same", 惡化: "worse" };
-const LEGACY_CLOSURE = { 目標達成: "goal_met", 達成目標: "goal_met", 自主融入: "integrated", 主動退出: "withdrew" };
-const ROLE_PREFIX = /^\[(.+?)\]\s*/;
-
-const isLegacyCase = (raw) => !Array.isArray(raw.linkages) || "basic" in raw || "linkage" in raw;
-
-function convertLegacyCase(raw) {
-  const basic = raw.basic || {};
-  const consultation = raw.consultation || {};
-  const linkage = raw.linkage || {};
-  const history = Array.isArray(raw.history) ? raw.history : [];
-  const stage = raw.stage === 6 ? "closed" : CASE_STAGES.includes(raw.stage) ? raw.stage : 1;
-  const reachedConsultation = stage === "closed" || stage >= 2;
-
-  const linkNote = [...history].reverse().find((h) => String(h?.note ?? "").includes("連結資源"));
-  const firstConsultation = history.find((h) => h?.stage === 2);
-
-  const linkages = [];
-  const resourceId = linkage.resourceId ?? raw.resourceId ?? null;
-  if (resourceId !== null && resourceId !== "") {
-    linkages.push({
-      resourceId: String(resourceId),
-      resourceName: linkage.resourceName || "",
-      reason: linkage.reason || "",
-      linkedAt: linkNote?.date ?? null,
-      escortNeeded: String(linkNote?.note ?? "").includes("陪同"),
-      status: LEGACY_LINK_STATUS[linkage.status] ?? "pending",
-      attendance: null,
-      providerNote: linkage.status === "中斷" ? "資源端回報：中斷" : "",
-    });
-  }
-
-  const followUps = (Array.isArray(raw.tracking) ? raw.tracking : []).map((t, i) => ({
-    round: FOLLOW_UP_MONTHS[i] ?? null,
-    plannedAt: t.date ?? null,
-    doneAt: t.date ?? null,
-    attendance: LEGACY_ATTENDANCE[t.status] ?? null,
-    participation: t.status === "出席" ? "success" : t.status === "未出席" ? "failed" : null,
-    impact: LEGACY_IMPACT[t.effect] ?? null,
-    note: t.note || "",
-  }));
-
-  const closureText = [raw.closure?.reason, raw.closure?.outcome].filter(Boolean).join("｜");
-
-  return normalizeCase({
-    id: raw.id,
-    code: raw.code ?? null,
-    stage,
-    managerName: "",
-    createdAt: raw.createdAt ?? null,
-    updatedAt: raw.updatedAt ?? raw.createdAt ?? null,
-    person: {
-      name: basic.name || raw.name || "",
-      nationalId: "",
-      phone: "",
-      livingAlone: (basic.identity || []).includes("獨居長者"),
-    },
-    referral: {
-      referrerType: LEGACY_SOURCE[basic.source] ?? "",
-      referrerName: "",
-      assessmentId: null,
-      assessmentCode: null,
-      reason: basic.problem || "",
-      // 舊個案已進入諮詢以後的階段，視為已取得同意
-      consent: reachedConsultation,
-      consentAt: null,
-    },
-    consultation: {
-      firstContactAt: reachedConsultation ? firstConsultation?.date ?? raw.createdAt ?? null : null,
-      whatMatters: "",
-      needTags: [],
-      goals: consultation.goal ? [consultation.goal] : [],
-      note: [
-        consultation.note,
-        consultation.needLevel && `需求程度：${consultation.needLevel}`,
-        consultation.motivation && `參與動機：${consultation.motivation}`,
-      ]
-        .filter(Boolean)
-        .join("\n"),
-    },
-    linkages,
-    followUps,
-    closure: {
-      reason: closureText ? LEGACY_CLOSURE[raw.closure?.reason] ?? "other" : "",
-      closedAt: stage === "closed" ? history.at(-1)?.date ?? null : null,
-      returnedToMedical: false,
-      reentryExplained: false,
-      note: closureText,
-    },
-    history: history.map((h) => {
-      const note = String(h?.note ?? "");
-      const role = ROLE_PREFIX.exec(note);
-      return {
-        stage: h?.stage ?? null,
-        date: h?.date ?? null,
-        at: null,
-        actor: role ? role[1] : "",
-        action: "legacy",
-        note: note.replace(ROLE_PREFIX, ""),
-      };
-    }),
-    // 規格外補充欄位：新架構沒有對應位置的舊欄位，保留避免資料遺失
-    legacy: {
-      age: basic.age ?? "",
-      gender: basic.gender ?? "",
-      identity: Array.isArray(basic.identity) ? basic.identity : [],
-      source: basic.source ?? "",
-      needLevel: consultation.needLevel ?? "",
-      motivation: consultation.motivation ?? "",
-    },
-  });
-}
-
 // ── 讀取 ──────────────────────────────────────────────────
 
-// 讀取時轉換舊格式，並替沒有編碼的個案依序補上 Case 流水號（只在記憶體中，寫入時才存回）
+// 讀取時補齊預設欄位，並替沒有編碼的個案依序補上 Case 流水號（只在記憶體中，寫入時才存回）
 export function getAllCases() {
   const cases = readList(STORAGE_KEY)
     .filter(isPlainObject)
-    .map((raw) => (isLegacyCase(raw) ? convertLegacyCase(raw) : normalizeCase(raw)));
+    .map((raw) => normalizeCase(raw));
   for (const item of cases) {
     if (!isValidCode(CODE_PREFIX, item.code)) item.code = nextCode(CODE_PREFIX, cases);
   }

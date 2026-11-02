@@ -4,13 +4,13 @@ import {
   CITIES,
   CITY_TYPES,
   getCityGroups,
-  getCityNames,
   getDistricts,
   getZipCode,
   normalizeCityName,
   parseCityDistrict,
 } from "../src/config/districts.js";
 
+const cityNames = CITIES.map((c) => c.name);
 const allDistricts = CITIES.flatMap((c) => c.districts.map((d) => ({ city: c.name, ...d })));
 
 test("全台 22 個縣市：直轄市 6、市 3、縣 13，依直轄市 → 市 → 縣排序", () => {
@@ -21,7 +21,7 @@ test("全台 22 個縣市：直轄市 6、市 3、縣 13，依直轄市 → 市 
   );
   const typeOrder = CITIES.map((c) => CITY_TYPES.indexOf(c.type));
   assert.deepEqual(typeOrder, [...typeOrder].sort((a, b) => a - b), "類型順序不交錯");
-  assert.deepEqual(getCityNames().slice(0, 9), [
+  assert.deepEqual(cityNames.slice(0, 9), [
     "臺北市", "新北市", "桃園市", "臺中市", "臺南市", "高雄市", "基隆市", "新竹市", "嘉義市",
   ]);
 });
@@ -42,11 +42,11 @@ test("每區都有 3 碼郵遞區號", () => {
 });
 
 test("名稱不重複：縣市名稱、同一縣市內的行政區名稱；名稱一律用「臺」", () => {
-  assert.equal(new Set(getCityNames()).size, CITIES.length);
+  assert.equal(new Set(cityNames).size, CITIES.length);
   for (const c of CITIES) {
     assert.equal(new Set(c.districts.map((d) => d.name)).size, c.districts.length, c.name);
   }
-  for (const name of [...getCityNames(), ...allDistricts.map((d) => d.name)]) {
+  for (const name of [...cityNames, ...allDistricts.map((d) => d.name)]) {
     assert.ok(!name.includes("台"), name);
   }
   assert.equal(getZipCode("雲林縣", "臺西鄉"), "636");

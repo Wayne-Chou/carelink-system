@@ -144,7 +144,7 @@ const cases = ref(getAllCases());
 const notice = ref("");
 const forms = reactive({});
 
-// 轉介到此資源的個案（規則見 caseService.getReferralsForResource）；顯示資料與角色預覽面板共用（services/listViews.js）
+// 轉介到此資源的個案（規則見 caseService.getReferralsForResource）；顯示資料見 services/listViews.js
 const rows = computed(() => referralRows(resource.value?.id, cases.value));
 
 const pendingCount = computed(() => rows.value.filter((r) => r.linkage.status === "pending").length);

@@ -21,21 +21,6 @@ export const DATA_KEYS = ["resources", "cases", "assessments"];
 
 const dataStorage = () => (DATA_STORAGE === "local" ? localStorage : sessionStorage);
 
-// ── 舊資料清除 ────────────────────────────────────────────
-// 改用 sessionStorage 之前，資料存在 localStorage；第一次讀寫時清掉殘留的資料，避免新舊資料混淆
-// 帳號清單 users 另由下方的 cleanLegacyAccounts 處理
-
-let legacyCleaned = false;
-function cleanLegacyData() {
-  if (legacyCleaned || DATA_STORAGE !== "session") return;
-  legacyCleaned = true;
-  try {
-    for (const key of DATA_KEYS) localStorage.removeItem(key);
-  } catch {
-    // 瀏覽器禁止存取儲存空間時略過
-  }
-}
-
 // ── 共用 ──────────────────────────────────────────────────
 
 function readFrom(storage, key) {
@@ -60,12 +45,10 @@ function writeTo(storage, key, list) {
 // ── 資料（依 DATA_STORAGE）────────────────────────────────
 
 export function readList(key) {
-  cleanLegacyData();
   return readFrom(dataStorage, key);
 }
 
 export function writeList(key, list) {
-  cleanLegacyData();
   writeTo(dataStorage, key, list);
 }
 
@@ -97,26 +80,10 @@ export function writeUiState(key, value) {
 
 const accountStorage = () => (ACCOUNT_STORAGE === "local" ? localStorage : sessionStorage);
 
-// 改用 sessionStorage 之前，帳號清單存在 localStorage；第一次讀寫時清掉殘留的帳號
-let legacyAccountsCleaned = false;
-// 只有帳號清單 users 有舊資料；不論第一次讀寫的是哪個 key 都要清
-const LEGACY_ACCOUNT_KEYS = ["users"];
-function cleanLegacyAccounts() {
-  if (legacyAccountsCleaned || ACCOUNT_STORAGE !== "session") return;
-  legacyAccountsCleaned = true;
-  try {
-    for (const key of LEGACY_ACCOUNT_KEYS) localStorage.removeItem(key);
-  } catch {
-    // 瀏覽器禁止存取儲存空間時略過
-  }
-}
-
 export function readAccountList(key) {
-  cleanLegacyAccounts();
   return readFrom(accountStorage, key);
 }
 
 export function writeAccountList(key, list) {
-  cleanLegacyAccounts();
   writeTo(accountStorage, key, list);
 }

@@ -510,6 +510,7 @@
 <script setup>
 import { useCanOpen } from "../composables/useCanOpen.js";
 import { computed, nextTick, reactive, ref, watch } from "vue";
+import { confirmDialog } from "../services/dialogService.js";
 import { useRoute, useRouter } from "vue-router";
 import { FILL_MODE_OPTIONS, QUESTIONS, Q12_TEXT, getQ11Label } from "../config/assessmentForm.js";
 import {
@@ -548,7 +549,7 @@ import { getCaseById } from "../services/caseService.js";
 import { getRecommendableResources, getResourceById } from "../services/resourceService.js";
 import { filterResources } from "../services/resourceSearch.js";
 import { getCurrentUser } from "../utils/auth.js";
-import { can, canReviewAssessment } from "../services/accessControl.js";
+import { can, canReviewAssessment, homePathFor } from "../services/accessControl.js";
 import { deepClone } from "../utils/clone.js";
 import { goBack } from "../utils/navigation.js";
 import { formatDateTime, formatRegion, formatSchedule } from "../utils/resourceFormat.js";
@@ -611,12 +612,16 @@ function closeVoidForm() {
   voidError.value = "";
 }
 
-const confirmVoid = () => {
+const confirmVoid = async () => {
   voidError.value = voidReason.value ? "" : "請填寫作廢原因";
   if (voidError.value) return;
-  const ok = confirm(
-    `確定要作廢 ${assessment.value.code}（${assessment.value.person.name || "未填姓名"}）嗎？\n\n作廢後無法再判讀，也不會出現在待辦與預設列表中；資料仍會保留。`
-  );
+  const ok = await confirmDialog({
+    id: "assessment-void",
+    title: `確定要作廢 ${assessment.value.code}（${assessment.value.person.name || "未填姓名"}）嗎？`,
+    message: "作廢後無法再判讀，也不會出現在待辦與預設列表中；資料仍會保留。",
+    confirmText: "作廢",
+    tone: "danger",
+  });
   if (!ok) return;
   const res = voidAssessment(assessment.value.id, {
     reason: voidReason.value,
