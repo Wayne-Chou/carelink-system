@@ -2,6 +2,11 @@
   <div class="case-list-page">
     <div class="top-bar">
       <div class="header-left">
+        <!-- 守望員轉介：守望員送出的轉介單，在這裡開案或不開案 -->
+        <router-link v-if="canOpen(referralsPath)" :to="referralsPath" class="referral-btn" data-tour="cases-referrals">
+          <i class="fa-solid fa-hand-holding-heart" aria-hidden="true"></i> 守望員轉介
+          <span v-if="pendingReferrals" class="referral-count">待處理 {{ pendingReferrals }}</span>
+        </router-link>
       </div>
       <div class="header-center">
         <h2>個案管理</h2>
@@ -95,6 +100,8 @@ import { FIRST_CONTACT_HOURS } from "../config/assessmentRules.js";
 import { STAGE_OPTIONS } from "../config/caseLabels.js";
 import { canDeleteCase, createCase, deleteCase, getAllCases } from "../services/caseService.js";
 import { caseRows } from "../services/listViews.js";
+import { getPendingReferrals } from "../services/referralService.js";
+import { pathOf } from "../router/routes.js";
 import { getCurrentUser } from "../utils/auth.js";
 import { toDateString } from "../utils/date.js";
 
@@ -103,6 +110,8 @@ const router = useRouter();
 const canOpen = useCanOpen();
 
 const cases = ref(getAllCases());
+const referralsPath = pathOf("referrals");
+const pendingReferrals = getPendingReferrals().length;
 const searchQuery = ref("");
 const currentTab = ref("open");
 const notice = ref("");
@@ -137,12 +146,12 @@ const filtered = computed(() => {
     });
 });
 
-// 不經評估表的轉介（守望員或民眾自我轉介），先建立基本資料，轉介資訊在個案頁補齊
+// 不經評估表、也不經守望員轉介單的轉介（例如民眾自我轉介），先建立基本資料，轉介資訊在個案頁補齊
 const addCase = async () => {
   const name = await promptDialog({
     id: "case-create",
     title: "新增個案",
-    message: "守望員通報或民眾自我轉介時，不經評估表直接建立個案。建立後在個案頁補齊轉介來源與其他資料。",
+    message: "民眾自我轉介等不經評估表的情況，直接建立個案（守望員送出的轉介單請在「守望員轉介」開案）。建立後在個案頁補齊轉介來源與其他資料。",
     input: { label: "個案姓名", required: true },
     confirmText: "建立",
   });
@@ -229,6 +238,29 @@ const removeCase = async (item) => {
 .add-btn {
   background: #c2956e;
   border: none;
+  font-weight: 700;
+}
+.referral-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: white;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.referral-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.referral-count {
+  background: #ffcc80;
+  color: #5d4037;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 12px;
   font-weight: 700;
 }
 

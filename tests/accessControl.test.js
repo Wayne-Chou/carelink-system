@@ -55,7 +55,7 @@ test("路由表：router/routes.js 的每個路由都列在權限表或公開頁
 
 test("角色設定：每個角色都有功能清單；註冊不開放系統管理員、資源管理員", () => {
   for (const role of ROLE_CODES) assert.ok(Array.isArray(PERMISSIONS[role]) && PERMISSIONS[role].length, role);
-  assert.deepEqual(REGISTERABLE_ROLES, ["reader", "manager", "provider"]);
+  assert.deepEqual(REGISTERABLE_ROLES, ["reader", "manager", "provider", "watcher"]);
 });
 
 test("資源管理員：可進入資源相關頁面與待辦；不能進入評估、個案、資源端後台", () => {

@@ -8,10 +8,10 @@
       <p class="auth-eyebrow">Welcome back</p>
       <h1>登入</h1>
       <p class="auth-desc">登入後可管理社區資源與個案流程</p>
-      <form class="auth-form" data-tour="login-form" @submit.prevent="handleSubmit">
+      <form class="auth-form" data-tour="login-form" novalidate @submit.prevent="handleSubmit">
         <label class="field">
           <span>Email</span>
-          <input v-model="email" type="email" required placeholder="you@example.com" />
+          <input v-model="email" type="email" required placeholder="you@example.com" autocomplete="email" />
         </label>
         <label class="field">
           <span>密碼</span>
@@ -73,6 +73,7 @@ import { useRoute, useRouter } from "vue-router";
 import { goBack } from "../utils/navigation.js";
 import logo from "../assets/logo.png";
 import { login } from "../utils/auth.js";
+import { emailError } from "../config/accounts.js";
 import { DEMO_ACCOUNTS, QUICK_LOGINS, getRoleLabel } from "../config/roles.js";
 import { landingPathFor } from "../services/accessControl.js";
 import { getAssessmentById } from "../services/assessmentService.js";
@@ -99,7 +100,11 @@ const signIn = (credentials) => {
   router.replace(landingPathFor(result.user, redirect, { findAssessment: getAssessmentById }));
 };
 
-const handleSubmit = () => signIn({ email: email.value, password: password.value });
+// 先檢查 Email 格式（與申請帳號、建立帳號、忘記密碼相同的規則），再檢查是否填了密碼
+const handleSubmit = () => {
+  error.value = emailError(email.value) || (password.value ? "" : "請輸入密碼");
+  if (!error.value) signIn({ email: email.value, password: password.value });
+};
 
 // 快速登入：直接用示範帳號的 Email 與密碼登入
 const quickLogins = QUICK_LOGINS.map((q) => ({ ...q, label: getRoleLabel(q.role) }));

@@ -34,7 +34,7 @@ test("第十二節列出所有設定，且值與程式一致", () => {
 
 // ── 待確認事項集中在 doc/open-questions.md ──
 const readDoc = (path) => readFileSync(new URL(`../doc/${path}`, import.meta.url), "utf8");
-const SPECS = ["specs/resource-schema.md", "specs/assessment-schema.md", "specs/account-schema.md"];
+const SPECS = ["specs/resource-schema.md", "specs/assessment-schema.md", "specs/account-schema.md", "specs/referral-schema.md"];
 const openQuestions = readDoc("open-questions.md");
 
 test("規格不再另列待確認事項，改為連到 doc/open-questions.md", () => {

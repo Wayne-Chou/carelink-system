@@ -80,7 +80,7 @@
 
           <div class="col-md-6">
             <label class="field-label" for="referrer-type">轉介來源</label>
-            <select id="referrer-type" v-model="draft.referral.referrerType" :disabled="readonly || fromAssessment">
+            <select id="referrer-type" v-model="draft.referral.referrerType" :disabled="readonly || fromAssessment || fromReferral">
               <option value="">請選擇</option>
               <option v-for="o in REFERRER_TYPE_OPTIONS" :key="o.code" :value="o.code">{{ o.label }}</option>
             </select>
@@ -100,6 +100,20 @@
                 {{ caseItem.referral.assessmentCode || "查看評估" }}（前往判讀頁）
               </router-link>
               <span v-else>{{ caseItem.referral.assessmentCode || "—" }}</span>
+            </p>
+          </div>
+          <div v-if="fromReferral" class="col-12">
+            <p class="assessment-link">
+              <i class="fa-solid fa-hand-holding-heart" aria-hidden="true"></i>
+              由守望員轉介開案：
+              <router-link
+                v-if="canOpen(`/admin/cases/referrals/${caseItem.referral.referralId}`)"
+                :to="`/admin/cases/referrals/${caseItem.referral.referralId}`"
+              >
+                {{ caseItem.referral.referralCode || "查看轉介單" }}（前往轉介單）
+              </router-link>
+              <span v-else>{{ caseItem.referral.referralCode || "—" }}</span>
+              。轉介前未取得民眾同意，第一次聯繫時請說明並取得同意。
             </p>
           </div>
           <div class="col-12">
@@ -611,6 +625,7 @@ const ORDER = STAGE_OPTIONS.map((o) => o.code);
 const stageIndex = (stage) => ORDER.indexOf(stage);
 const readonly = computed(() => caseItem.value?.stage === "closed");
 const fromAssessment = computed(() => !!caseItem.value?.referral.assessmentId);
+const fromReferral = computed(() => !!caseItem.value?.referral.referralId);
 
 const stageState = (stage) => {
   const current = stageIndex(caseItem.value.stage);

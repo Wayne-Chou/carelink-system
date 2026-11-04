@@ -18,6 +18,9 @@
             系統管理員審核後，結果會以 Email 通知（{{ submitted.email }}）。審核通過時會寄出設定密碼的連結，設定密碼後即可登入。
           </p>
         </div>
+        <p class="notice-box mt-3" role="note">
+          審核通過後會寄出設定密碼的信。如果沒收到，請先檢查垃圾郵件，或在登入頁使用「忘記密碼」重新取得連結。
+        </p>
         <p class="auth-footer">
           <router-link to="/mailbox" class="prototype-link">
             <span class="prototype-tag">原型展示用</span> 查看模擬信箱
@@ -95,7 +98,13 @@
               <option value="" disabled>{{ resources.length ? "請選擇資源" : "目前沒有資源" }}</option>
               <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.code }} {{ r.name }}</option>
             </select>
-            <input v-else v-model="form.details[form.role][f.key]" type="text" :class="{ invalid: detailError(f.key) }" />
+            <input
+              v-else
+              v-model="form.details[form.role][f.key]"
+              type="text"
+              :placeholder="f.placeholder"
+              :class="{ invalid: detailError(f.key) }"
+            />
             <small v-if="f.type === 'resource' && !resources.length" class="field-hint">
               目前沒有可綁定的資源，請先聯絡資源管理員建立資源
             </small>
@@ -135,7 +144,7 @@ import { useRoute, useRouter } from "vue-router";
 import { goBack } from "../utils/navigation.js";
 import logo from "../assets/logo.png";
 import { REGISTERABLE_ROLES, ROLES, getRoleLabel } from "../config/roles.js";
-import { ROLE_DETAIL_FIELDS, SUPERVISOR_HINT } from "../config/accounts.js";
+import { SUPERVISOR_HINT, visibleDetailFields } from "../config/accounts.js";
 import { createEmptyApplication, getReapplyForm, submitApplication } from "../services/accountService.js";
 import { getAllResources } from "../services/resourceService.js";
 
@@ -164,10 +173,11 @@ const commonFields = [
   { key: "reason", label: "申請理由", type: "text" },
 ];
 
-// 可申請的角色：判讀人員、健康管理員、資源點（config/roles.js 的 REGISTERABLE_ROLES）
+// 可申請的角色：判讀人員、健康管理員、資源點、守望員（config/roles.js 的 REGISTERABLE_ROLES）
 const roleOptions = ROLES.filter((r) => REGISTERABLE_ROLES.includes(r.code));
 const selectedRole = computed(() => roleOptions.find((r) => r.code === form.role) ?? null);
-const detailFields = computed(() => ROLE_DETAIL_FIELDS[form.role] ?? []);
+// 依目前填寫的內容顯示（守望員的身分類別選「其他」時才出現說明欄）
+const detailFields = computed(() => visibleDetailFields(form.role, form.details[form.role]));
 const detailError = (key) => errors.value[`details.${form.role}.${key}`];
 
 // 資源點要綁定的資源：列出目前全部資源，依資源編碼排序

@@ -107,6 +107,15 @@
             </div>
           </dl>
 
+          <!-- 已啟用但還沒設定密碼：重新寄送設定密碼信（已設定密碼的改用「忘記密碼」；示範帳號不顯示） -->
+          <div v-if="canResendSetup(selected)" class="resend-row" data-tour="accounts-resend">
+            <button type="button" class="outline-btn small" @click="submitResend">
+              <i class="fa-solid fa-envelope" aria-hidden="true"></i> 重新寄送設定密碼信
+            </button>
+            <p class="hint">寄出新的設定密碼連結（{{ SETUP_TOKEN_DAYS }} 天內有效），之前寄出、還沒使用的設定密碼連結會失效。</p>
+            <p v-if="formErrors.resend" class="field-error">{{ formErrors.resend }}</p>
+          </div>
+
           <template v-if="selected.review">
             <h4 class="sub-title">審核紀錄</h4>
             <dl class="info-grid">
@@ -219,7 +228,7 @@
           <p class="hint">建立後直接為「已啟用」，系統寄出「設定密碼」信，使用者設定密碼後即可登入。資源管理員只能從這裡建立。</p>
           <template v-for="f in createFields" :key="f.key">
             <label class="form-label" :for="`create-${f.key}`">
-              {{ f.label }}<span v-if="f.required" class="required">*</span>
+              {{ f.label }}<span v-if="f.required || (f.key === 'phone' && createForm.role === 'watcher')" class="required">*</span>
             </label>
             <input :id="`create-${f.key}`" v-model.trim="createForm[f.key]" :type="f.type" class="text-input" :class="{ invalid: formErrors[f.key] }" />
             <p v-if="formErrors[f.key]" class="field-error">{{ formErrors[f.key] }}</p>
@@ -240,6 +249,31 @@
               <option v-for="r in resources" :key="r.id" :value="r.id">{{ r.code }} {{ r.name }}</option>
             </select>
             <p v-if="formErrors.resourceId" class="field-error">{{ formErrors.resourceId }}</p>
+          </template>
+          <template v-if="createForm.role === 'watcher'">
+            <template v-for="f in watcherFields" :key="f.key">
+              <label class="form-label" :for="`create-watcher-${f.key}`">{{ f.label }}<span class="required">*</span></label>
+              <select
+                v-if="f.type === 'select'"
+                :id="`create-watcher-${f.key}`"
+                v-model="createForm.watcher[f.key]"
+                class="text-input"
+                :class="{ invalid: formErrors[`watcher.${f.key}`] }"
+              >
+                <option value="">請選擇</option>
+                <option v-for="o in f.options" :key="o.code" :value="o.code">{{ o.label }}</option>
+              </select>
+              <input
+                v-else
+                :id="`create-watcher-${f.key}`"
+                v-model.trim="createForm.watcher[f.key]"
+                type="text"
+                class="text-input"
+                :placeholder="f.placeholder"
+                :class="{ invalid: formErrors[`watcher.${f.key}`] }"
+              />
+              <p v-if="formErrors[`watcher.${f.key}`]" class="field-error">{{ formErrors[`watcher.${f.key}`] }}</p>
+            </template>
           </template>
           <template v-if="createForm.role === 'reader'">
             <label class="form-label" for="create-medical">醫事人員類別（選填，帶入判讀頁）</label>
@@ -266,8 +300,9 @@ import {
   ACCOUNT_STATUSES,
   APPLICATION_FIELDS,
   MEDICAL_TYPES,
-  ROLE_DETAIL_FIELDS,
+  SETUP_TOKEN_DAYS,
   VERIFY_METHODS,
+  visibleDetailFields,
   accountActionLabel,
   accountStatusLabel,
 } from "../config/accounts.js";
@@ -276,7 +311,9 @@ import {
   createAccount,
   createEmptyAccountForm,
   listAccounts,
+  canResendSetup,
   reactivateAccount,
+  resendSetupMail,
   reviewAccount,
   suspendAccount,
 } from "../services/accountService.js";
@@ -349,9 +386,12 @@ const closeAccount = () => {
 };
 
 const isSelf = computed(() => selected.value?.email === currentUser?.email);
-const detailFields = computed(() =>
-  selected.value && !selected.value.createdBy ? ROLE_DETAIL_FIELDS[selected.value.role] ?? [] : []
-);
+// 申請時填的額外欄位；系統管理員建立的帳號只有守望員有（所屬單位與身分類別）
+const detailFields = computed(() => {
+  const a = selected.value;
+  if (!a || (a.createdBy && a.role !== "watcher")) return [];
+  return visibleDetailFields(a.role, a.details);
+});
 const detailText = (field) => {
   const value = selected.value?.details?.[field.key];
   if (field.type === "resource") return resourceText(value);
@@ -401,6 +441,15 @@ const submitSuspend = async () => {
   finish(`已停用 ${result.account.name} 的帳號，已寄出通知信`);
 };
 
+const submitResend = () => {
+  const result = resendSetupMail(selected.value.id, actor());
+  if (!result.ok) {
+    formErrors.value = { resend: result.errors.form };
+    return;
+  }
+  finish(`已重新寄出設定密碼信給 ${result.account.name}`);
+};
+
 const submitReactivate = () => {
   const result = reactivateAccount(selected.value.id, { note: reactivateNote.value }, actor());
   if (!result.ok) {
@@ -420,6 +469,8 @@ const createFields = [
   { key: "organization", label: "目前任職或服務單位", type: "text", required: false },
   { key: "jobTitle", label: "職稱", type: "text", required: false },
 ];
+// 建立守望員：所屬單位、身分類別（選「其他」時另填說明）
+const watcherFields = computed(() => visibleDetailFields("watcher", createForm.watcher));
 const openCreate = () => {
   Object.assign(createForm, createEmptyAccountForm());
   formErrors.value = {};
@@ -450,6 +501,12 @@ const submitCreate = async () => {
 </script>
 
 <style scoped>
+.resend-row {
+  margin: 12px 0 4px;
+}
+.resend-row .hint {
+  margin-top: 6px;
+}
 .accounts-page {
   background: #fcfaf8;
   min-height: 100vh;

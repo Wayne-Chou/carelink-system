@@ -61,8 +61,8 @@ describe("示範資料", () => {
 
   test("只有一位虛構民眾；名稱明顯虛構", () => {
     loadDemoData();
-    assert.deepEqual(countData(), { resources: 1, cases: 1, assessments: 1 });
-    for (const name of [DEMO_NAMES.person, DEMO_NAMES.resource]) assert.match(name, /示範.*（虛構/);
+    assert.deepEqual(countData(), { resources: 1, cases: 1, assessments: 1, referrals: 1 });
+    for (const name of [DEMO_NAMES.person, DEMO_NAMES.resource, DEMO_NAMES.referralPerson]) assert.match(name, /示範.*（虛構/);
   });
 
   test("載入時清空既有的資源、評估、個案；重複載入不會多出資料", () => {
@@ -74,7 +74,21 @@ describe("示範資料", () => {
     assert.equal(getAllCases().length, 1);
   });
 
+  test("1 筆守望員轉介 Ref001：陳示範（虛構民眾），由守望員示範帳號送出，狀態已送出", () => {
+    const { referral } = loadDemoData();
+    assert.equal(referral.code, "Ref001");
+    assert.equal(referral.person.name, "陳示範（虛構民眾）");
+    assert.match(referral.person.phone, /^0900-000-\d{3}$/);
+    assert.equal(referral.status, "submitted");
+    assert.equal(referral.watcher.email, accountOf("watcher").email);
+    assert.equal(referral.watcher.name, accountOf("watcher").name);
+    assert.match(referral.watcher.unit, /示範/);
+    assert.match(referral.watcher.phone, /^0900-000-\d{3}$/);
+    loadDemoData();
+    assert.equal(findDemoData().referral.code, "Ref001", "重複載入時重新從 Ref001 開始");
+  });
+
   test("沒有載入時找不到示範資料", () => {
-    assert.deepEqual(findDemoData(), { resource: null, assessment: null, case: null });
+    assert.deepEqual(findDemoData(), { resource: null, assessment: null, case: null, referral: null });
   });
 });

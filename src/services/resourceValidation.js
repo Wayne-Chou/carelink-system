@@ -13,6 +13,9 @@ import { checkGeo } from "../utils/geo.js";
 
 export const DESCRIPTION_MAX_LENGTH = 100;
 
+// 公眾聯絡人、行政聯絡人：表單在欄位上方先顯示這個規則，送出時依同一規則檢查
+export const CONTACT_RULE_TEXT = "電話、Email 或 LINE 至少填一項";
+
 const isBlank = (v) => v === null || v === undefined || String(v).trim() === "";
 const isEmptyArray = (v) => !Array.isArray(v) || v.length === 0;
 const has = (arr, code) => Array.isArray(arr) && arr.includes(code);

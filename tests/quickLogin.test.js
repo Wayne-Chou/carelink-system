@@ -9,7 +9,7 @@ const { DEMO_ACCOUNTS, QUICK_LOGINS, ROLE_CODES } = await import("../src/config/
 const { getCurrentRole, login } = await import("../src/utils/auth.js");
 const { homePathFor } = await import("../src/services/accessControl.js");
 
-test("快速登入：四個角色各一個按鈕，對應到同角色的示範帳號", () => {
+test("快速登入：每個角色各一個按鈕，對應到同角色的示範帳號", () => {
   assert.deepEqual(QUICK_LOGINS.map((q) => q.role), ROLE_CODES);
   for (const q of QUICK_LOGINS) {
     const account = DEMO_ACCOUNTS.find((a) => a.email === q.email);
@@ -41,7 +41,7 @@ test("資源點示範帳號只有一個", () => {
 });
 
 test("快速登入與一般登入相同：以示範帳號登入後依角色導向", () => {
-  const LANDING = { admin: "/admin", resource_manager: "/admin", reader: "/admin", manager: "/admin", provider: "/admin/provider" };
+  const LANDING = { admin: "/admin", resource_manager: "/admin", reader: "/admin", manager: "/admin", provider: "/admin/provider", watcher: "/admin/referrals" };
   for (const q of QUICK_LOGINS) {
     const account = DEMO_ACCOUNTS.find((a) => a.email === q.email);
     const result = login({ email: account.email, password: account.password });

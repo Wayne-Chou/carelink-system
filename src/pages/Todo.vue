@@ -49,6 +49,7 @@
           v-for="item in filtered"
           :key="`${item.type}-${item.code}`"
           :class="['todo-card', urgency(item)]"
+          :data-tour="item === firstReferral ? 'todo-referral' : undefined"
           role="link"
           tabindex="0"
           @click="canOpen(item.link) && open(item)"
@@ -124,6 +125,9 @@ const filtered = computed(() =>
   typeFilter.value ? byAudience.value.filter((t) => t.type === typeFilter.value) : byAudience.value
 );
 
+// 導覽「守望員轉介待處理」框起第一筆
+const firstReferral = computed(() => filtered.value.find((t) => t.type === "watcher_referral") ?? null);
+
 const selectAudience = (code) => {
   audience.value = code;
   typeFilter.value = "";
@@ -137,6 +141,7 @@ const urgency = (item) => {
 
 const overdueText = (item) => {
   if (item.type === "account_review") return "待審核";
+  if (item.type === "watcher_referral") return "待處理";
   if (item.overdueDays === null) return "未定日期";
   if (item.overdueDays > 0) return `逾期 ${item.overdueDays} 天`;
   if (item.overdueDays === 0) return "今天到期";

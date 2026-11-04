@@ -34,7 +34,13 @@ export const ROUTES = [
   // 判讀頁：判讀人員、系統管理員可判讀；健康管理員只能唯讀查看已開案的評估
   { name: "assessment-review", path: "/admin/assessments/:id", page: "AssessmentReview", area: "admin" },
   { name: "cases", path: "/admin/cases", page: "CaseList", area: "admin" },
+  // 守望員轉介（健康管理員、系統管理員）：放在個案管理底下；靜態網址優先於 /admin/cases/:id
+  { name: "referrals", path: "/admin/cases/referrals", page: "ReferralList", area: "admin" },
+  { name: "referral-detail", path: "/admin/cases/referrals/:id", page: "ReferralDetail", area: "admin" },
   { name: "case-detail", path: "/admin/cases/:id", page: "CaseDetail", area: "admin" },
+  // 守望員：轉介民眾、我的轉介（doc/specs/referral-schema.md）
+  { name: "referral-new", path: "/admin/referrals/new", page: "ReferralNew", area: "admin" },
+  { name: "my-referrals", path: "/admin/referrals", page: "MyReferrals", area: "admin" },
   { name: "list", path: "/admin/resources", page: "ResourceList", area: "admin" },
   { name: "form", path: "/admin/resources/new", page: "ResourceForm", area: "admin" },
   { name: "success", path: "/admin/resources/created", page: "SuccessView", area: "admin" },

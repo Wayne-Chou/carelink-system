@@ -787,6 +787,7 @@
 
               <div class="col-12">
                 <p class="sub-title">公眾聯絡人 <FieldMark /></p>
+                <p class="hint contact-rule">{{ CONTACT_RULE_TEXT }}</p>
               </div>
               <div class="col-md-4">
                 <label>姓名 <FieldMark /></label>
@@ -800,7 +801,7 @@
                 </p>
               </div>
               <div class="col-md-4">
-                <label>電話</label>
+                <label>電話 <FieldMark either /></label>
                 <input
                   v-model.trim="form.publicContact.phone"
                   type="tel"
@@ -811,7 +812,7 @@
                 </p>
               </div>
               <div class="col-md-4">
-                <label>Email 或 LINE</label>
+                <label>Email 或 LINE <FieldMark either /></label>
                 <input v-model.trim="form.publicContact.emailOrLine" type="text" />
               </div>
 
@@ -829,6 +830,7 @@
                         行政聯絡人 <FieldMark />
                         <span class="badge-backend">僅後台</span>
                       </p>
+                      <p class="hint contact-rule">{{ CONTACT_RULE_TEXT }}</p>
                     </div>
                     <div class="col-md-4">
                       <label>姓名 <FieldMark /></label>
@@ -842,7 +844,7 @@
                       </p>
                     </div>
                     <div class="col-md-4">
-                      <label>電話</label>
+                      <label>電話 <FieldMark either /></label>
                       <input
                         v-model.trim="form.adminContact.phone"
                         type="tel"
@@ -853,7 +855,7 @@
                       </p>
                     </div>
                     <div class="col-md-4">
-                      <label>Email 或 LINE</label>
+                      <label>Email 或 LINE <FieldMark either /></label>
                       <input v-model.trim="form.adminContact.emailOrLine" type="text" />
                     </div>
                   </template>
@@ -979,7 +981,7 @@ import {
   getResourceById,
   updateResource,
 } from "../services/resourceService.js";
-import { DESCRIPTION_MAX_LENGTH, validateResource } from "../services/resourceValidation.js";
+import { CONTACT_RULE_TEXT, DESCRIPTION_MAX_LENGTH, validateResource } from "../services/resourceValidation.js";
 import { deepClone } from "../utils/clone.js";
 import { setFlash } from "../utils/flash.js";
 import { goBack } from "../utils/navigation.js";

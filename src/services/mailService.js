@@ -17,6 +17,7 @@ export const MAIL_TYPES = [
   { code: "suspended", label: "帳號停用" },
   { code: "reactivated", label: "帳號重新啟用" },
   { code: "account_created", label: "帳號已建立（設定密碼）" },
+  { code: "setup_resent", label: "重新寄送設定密碼信" },
   { code: "password_reset", label: "重設密碼" },
 ];
 

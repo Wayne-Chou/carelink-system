@@ -32,7 +32,7 @@
 <script setup>
 import { ref } from "vue";
 import logo from "../assets/logo.png";
-import { RESET_TOKEN_MINUTES, isEmail } from "../config/accounts.js";
+import { RESET_TOKEN_MINUTES } from "../config/accounts.js";
 import { requestPasswordReset } from "../services/accountService.js";
 
 const email = ref("");
@@ -41,12 +41,10 @@ const message = ref("");
 
 // 不論 Email 是否存在都顯示相同訊息，避免透露哪些 Email 有帳號
 const handleSubmit = () => {
-  if (!isEmail(email.value)) {
-    error.value = "請輸入正確的 Email";
-    return;
-  }
-  error.value = "";
-  message.value = requestPasswordReset(email.value).message;
+  // Email 格式由 requestPasswordReset 檢查（與申請帳號、建立帳號、登入相同的規則）
+  const result = requestPasswordReset(email.value);
+  error.value = result.ok ? "" : result.error;
+  if (result.ok) message.value = result.message;
 };
 </script>
 

@@ -6,6 +6,8 @@ import { getAllAssessments, isActiveAssessment } from "./assessmentService.js";
 import { getAllCases, getNextFollowUp, isFirstContactOverdue, isFollowUpDue } from "./caseService.js";
 import { getAllResources, isVerifyOverdue } from "./resourceService.js";
 import { getPendingApplications } from "./accountService.js";
+import { getAllReferrals, getPendingReferrals } from "./referralService.js";
+import { REFERRAL_STATUSES, SITUATIONS, referralLabel } from "../config/referralLabels.js";
 import { getRoleLabel } from "../config/roles.js";
 import { addDays, daysBetween, formatDate, todayString, toDateString } from "../utils/date.js";
 
@@ -26,6 +28,8 @@ export const TODO_TYPES = [
   { code: "resource_verify", label: "資源待驗證", audience: "admin" },
   // 只有系統管理員（account.manage）看得到；資源管理員雖然也屬於「管理員」，但不會列出
   { code: "account_review", label: "待審核帳號", audience: "admin", permission: "account.manage" },
+  // 守望員送出、尚未決定開案與否的轉介單；系統管理員在「全部」「健康管理員」看得到
+  { code: "watcher_referral", label: "守望員轉介待處理", audience: "manager", permission: "referral.manage" },
 ];
 
 const TYPE_BY_CODE = Object.fromEntries(TODO_TYPES.map((t) => [t.code, t]));
@@ -36,7 +40,7 @@ const TYPE_BY_CODE = Object.fromEntries(TODO_TYPES.map((t) => [t.code, t]));
  * @property {string} typeLabel
  * @property {string} audience    給誰：reader、manager、admin
  * @property {string} name        對象姓名（資源為資源名稱）
- * @property {string} code        對象編碼（Ast／Case／Res）
+ * @property {string} code        對象編碼（Ast／Case／Res／Ref）
  * @property {string|null} dueDate  到期日；橘燈保留「下次來院時」沒有日期
  * @property {number|null} overdueDays  今天減到期日的天數：大於 0 為逾期，0 為今天到期
  * @property {string} detail      補充說明
@@ -82,6 +86,7 @@ export function computeTodos({
   cases = getAllCases(),
   resources = getAllResources(),
   applications = getPendingApplications(),
+  referrals = getAllReferrals(),
 } = {}) {
   const todos = [];
   const activeAssessments = assessments.filter(isActiveAssessment);
@@ -182,6 +187,30 @@ export function computeTodos({
           link: `/admin/accounts?review=${a.id}`,
           dateText: `申請時間 ${a.createdAt ?? "—"}`,
           detail: [`申請角色：${getRoleLabel(a.role)}`, a.organization].filter(Boolean).join("｜"),
+        },
+        today
+      )
+    );
+  }
+
+  // ── 守望員轉介（健康管理員）── 尚未開案或不開案的轉介單，先送出的在前；沒有到期日（不另訂時間規則）
+  for (const r of getPendingReferrals(referrals)) {
+    const situations = (r.situations || []).map((code) => referralLabel(SITUATIONS, code)).filter(Boolean);
+    todos.push(
+      makeTodo(
+        "watcher_referral",
+        {
+          name: r.person?.name || "未填姓名",
+          code: r.code,
+          link: `/admin/cases/referrals/${r.id}`,
+          dateText: `送出時間 ${toDateString(r.createdAt) || "—"}`,
+          detail: [
+            referralLabel(REFERRAL_STATUSES, r.status),
+            r.watcher?.name && `守望員 ${r.watcher.name}${r.watcher.unit ? `（${r.watcher.unit}）` : ""}`,
+            situations.join("、"),
+          ]
+            .filter(Boolean)
+            .join("｜"),
         },
         today
       )

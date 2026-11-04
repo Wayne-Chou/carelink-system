@@ -120,7 +120,9 @@ describe("導覽腳本", () => {
     const find = (key, target) => PAGE_TOURS[key].find((s) => s.target === target);
     assert.equal(find("assessment-review", "review-yellow").fallback, "review-decision");
     assert.match(find("assessment-review", "review-yellow").text, /開啟探索頁.*需求標籤.*提供給民眾的資源/);
-    assert.match(find("cases", "cases-new").text, /守望員通報或民眾自我轉介/);
+    assert.match(find("cases", "cases-new").text, /民眾自我轉介/);
+    assert.match(find("cases", "cases-referrals").text, /守望員送出的轉介單/);
+    assert.equal(find("todo", "todo-referral").title, "守望員轉介待處理");
     assert.match(find("case-detail", "case-stage-3").text, /退回第 2 階段重新評估/);
     assert.match(find("accounts", "accounts-suspend").text, /離職或合作終止.*須填原因/);
   });

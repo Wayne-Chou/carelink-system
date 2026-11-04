@@ -4,7 +4,7 @@
 
 // ── 設定值 ────────────────────────────────────────────────
 
-// 資料（resources、cases、assessments 等）的儲存位置
+// 資料（resources、cases、assessments、referrals 等）的儲存位置
 // "session"：存在 sessionStorage，關閉瀏覽器（或分頁）後清除（測試階段使用）
 // "local"：存在 localStorage，關閉瀏覽器後保留
 // ⚠ 正式上線改為後端資料庫，資料不再存在瀏覽器
@@ -17,7 +17,7 @@ export const DATA_STORAGE = "session";
 export const ACCOUNT_STORAGE = "session";
 
 // 資料的 key（不含帳號清單 users 與登入狀態）
-export const DATA_KEYS = ["resources", "cases", "assessments"];
+export const DATA_KEYS = ["resources", "cases", "assessments", "referrals"];
 
 const dataStorage = () => (DATA_STORAGE === "local" ? localStorage : sessionStorage);
 

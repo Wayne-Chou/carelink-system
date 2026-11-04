@@ -50,10 +50,28 @@ export function checkPassword(password, confirm) {
 
 // 手機：09 開頭共 10 碼，可含連字號或空白（例：0900-000-001）
 export const isMobile = (value) => /^09\d{8}$/.test(String(value ?? "").replace(/[\s-]/g, ""));
-export const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value ?? "").trim());
+// Email 格式（申請帳號、建立帳號、忘記密碼、登入共用）：前後空白不計，
+// 「名稱@網域」，名稱與網域都不能有空白或第二個 @，網域至少含一個「.」且「.」前後都要有字（例：name@example.com）
+export const isEmail = (value) => /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(String(value ?? "").trim());
+export const EMAIL_FORMAT_ERROR = "Email 格式不正確";
+
+// Email 欄位的錯誤訊息；沒有錯誤時回傳空字串
+export function emailError(value) {
+  if (!String(value ?? "").trim()) return "請填寫 Email";
+  return isEmail(value) ? "" : EMAIL_FORMAT_ERROR;
+}
+
+// 守望員的身分類別（選「其他」時另填說明）
+export const WATCHER_IDENTITY_TYPES = [
+  { code: "village_chief", label: "里長" },
+  { code: "volunteer", label: "志工" },
+  { code: "community_staff", label: "社區據點人員" },
+  { code: "other", label: "其他" },
+];
 
 // 依申請角色的額外欄位（註冊頁與審核畫面共用）；required 為 false 的是選填
 // type：text 文字、select 選項（options）、resource 選擇資源
+// showWhen：只在另一個欄位為指定值時顯示與檢查（例：身分類別選「其他」才出現說明欄）
 export const ROLE_DETAIL_FIELDS = {
   reader: [
     { key: "medicalType", label: "醫事人員類別", type: "select", options: MEDICAL_TYPES, required: true },
@@ -67,7 +85,31 @@ export const ROLE_DETAIL_FIELDS = {
     { key: "registrationNo", label: "立案字號", type: "text", required: false },
     { key: "orgContact", label: "機構聯絡電話或 LINE", type: "text", required: true },
   ],
+  watcher: [
+    { key: "unit", label: "所屬單位或社區", type: "text", required: true, placeholder: "例：○○里辦公處、○○社區關懷據點" },
+    { key: "identityType", label: "身分類別", type: "select", options: WATCHER_IDENTITY_TYPES, required: true },
+    {
+      key: "identityOther",
+      label: "身分類別說明",
+      type: "text",
+      required: true,
+      placeholder: "請說明您的身分",
+      showWhen: { key: "identityType", value: "other" },
+    },
+  ],
 };
+
+// 依目前填寫的內容，這個角色要顯示的額外欄位（未符合 showWhen 的不顯示、不檢查）
+export function visibleDetailFields(role, details = {}) {
+  return (ROLE_DETAIL_FIELDS[role] ?? []).filter((f) => !f.showWhen || details?.[f.showWhen.key] === f.showWhen.value);
+}
+
+// 守望員的身分類別文字：選「其他」時顯示說明
+export function watcherIdentityText(details = {}) {
+  const label = WATCHER_IDENTITY_TYPES.find((o) => o.code === details?.identityType)?.label ?? "";
+  if (details?.identityType === "other" && details.identityOther) return `其他：${details.identityOther}`;
+  return label;
+}
 
 // 共同欄位（註冊頁與審核畫面顯示用）
 export const APPLICATION_FIELDS = [
@@ -93,6 +135,7 @@ export const ACCOUNT_ACTIONS = [
   { code: "suspend", label: "停用" },
   { code: "reactivate", label: "重新啟用" },
   { code: "create", label: "系統管理員建立" },
+  { code: "resend_setup", label: "重新寄送設定密碼信" },
 ];
 
 export const accountActionLabel = (code) => ACCOUNT_ACTIONS.find((a) => a.code === code)?.label ?? code;

@@ -1,5 +1,6 @@
 import { test, describe, beforeEach } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { memoryStorage } from "./helpers/memoryStorage.js";
 
 const session = memoryStorage();
@@ -9,7 +10,8 @@ globalThis.sessionStorage = session;
 const svc = await import("../src/services/accountService.js");
 const auth = await import("../src/utils/auth.js");
 const mail = await import("../src/services/mailService.js");
-const { checkPassword } = await import("../src/config/accounts.js");
+const accountsConfig = await import("../src/config/accounts.js");
+const { checkPassword } = accountsConfig;
 const { computeTodos } = await import("../src/services/todoService.js");
 const { filterTodosFor } = await import("../src/services/accessControl.js");
 const { DEMO_ACCOUNTS } = await import("../src/config/roles.js");
@@ -459,5 +461,95 @@ describe("帳號列表、待辦與模擬信箱", () => {
     assert.deepEqual(boxes[1].mails.map((m) => m.type), ["approved", "application_received"]);
     assert.ok(session.data.mockMails, "存在 sessionStorage");
     assert.equal(mail.getMails().find((m) => m.id === boxes[1].mails[0].id).subject, "【CareLink】帳號已開通，請設定密碼");
+  });
+});
+
+describe("重新寄送設定密碼信", () => {
+  const created = (email = "re@example.com") =>
+    svc.createAccount({ ...svc.createEmptyAccountForm(), name: "重寄範例", email, role: "manager" }, ADMIN).account;
+
+  test("寄出新的設定密碼信（7 天有效）；同一帳號之前未使用的設定密碼連結全部失效；記錄狀態歷程", () => {
+    const account = created();
+    const oldToken = tokenIn(lastMailTo("re@example.com"));
+    const result = svc.resendSetupMail(account.id, ADMIN, { now: at("09:00") });
+    assert.equal(result.ok, true);
+    const mailItem = lastMailTo("re@example.com");
+    assert.equal(mailItem.type, "setup_resent");
+    assert.equal(mailItem.subject, "【CareLink】請設定密碼（重新寄送）");
+    assert.match(svc.checkResetToken(oldToken).error, /^此連結已失效，請使用最新一封設定密碼信中的連結/);
+    const newToken = tokenIn(mailItem);
+    assert.equal(svc.checkResetToken(newToken, { now: at("09:00") }).ok, true);
+    const eightDays = new Date(at("09:00").getTime() + 8 * 24 * 3_600_000);
+    assert.equal(svc.checkResetToken(newToken, { now: eightDays }).ok, false, "7 天後過期");
+    const last = accountById(account.id).history.at(-1);
+    assert.equal(last.action, "resend_setup");
+    assert.equal(last.actor.email, ADMIN.email);
+    assert.ok(last.at);
+    assert.equal(accountById(account.id).status, "active");
+    assert.equal(svc.resetPassword(newToken, PASSWORD, PASSWORD).ok, true);
+    assert.equal(auth.login({ email: "re@example.com", password: PASSWORD }).ok, true);
+  });
+
+  test("重新寄送不影響其他帳號的連結，也不影響同帳號的重設密碼連結", () => {
+    const a = created("a@example.com");
+    created("b@example.com");
+    const otherToken = tokenIn(lastMailTo("b@example.com"));
+    svc.requestPasswordReset("a@example.com");
+    const resetToken = tokenIn(lastMailTo("a@example.com"));
+    svc.resendSetupMail(a.id, ADMIN);
+    assert.equal(svc.checkResetToken(otherToken).ok, true);
+    assert.equal(svc.checkResetToken(resetToken).ok, true);
+  });
+
+  test("按鈕只給已啟用、還沒設定密碼的註冊帳號：已設定密碼、示範帳號、待審核不顯示", () => {
+    const pendingId = apply("reader").account.id;
+    const account = created();
+    assert.equal(svc.canResendSetup(accountById(account.id)), true);
+    assert.equal(svc.canResendSetup(accountById(pendingId)), false, "待審核");
+    for (const demo of svc.listAccounts().filter((x) => x.isDemo)) assert.equal(svc.canResendSetup(demo), false, demo.email);
+    setPasswordFromMail("re@example.com");
+    assert.equal(svc.canResendSetup(accountById(account.id)), false, "已設定密碼");
+    assert.match(svc.resendSetupMail(account.id, ADMIN).errors.form, /已設定密碼，請使用「忘記密碼」/);
+    assert.equal(svc.resendSetupMail("demo-admin", ADMIN).ok, false);
+  });
+});
+
+describe("忘記密碼：審核通過但還沒設定密碼的帳號", () => {
+  test("寄出重設密碼信（主旨與頁面標題維持「重設密碼」），申請人可自己完成設定；待審核、已退回不寄", () => {
+    const { account } = apply("reader");
+    svc.requestPasswordReset("li@example.com");
+    assert.deepEqual(mailTypes("li@example.com"), ["application_received"], "待審核不寄");
+    approve(account.id);
+    const result = svc.requestPasswordReset("li@example.com");
+    assert.equal(result.message, "若此 Email 已註冊，我們已寄出重設密碼信，請到信箱查看。");
+    const m = lastMailTo("li@example.com");
+    assert.equal(m.subject, "【CareLink】重設密碼");
+    assert.equal(svc.checkResetToken(tokenIn(m)).purpose, "reset");
+    assert.equal(setPasswordFromMail("li@example.com").ok, true);
+  });
+});
+
+describe("Email 格式檢查（申請帳號、建立帳號、忘記密碼、登入共用）", () => {
+  const { isEmail, emailError } = accountsConfig;
+  const VALID = ["name@example.com", " name@example.com ", "a.b-c@sub.example.com", "NAME@EXAMPLE.COM"];
+  const INVALID = ["name", "name@", "@example.com", "name@example", "name@example.", "name@.com", "name@example..com", "na me@example.com", "a@b@example.com"];
+
+  test("至少要有「@」與含「.」的網域", () => {
+    for (const v of VALID) assert.equal(isEmail(v), true, v);
+    for (const v of INVALID) assert.equal(isEmail(v), false, v);
+    assert.equal(emailError(""), "請填寫 Email");
+    assert.equal(emailError("name@example"), "Email 格式不正確");
+  });
+
+  test("四處用同一個規則，不符合時都顯示「Email 格式不正確」", () => {
+    for (const v of INVALID) {
+      assert.equal(svc.validateApplication(application("reader", { email: v })).email, "Email 格式不正確", `申請 ${v}`);
+      assert.equal(svc.validateAccountForm({ ...svc.createEmptyAccountForm(), name: "甲", email: v, role: "reader" }).email, "Email 格式不正確", `建立 ${v}`);
+      assert.deepEqual(svc.requestPasswordReset(v), { ok: false, error: "Email 格式不正確" }, `忘記密碼 ${v}`);
+    }
+    const read = (p) => readFileSync(new URL(`../src/pages/${p}`, import.meta.url), "utf8");
+    assert.match(read("Login.vue"), /emailError\(email\.value\)/, "登入頁使用同一個檢查");
+    assert.match(read("ForgotPassword.vue"), /requestPasswordReset\(email\.value\)/);
+    assert.doesNotMatch(read("ForgotPassword.vue"), /請輸入正確的 Email/);
   });
 });

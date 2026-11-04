@@ -67,7 +67,7 @@ const loadDemo = async () => {
   const ok = await confirmDialog({
     id: "demo-load",
     title: "確定要載入示範資料？",
-    message: `會清空目前全部 ${counts.resources} 筆資源、${counts.assessments} 筆評估、${counts.cases} 筆個案（含自建資料），只保留示範資料。此動作無法復原。
+    message: `會清空目前全部 ${counts.resources} 筆資源、${counts.assessments} 筆評估、${counts.cases} 筆個案、${counts.referrals} 筆守望員轉介（含自建資料），只保留示範資料。此動作無法復原。
 
 帳號不受影響；資源點示範帳號會改綁到示範資源。`,
     confirmText: "載入示範資料",
@@ -80,9 +80,9 @@ const loadDemo = async () => {
     await alertDialog({
       id: "demo-loaded",
       title: "已載入示範資料",
-      message: `資源 ${demo.resource.code}、評估 ${demo.assessment.code}、個案 ${demo.case.code}。
+      message: `資源 ${demo.resource.code}、評估 ${demo.assessment.code}、個案 ${demo.case.code}、守望員轉介 ${demo.referral.code}。
 
-一位虛構民眾的一串資料：1 筆綠燈資源（綁定 provider@demo.carelink）、1 筆已判讀為橘燈轉介的評估、1 筆已晤談並轉介、等待資源點回報的個案。`,
+一位虛構民眾的一串資料：1 筆綠燈資源（綁定 provider@demo.carelink）、1 筆已判讀為橘燈轉介的評估、1 筆已晤談並轉介、等待資源點回報的個案。另有 1 筆由 watcher@demo.carelink 送出、等待健康管理員處理的守望員轉介。`,
     });
   } catch (e) {
     await alertDialog({ id: "demo-load-failed", title: "載入失敗", message: e.message });

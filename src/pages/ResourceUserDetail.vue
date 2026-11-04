@@ -155,6 +155,7 @@ import {
   TRANSPORT_OPTIONS,
   optionLabel,
 } from "../config/resourceOptions.js";
+import { isEmail } from "../config/accounts.js";
 import { getResourceById } from "../services/resourceService.js";
 import { getPublicAvailability, toPublicResource } from "../services/publicResource.js";
 import { goBack } from "../utils/navigation.js";
@@ -176,7 +177,7 @@ const resource = toPublicResource(raw);
 // 從探索頁或首頁進來就回上一頁；直接開啟網址時回探索頁
 const back = () => goBack(router, "/explore");
 
-const isEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+// 公眾聯絡人的「Email 或 LINE」是 Email 時顯示信封圖示（規則同帳號的 Email 檢查，config/accounts.js）
 
 const needTagLabels = computed(() =>
   (resource?.needTags || []).map((code) =>

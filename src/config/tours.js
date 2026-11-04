@@ -11,6 +11,7 @@
 import { FIRST_CONTACT_HOURS, FOLLOW_UP_MONTHS } from "./assessmentRules.js";
 import { PASSWORD_RULE_TEXT, RESET_TOKEN_MINUTES, SETUP_TOKEN_DAYS } from "./accounts.js";
 import { STRICT_VALIDATION } from "./resourceRules.js";
+import { EMERGENCY_NOTICE } from "./referralLabels.js";
 
 // 未登入的民眾在導覽紀錄中的角色代碼
 export const PUBLIC_ROLE = "public";
@@ -62,11 +63,11 @@ export const WELCOME_CARDS = {
     { title: "你是健康管理員", text: "陪伴橘燈個案，從晤談、轉介資源、追蹤到結案。" },
     {
       title: "從這裡開始",
-      text: "後台首頁的待辦摘要列出逾期未聯繫、追蹤到期、資源點未回報的個案；所有個案在左側選單的「個案管理」。",
+      text: "後台首頁的待辦摘要列出逾期未聯繫、追蹤到期、資源點未回報的個案，以及守望員轉介待處理；所有個案在左側選單的「個案管理」。",
     },
     {
       title: "你在流程中的位置",
-      text: `判讀人員開案後，第 2～5 階段（諮詢、連結、追蹤、結案）由你負責。開案後 ${FIRST_CONTACT_HOURS} 小時內要首次聯繫。`,
+      text: `判讀人員開案後，第 2～5 階段（諮詢、連結、追蹤、結案）由你負責；守望員轉介的個案從第 1 階段開始，第一次聯繫時取得同意。開案後 ${FIRST_CONTACT_HOURS} 小時內要首次聯繫。`,
     },
     START_CARD,
   ],
@@ -79,9 +80,25 @@ export const WELCOME_CARDS = {
     },
     START_CARD,
   ],
+  watcher: [
+    {
+      title: "你是守望員",
+      text: "你是社區裡的夥伴（例如里長、志工、社區據點人員）。發現需要幫忙的人時，透過系統轉介給健康管理員。",
+    },
+    {
+      title: "從這裡開始",
+      text: `登入後直接進入「我的轉介」；在左側選單按「轉介民眾」填寫轉介單。${EMERGENCY_NOTICE}`,
+    },
+    {
+      title: "轉介之後",
+      text: "健康管理員會打開轉介單並聯繫當事人，第一次聯繫時取得本人同意，再決定是否開案。你在「我的轉介」看得到處理狀態，但看不到個案內容。",
+    },
+    START_CARD,
+  ],
 };
 
-const STAFF = ["admin", "resource_manager", "reader", "manager", "provider"];
+const STAFF = ["admin", "resource_manager", "reader", "manager", "provider", "watcher"];
+const CASE_HANDLERS = ["admin", "manager"];
 const REVIEWERS = ["admin", "reader"];
 const RESOURCE_ADMINS = ["admin", "resource_manager"];
 
@@ -121,7 +138,7 @@ export const PAGE_TOURS = {
     {
       target: "login-register",
       title: "申請帳號",
-      text: "判讀人員、健康管理員、資源點可以申請帳號；審核通過後會收到設定密碼的信。",
+      text: "判讀人員、健康管理員、資源點、守望員可以申請帳號；審核通過後會收到設定密碼的信。",
     },
   ],
   register: [
@@ -172,6 +189,12 @@ export const PAGE_TOURS = {
     { target: "todo-audience", title: "給誰", text: "切換查看各角色的待辦。", roles: ["admin"] },
     { target: "todo-types", title: "類型", text: "點類型只看這一類的待辦，再點一次取消。" },
     { target: "todo-list", title: "待辦清單", text: "逾期的排最前面，點一下前往處理。" },
+    {
+      target: "todo-referral",
+      title: "守望員轉介待處理",
+      text: "守望員送出、還沒決定開案與否的轉介單，點一下打開轉介單處理。",
+      roles: CASE_HANDLERS,
+    },
   ],
   "assessment-new": [
     {
@@ -229,7 +252,12 @@ export const PAGE_TOURS = {
     {
       target: "cases-new",
       title: "＋新增個案",
-      text: "守望員通報或民眾自我轉介時，由你直接建立個案。",
+      text: "民眾自我轉介等不經評估表的情況，由你直接建立個案。",
+    },
+    {
+      target: "cases-referrals",
+      title: "守望員轉介",
+      text: "守望員送出的轉介單在這裡，打開後決定開案或不開案；有待處理時顯示數量。",
     },
     { target: "cases-tabs", title: "階段分頁", text: "進行中與各階段的個案。" },
     { target: "cases-search", title: "搜尋", text: "用姓名或個案編碼找。" },
@@ -321,6 +349,34 @@ export const PAGE_TOURS = {
       roles: ["provider"],
     },
   ],
+  // ── 守望員轉介 ──
+  "referral-new": [
+    { target: "referral-emergency", title: "緊急狀況", text: `${EMERGENCY_NOTICE}不要等轉介。` },
+    { target: "referral-person", title: "被轉介人", text: "姓名與聯絡電話必填；轉介前不需要先取得當事人同意。" },
+    { target: "referral-situation", title: "發現的狀況", text: "可複選，再在「狀況說明」寫下你看到的情形。" },
+    { target: "referral-submit", title: "送出轉介", text: "按「送出轉介」後顯示轉介編碼，健康管理員會盡快處理。" },
+    { target: "referral-done", title: "已送出轉介", text: "記下轉介編碼；按「查看我的轉介」看處理狀態。" },
+  ],
+  "my-referrals": [
+    { target: "admin-menu", title: "左側選單", text: "守望員只有「轉介民眾」「我的轉介」兩個功能。" },
+    { target: "my-referrals-new", title: "＋轉介民眾", text: "發現需要幫忙的人時，按這裡填寫轉介單。" },
+    { target: "my-referrals-status", title: "處理狀態", text: "已送出、處理中、已開案、已結案或未開案；只顯示狀態與結案日期，看不到內容。" },
+    { target: "my-referrals-list", title: "我的轉介", text: "新的在最上面；已結案的民眾又需要幫忙時，請再送出新的轉介單。" },
+    { target: "help-button", title: "需要幫忙時", text: "右下角的問號按鈕可以重看導覽與歡迎介紹。" },
+  ],
+  referrals: [
+    { target: "referrals-tabs", title: "狀態分頁", text: "待處理（已送出、處理中）排最前面，也可以看已開案、已結案、未開案。" },
+    { target: "referrals-list", title: "轉介單", text: "點一下打開轉介單；打開後狀態改為處理中，守望員也看得到。" },
+  ],
+  "referral-detail": [
+    { target: "referral-detail-content", title: "轉介內容", text: "被轉介人的聯絡方式、發現的狀況與守望員的說明。" },
+    { target: "referral-detail-watcher", title: "轉介的守望員", text: "需要了解更多情況時，可以聯絡轉介的守望員。" },
+    {
+      target: "referral-detail-actions",
+      title: "開案或不開案",
+      text: "按「開案」建立個案，從第 1 階段開始；或按「不開案」並選擇原因。",
+    },
+  ],
   accounts: [
     { target: "accounts-toolbar", title: "建立帳號", text: "按「建立帳號」直接建立帳號（資源管理員只能從這裡建立）；旁邊是模擬信箱。" },
     { target: "accounts-tabs", title: "狀態分頁", text: "待審核、已啟用、已退回、已停用；待審核的排最前面。" },
@@ -334,6 +390,12 @@ export const PAGE_TOURS = {
       fallback: "accounts-list",
       title: "停用帳號",
       text: "人員離職或合作終止時停用帳號，須填原因（已啟用的帳號按「查看」後可停用）。",
+    },
+    {
+      target: "accounts-resend",
+      fallback: "accounts-list",
+      title: "重新寄送設定密碼信",
+      text: "已啟用但還沒設定密碼的帳號，按「查看」後可重新寄送；之前的連結會失效。",
     },
   ],
 };

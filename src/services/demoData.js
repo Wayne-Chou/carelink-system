@@ -2,6 +2,7 @@
 //   1 筆資源：綠燈、正式合作，綁定資源點示範帳號 provider@demo.carelink
 //   1 筆評估：判讀人員判讀為橘燈轉介並取得同意
 //   1 筆個案：由這筆評估開案，已晤談、已轉介到上面的資源，等待資源點回報
+//   1 筆守望員轉介：由守望員示範帳號送出，狀態「已送出」，等待健康管理員處理
 // 一律透過各 service 的正式流程建立（與頁面操作相同），不直接寫入資料
 // 名稱、電話、網址皆為明顯虛構：名稱含「示範」與「（虛構）」、電話為 0000 號段、網址為 example.com
 
@@ -10,6 +11,7 @@ import { DATA_KEYS, readList, writeList } from "./storage.js";
 import { createResource, getAllResources } from "./resourceService.js";
 import { createAssessment, getAllAssessments, reviewAssessment } from "./assessmentService.js";
 import { addLinkage, advanceStage, getAllCases, recordFirstContact, updateCase } from "./caseService.js";
+import { getAllReferrals, submitReferral } from "./referralService.js";
 import { bindProviderAccount } from "../utils/auth.js";
 import { todayString } from "../utils/date.js";
 
@@ -17,6 +19,15 @@ import { todayString } from "../utils/date.js";
 export const DEMO_NAMES = {
   resource: "示範社區健走班（虛構）",
   person: "王示範（虛構民眾）",
+  referralPerson: "陳示範（虛構民眾）",
+};
+
+// 守望員轉介單：里長發現獨居長者最近很少出門
+const DEMO_REFERRAL = {
+  person: { name: DEMO_NAMES.referralPerson, phone: "0900-000-301", city: "花蓮縣", district: "花蓮市", ageGroup: "senior" },
+  situations: ["alone", "lonely"],
+  description: "住在示範路的獨居長者，最近一個月很少出門，鄰居說他常一個人坐在門口，問他都說沒事。",
+  informed: "yes",
 };
 
 const accountOf = (role) => DEMO_ACCOUNTS.find((a) => a.role === role);
@@ -87,13 +98,14 @@ const DEMO_ANSWERS = {
 
 /**
  * 目前的示範資料（以名稱辨識）；沒有載入時各項為 null
- * @returns {{ resource: object|null, assessment: object|null, case: object|null }}
+ * @returns {{ resource: object|null, assessment: object|null, case: object|null, referral: object|null }}
  */
 export function findDemoData() {
   return {
     resource: getAllResources().find((r) => r.name === DEMO_NAMES.resource) ?? null,
     assessment: getAllAssessments().find((a) => a.person?.name === DEMO_NAMES.person) ?? null,
     case: getAllCases().find((c) => c.person?.name === DEMO_NAMES.person) ?? null,
+    referral: getAllReferrals().find((r) => r.person?.name === DEMO_NAMES.referralPerson) ?? null,
   };
 }
 
@@ -103,9 +115,9 @@ export function countData() {
 }
 
 /**
- * 載入示範資料：清空所有資源、評估、個案後，依正式流程建立一串示範資料
+ * 載入示範資料：清空所有資源、評估、個案、轉介單後，依正式流程建立一串示範資料
  * 帳號、資源點綁定以外的帳號資料不受影響；資源點示範帳號改綁到示範資源
- * @returns {{ resource: object, assessment: object, case: object }}
+ * @returns {{ resource: object, assessment: object, case: object, referral: object }}
  */
 export function loadDemoData({ today = todayString() } = {}) {
   for (const key of DATA_KEYS) writeList(key, []);
@@ -113,6 +125,7 @@ export function loadDemoData({ today = todayString() } = {}) {
   const reader = accountOf("reader");
   const manager = accountOf("manager");
   const provider = accountOf("provider");
+  const watcher = accountOf("watcher");
 
   // 1. 資源：綠燈、正式合作，綁定資源點示範帳號
   const resource = createResource({ ...structuredClone(DEMO_RESOURCE), lastVerifiedAt: today });
@@ -152,6 +165,10 @@ export function loadDemoData({ today = todayString() } = {}) {
   const advanced = advanceStage(caseId, { actor: manager.name });
   if (!advanced.ok) throw new Error(`示範個案無法進入連結階段：${advanced.reasons.join("、")}`);
   addLinkage(caseId, { resourceId: resource.id, reason: "離家近、免費，可以認識朋友" }, { actor: manager.name });
+
+  // 4. 守望員轉介：由守望員示範帳號送出，等待健康管理員處理
+  const referred = submitReferral(structuredClone(DEMO_REFERRAL), watcher);
+  if (!referred.ok) throw new Error(`示範轉介單送出失敗：${JSON.stringify(referred.errors)}`);
 
   return findDemoData();
 }

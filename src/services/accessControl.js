@@ -82,17 +82,19 @@ export function canOpenRoute(to, user, options = {}) {
   return result.ok || result.reason === "login";
 }
 
-// 登入後的預設頁（後台首頁）：資源點直接進入資源端後台，其他角色進入後台首頁；沒有角色的帳號回民眾首頁
+// 登入後的預設頁（後台首頁）：資源點直接進入資源端後台，守望員直接進入我的轉介，其他角色進入後台首頁；
+// 沒有角色的帳號回民眾首頁
 export function homePathFor(user) {
   if (roleOf(user) === "provider") return pathOf("resource-dashboard");
   if (can(user, "workspace.home")) return pathOf("admin-home");
+  if (can(user, "referral.own")) return pathOf("my-referrals");
   return pathOf("home");
 }
 
 /**
  * 路由守衛要導向哪裡（router.beforeEach 使用）；可以進入時回傳 null
  *   未登入 → 登入頁（登入後回到原本要去的頁面）
- *   資源點打開後台首頁 → 直接進入自己的資源端後台（不提示）
+ *   資源點、守望員打開後台首頁 → 直接進入自己的預設頁（不提示）
  *   已登入但沒有權限 → 自己的後台首頁，帶 denied=1 顯示提示
  */
 export function navigationRedirect(to, user, options = {}) {
@@ -100,7 +102,7 @@ export function navigationRedirect(to, user, options = {}) {
   if (result.ok) return null;
   if (result.reason === "login") return { name: "login", query: { redirect: to.fullPath } };
   const home = homePathFor(user);
-  if (to.name === "admin-home" && roleOf(user) === "provider") return { path: home };
+  if (to.name === "admin-home" && ["provider", "watcher"].includes(roleOf(user))) return { path: home };
   return { path: home, query: { denied: "1" } };
 }
 
@@ -137,6 +139,8 @@ const SHORTCUTS = [
   { key: "assessmentNew", label: "填寫評估", icon: "fa-clipboard-list", route: "assessment-new", permission: "assessment.fill" },
   { key: "assessments", label: "評估列表", icon: "fa-list-check", route: "assessments", permission: "assessment.list" },
   { key: "cases", label: "個案管理", icon: "fa-folder-open", route: "cases", permission: "case.manage" },
+  { key: "referralNew", label: "轉介民眾", icon: "fa-hand-holding-heart", route: "referral-new", permission: "referral.create" },
+  { key: "myReferrals", label: "我的轉介", icon: "fa-list-ul", route: "my-referrals", permission: "referral.own" },
   { key: "resources", label: "資源管理", icon: "fa-list", route: "list", permission: "resource.manage" },
   { key: "resourceNew", label: "新增資源", icon: "fa-plus", route: "form", permission: "resource.manage" },
   { key: "accounts", label: "帳號管理", icon: "fa-users-gear", route: "accounts", permission: "account.manage" },
@@ -155,7 +159,7 @@ export function shortcutsFor(user) {
   return list;
 }
 
-// 後台左側選單：後台首頁 + 快捷入口（資源點沒有後台首頁，只有資源端後台與自己的資源）
+// 後台左側選單：後台首頁 + 快捷入口（資源點沒有後台首頁，只有資源端後台與自己的資源；守望員只有轉介民眾與我的轉介）
 export function adminMenuFor(user) {
   const home = can(user, "workspace.home")
     ? [{ key: "home", label: "後台首頁", icon: "fa-gauge", path: pathOf("admin-home") }]

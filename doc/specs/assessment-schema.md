@@ -27,6 +27,9 @@ Oct 5, 2026 · @hank
 | reader | 判讀人員 | 醫療（辨識者） | 閱讀填答、與民眾談話、判定燈號、取得同意 | 評估填寫、評估列表、判讀頁（含修改判讀、作廢）、待辦；資源詳細頁唯讀 | 全部評估；待辦只看「判讀人員」項目 |
 | manager | 健康管理員 | 健康管理員 | 橘燈個案的諮詢、連結、追蹤、結案 | 個案列表、個案頁、待辦；資源詳細頁唯讀；已開案評估的判讀頁唯讀 | 全部個案；評估只看已開案的；待辦只看「健康管理員」項目 |
 | provider | 資源點 | 資源點 | 回報出席與參與狀況；維護自己資源的基本資訊 | 自己綁定資源的資源端後台、資源詳細頁；編輯該資源的部分欄位（見 doc/specs/resource-schema.md 第十四節），修改後直接生效 | 只限綁定的資源（一個帳號綁定一筆資源，由系統管理員或資源管理員綁定） |
+| watcher | 守望員 | 守望員 | 社區夥伴：發現需要幫忙的民眾，轉介給健康管理員（見 doc/specs/referral-schema.md） | 只有轉介民眾、我的轉介；沒有後台首頁與待辦，登入後直接進入我的轉介 | 只看自己送出的轉介單與狀態，看不到個案內容 |
+
+健康管理員與系統管理員另有「守望員轉介」（個案管理底下，權限 referral.manage）：查看轉介單、開案或不開案。
 
 - 首頁、探索頁、民眾資源頁、登入、註冊、忘記密碼、重設密碼、模擬信箱（原型展示用）為公開頁，不需登入。民眾不需要帳號。
 - 「?」按鈕（原型展示用，src/components/HelpButton.vue、設定在 src/config/help.js）：所有頁面右下角固定一個圓形「?」按鈕（評估填寫頁不顯示，避免民眾誤按），以冷灰藍配色、虛線框和「原型展示用」標示與民眾內容區隔。點開是小選單：載入示範資料、模擬信箱（未登入也可以開啟；在模擬信箱頁本身不顯示）、重看這一頁的導覽（這一頁有導覽時）、重看歡迎介紹（登入後）、自動導覽：開／關。可用 Esc 或點選單外的地方關閉選單。登入頁不放原型展示用的連結。/sitemap（原本的網站地圖網址）導向首頁。
@@ -58,6 +61,8 @@ Oct 5, 2026 · @hank
 | 資源詳細（後台）、編輯資源 | /admin/resources/:id、/admin/resources/:id/edit | /resources/:id、/form/:id |
 | 資源端後台 | /admin/provider | /resource-dashboard |
 | 帳號管理 | /admin/accounts | /accounts |
+| 守望員轉介、轉介單（健康管理員、系統管理員） | /admin/cases/referrals、/admin/cases/referrals/:id | — |
+| 轉介民眾、我的轉介（守望員） | /admin/referrals/new、/admin/referrals | — |
 
   舊網址導向時保留網址參數與 query（例：舊信件的 /accounts?review=… 導向 /admin/accounts?review=…）。民眾端網址不變：/、/explore、/user/resources/:id、/login、/register、/forgot-password、/reset-password、/mailbox。
 - 民眾首頁只保留找資源的內容；已登入時右上角為「進入後台」按鈕與使用者圖示，點圖示展開小選單顯示姓名、角色與登出（後台的上方列維持直接顯示姓名、角色與登出）。寬度 991px 以下時，頁內錨點（附近服務、行政區、實用資訊、服務分類）收進漢堡選單；header 高度依實際量測設定，不會蓋住下方內容。
@@ -70,13 +75,14 @@ Oct 5, 2026 · @hank
 | reader@demo.carelink | 判讀人員 | 郭範例（醫師），判讀頁自動帶入姓名與類別 |
 | manager@demo.carelink | 健康管理員 | 高示範 |
 | provider@demo.carelink | 資源點 | 陳範例；預設沒有綁定資源，資源端後台顯示「尚未綁定資源，請聯絡管理員」；由系統管理員或資源管理員在資源詳細頁綁定 |
+| watcher@demo.carelink | 守望員 | 李示範（示範里辦公處（虛構）、里長、0900-000-201） |
 
-- 登入頁的「快速登入（示範用）」：上述 5 個示範帳號各一個按鈕，按下即登入，導向與一般登入相同。
+- 登入頁的「快速登入（示範用）」：上述 6 個示範帳號各一個按鈕，按下即登入，導向與一般登入相同。
 - 資源點帳號綁定：一個資源點帳號只綁定一筆資源，一筆資源可綁定多個資源點帳號。綁定關係存在帳號儲存區（與帳號清單相同，測試階段為 sessionStorage），綁定或解除後不必重新登入就生效。
 - 系統沒有預設的資源、評估、個案，從空白開始；資源由系統管理員或資源管理員新增。
-- 示範資料（原型展示用，src/services/demoData.js）：在「?」選單按「載入示範資料」，以畫面內對話框確認會清空目前所有資源、評估、個案（列出筆數；帳號不受影響）後，建立一位虛構民眾的一串資料：1 筆綠燈、正式合作的資源（綁定 provider@demo.carelink）、1 筆判讀為橘燈轉介並取得同意的評估、1 筆由該評估開案、已晤談並轉介到該資源、等待資源點回報的個案。載入後顯示建立的編碼，並重新載入目前的頁面（src/utils/viewRefresh.js）。
+- 示範資料（原型展示用，src/services/demoData.js）：在「?」選單按「載入示範資料」，以畫面內對話框確認會清空目前所有資源、評估、個案、守望員轉介（列出筆數；帳號不受影響）後，建立一位虛構民眾的一串資料：1 筆綠燈、正式合作的資源（綁定 provider@demo.carelink）、1 筆判讀為橘燈轉介並取得同意的評估、1 筆由該評估開案、已晤談並轉介到該資源、等待資源點回報的個案；另建立 1 筆由 watcher@demo.carelink 送出、狀態「已送出」的守望員轉介 Ref001（陳示範（虛構民眾））。載入後顯示建立的編碼，並重新載入目前的頁面（src/utils/viewRefresh.js）。
 - 註冊與帳號管理見 doc/specs/account-schema.md：
-  - 可申請判讀人員、健康管理員、資源點；送出後為「待審核」，由系統管理員審核通過才能登入。資源點通過時同時完成資源綁定。
+  - 可申請判讀人員、健康管理員、資源點、守望員；送出後為「待審核」，由系統管理員審核通過才能登入。資源點通過時同時完成資源綁定。
   - 系統管理員、資源管理員不開放申請，只能由系統管理員在帳號管理頁建立。
   - 帳號狀態：待審核、已啟用、已退回、已停用，只有已啟用可以登入；示範帳號視為已啟用。
   - 通知信（註冊送出、新申請、審核通過或退回、停用、重新啟用、帳號建立、重設密碼）寫入模擬信箱，不實際寄出。
@@ -198,7 +204,7 @@ Oct 5, 2026 · @hank
 | --- | --- | --- | --- |
 | 基本 | id、code、stage、managerName、createdAt、updatedAt | — | stage：1–5，結案後為 closed |
 | 基本 | person | object | name、nationalId（遮罩顯示）、phone、livingAlone |
-| 1 辨識 | referral | object | 個管紀錄-轉介：referrerType（medical 醫療、watcher 守望員、self 自我轉介）、referrerName、assessmentId、assessmentCode（規格外補充：評估編碼 Ast001，方便畫面顯示）、reason（篩檢結果摘要）、consent、consentAt |
+| 1 辨識 | referral | object | 個管紀錄-轉介：referrerType（medical 醫療、watcher 守望員轉介、self 自我轉介）、referrerName、assessmentId、assessmentCode（規格外補充：評估編碼 Ast001，方便畫面顯示）、referralId、referralCode（守望員轉介開案時的轉介單與編碼 Ref001，見 doc/specs/referral-schema.md）、reason（篩檢結果摘要）、consent、consentAt |
 | 2 諮詢 | consultation | object | 個管紀錄-晤談：firstContactAt、whatMatters（對我而言什麼最重要）、needTags、goals\[\]（共同設定的目標）、note |
 | 3 連結 | linkages\[\] | object\[\] | 個管紀錄-連結：resourceId、resourceName、reason、linkedAt、escortNeeded、status（pending、success、failed）、attendance、providerNote |
 | 4 追蹤 | followUps\[\] | object\[\] | 個管紀錄-追蹤：round（1、3、6 個月）、plannedAt、doneAt、attendance、participation（success、failed）、impact（improved、same、worse）、note |
@@ -230,6 +236,7 @@ Oct 5, 2026 · @hank
 | 橘燈保留再確認 | 評估紀錄 | 橘燈保留，民眾再次來院時在評估列表標示 | 判讀人員 |
 | 資源待驗證 | 資源 | 已完成，沿用 isVerifyOverdue | 管理員（系統管理員、資源管理員） |
 | 待審核帳號 | 帳號 | 註冊申請為待審核；依申請時間排序，點擊開啟該帳號的審核畫面 | 系統管理員（需 account.manage，資源管理員看不到） |
+| 守望員轉介待處理 | 守望員轉介單 | 狀態為已送出或處理中（沒有到期日，不另訂時間規則）；點擊開啟轉介單（見 doc/specs/referral-schema.md） | 健康管理員（需 referral.manage；系統管理員在「全部」「健康管理員」看得到） |
 
 ## 八、實作紀錄
 

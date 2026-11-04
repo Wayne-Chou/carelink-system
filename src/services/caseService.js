@@ -14,8 +14,11 @@ import {
   caseLabel,
 } from "../config/caseLabels.js";
 import { Q11_OPTIONS } from "../config/needMapping.js";
+import { SITUATIONS } from "../config/referralLabels.js";
 import { getResourceById } from "./resourceService.js";
 import { readList, writeList } from "./storage.js";
+// 守望員轉介開案的個案結案時，同步轉介單狀態（referralService 也引用本檔；只在函式執行時互相呼叫）
+import { markReferralCaseClosed } from "./referralService.js";
 import { addMonths, hoursBetween, nowDateTime, todayString, toDateString } from "../utils/date.js";
 import { generateId } from "../utils/id.js";
 import { storeNationalId } from "../utils/nationalId.js";
@@ -45,6 +48,9 @@ export function createEmptyCase() {
       referrerName: "",
       assessmentId: null,
       assessmentCode: null,
+      // 守望員轉介開案時的轉介單（doc/specs/referral-schema.md）
+      referralId: null,
+      referralCode: null,
       reason: "",
       consent: false,
       consentAt: null,
@@ -198,11 +204,15 @@ export function advanceStage(id, { actor = "" } = {}) {
     },
     () => historyEntry(check.nextStage, "advance", `進入「${STAGE_LABELS[check.nextStage]}」`, actor)
   );
+  // 由守望員轉介開案的個案結案：轉介單改為「已結案」
+  if (check.nextStage === "closed") markReferralCaseClosed(updated, { actor });
   return { ok: true, case: updated };
 }
 
 // 退回第 2 階段重新評估（連結失敗或追蹤惡化時由頁面詢問後呼叫）
+// 已結案的個案不能退回（系統沒有取消結案或重新開啟個案；需要再服務時重新開案），回傳 null
 export function returnToConsultation(id, { actor = "", note = "退回諮詢階段重新評估" } = {}) {
+  if (getCaseById(id)?.stage === "closed") return null;
   return mutate(
     id,
     (c) => {
@@ -375,6 +385,9 @@ export function canDeleteCase(caseItem) {
   if (c.referral.assessmentId) {
     return { ok: false, reason: `由評估 ${c.referral.assessmentCode || ""} 開案的個案不能刪除，請改用結案` };
   }
+  if (c.referral.referralId) {
+    return { ok: false, reason: `由守望員轉介 ${c.referral.referralCode || ""} 開案的個案不能刪除，請改用結案` };
+  }
   if (c.stage !== 1 || c.linkages.length || c.followUps.length) {
     return { ok: false, reason: "已進入處置流程的個案不能刪除，請改用結案；只有第 1 階段、沒有連結與追蹤紀錄的個案可以刪除" };
   }
@@ -476,4 +489,42 @@ export function openCaseFromAssessment(assessment, { managerName = "", actor = "
     historyEntry(2, "open_from_assessment", `由評估 ${assessment.code ?? ""} 開案（橘燈${typeLabel}），進入諮詢階段`, actor)
   );
   return { ok: true, case: opened };
+}
+
+// ── 從守望員轉介開案（doc/specs/referral-schema.md）──────────
+
+/**
+ * 守望員轉介：建立個案並帶入被轉介人、轉介單編碼與狀況說明，從第 1 階段開始
+ * 轉介前沒有取得民眾同意，由健康管理員第一次聯繫時取得（consent 為 false，第 1 階段勾選後才能進入諮詢）
+ * 只建立個案，不回寫轉介單；轉介單的狀態由 referralService.openCaseForReferral 處理
+ */
+export function openCaseFromReferral(referral, { managerName = "", actor = "" } = {}) {
+  const situations = (referral.situations || []).map((code) => SITUATIONS.find((o) => o.code === code)?.label ?? code);
+  const region = [referral.person?.city, referral.person?.district].filter(Boolean).join("");
+  const watcher = referral.watcher || {};
+  const lines = [
+    `守望員轉介 ${referral.code ?? ""}${situations.length ? `：${situations.join("、")}` : ""}`,
+    referral.description && `狀況說明：${referral.description}`,
+    region && `地區：${region}`,
+  ].filter(Boolean);
+  const created = createCase(
+    {
+      stage: 1,
+      managerName,
+      person: { name: referral.person?.name ?? "", phone: referral.person?.phone ?? "" },
+      referral: {
+        referrerType: "watcher",
+        referrerName: [watcher.name, watcher.unit && `（${watcher.unit}）`].filter(Boolean).join(""),
+        referralId: referral.id ?? null,
+        referralCode: referral.code ?? null,
+        reason: lines.join("\n"),
+        consent: false,
+        consentAt: null,
+      },
+    },
+    { actor }
+  );
+  return mutate(created.id, () => {}, () =>
+    historyEntry(1, "open_from_referral", `由守望員轉介 ${referral.code ?? ""} 開案，第一次聯繫時需取得民眾同意`, actor)
+  );
 }

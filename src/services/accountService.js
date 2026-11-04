@@ -8,8 +8,9 @@ import {
   ROLE_DETAIL_FIELDS,
   SETUP_TOKEN_DAYS,
   checkPassword,
-  isEmail,
+  emailError,
   isMobile,
+  visibleDetailFields,
 } from "../config/accounts.js";
 import { accountStatusOf, findUserByEmail, getUsers, isDemoEmail, saveUsers, writeBinding } from "../utils/auth.js";
 import { readAccountList, writeAccountList } from "./storage.js";
@@ -18,7 +19,7 @@ import { getResourceById } from "./resourceService.js";
 import { generateId } from "../utils/id.js";
 import { formatDateTime } from "../utils/date.js";
 
-const TOKENS_KEY = "passwordTokens"; // 設定密碼與重設密碼的連結 [{ token, email, purpose, createdAt, expiresAt, usedAt }]
+const TOKENS_KEY = "passwordTokens"; // 設定密碼與重設密碼的連結 [{ token, email, purpose, createdAt, expiresAt, usedAt, revokedAt }]
 const FORGOT_PASSWORD_HINT = "請在登入頁使用「忘記密碼」重新取得連結";
 
 const normalizeEmail = (email) => String(email ?? "").trim().toLowerCase();
@@ -37,6 +38,8 @@ const demoAsAccount = (a) => ({
   status: "active",
   isDemo: true,
   organization: "示範帳號",
+  phone: a.phone ?? "",
+  details: a.details ?? {},
   history: [],
   createdAt: null,
 });
@@ -112,6 +115,7 @@ export function createEmptyApplication() {
       reader: { medicalType: "", licenseNo: "", institution: "" },
       manager: { employeeIdOrEmployer: "" },
       provider: { resourceId: "", orgName: "", registrationNo: "", orgContact: "" },
+      watcher: { unit: "", identityType: "", identityOther: "" },
     },
   };
 }
@@ -141,8 +145,7 @@ export function validateApplication(form) {
   };
   for (const [key, label] of Object.entries(required)) if (!text(form[key])) errors[key] = `請填寫${label}`;
 
-  if (!text(form.email)) errors.email = "請填寫 Email";
-  else if (!isEmail(form.email)) errors.email = "Email 格式不正確";
+  if (emailError(form.email)) errors.email = emailError(form.email);
   else if (emailConflict(form.email)) errors.email = emailConflict(form.email);
 
   if (!text(form.phone)) errors.phone = "請填寫手機";
@@ -151,7 +154,7 @@ export function validateApplication(form) {
   if (!REGISTERABLE_ROLES.includes(form.role)) errors.role = "請選擇申請角色";
   else {
     const details = form.details?.[form.role] ?? {};
-    for (const field of ROLE_DETAIL_FIELDS[form.role]) {
+    for (const field of visibleDetailFields(form.role, details)) {
       if (field.required && !text(details[field.key])) errors[`details.${form.role}.${field.key}`] = `請填寫${field.label}`;
     }
     if (form.role === "provider" && text(details.resourceId) && !getResourceById(details.resourceId)) {
@@ -163,9 +166,10 @@ export function validateApplication(form) {
   return errors;
 }
 
-// 申請資料中只保留所選角色的額外欄位
+// 申請資料中只保留所選角色的額外欄位；沒有顯示的欄位（showWhen 不符合）存空字串
 function roleDetails(role, details = {}) {
-  return Object.fromEntries((ROLE_DETAIL_FIELDS[role] ?? []).map((f) => [f.key, text(details[f.key])]));
+  const visible = new Set(visibleDetailFields(role, details).map((f) => f.key));
+  return Object.fromEntries((ROLE_DETAIL_FIELDS[role] ?? []).map((f) => [f.key, visible.has(f.key) ? text(details[f.key]) : ""]));
 }
 
 /**
@@ -368,14 +372,24 @@ export function reactivateAccount(id, { note = "" } = {}, actor = {}, { now = ne
 // ── 系統管理員建立帳號 ────────────────────────────────────
 
 export function createEmptyAccountForm() {
-  return { name: "", email: "", phone: "", organization: "", jobTitle: "", role: "", resourceId: "", medicalType: "" };
+  return {
+    name: "",
+    email: "",
+    phone: "",
+    organization: "",
+    jobTitle: "",
+    role: "",
+    resourceId: "",
+    medicalType: "",
+    // 守望員的所屬單位與身分類別（欄位同註冊申請）
+    watcher: { unit: "", identityType: "", identityOther: "" },
+  };
 }
 
 export function validateAccountForm(form) {
   const errors = {};
   if (!text(form.name)) errors.name = "請填寫姓名";
-  if (!text(form.email)) errors.email = "請填寫 Email";
-  else if (!isEmail(form.email)) errors.email = "Email 格式不正確";
+  if (emailError(form.email)) errors.email = emailError(form.email);
   else if (emailConflict(form.email, { allowRejected: false })) {
     errors.email = isDemoEmail(form.email) ? "這是示範帳號的 Email" : "此 Email 已有帳號或申請，請從帳號列表處理";
   }
@@ -384,6 +398,13 @@ export function validateAccountForm(form) {
   if (form.role === "provider") {
     if (!text(form.resourceId)) errors.resourceId = "資源點須選擇要綁定的資源";
     else if (!getResourceById(form.resourceId)) errors.resourceId = "找不到這筆資源，請重新選擇";
+  }
+  // 守望員：轉介單會帶入手機、所屬單位與身分類別，供健康管理員聯繫
+  if (form.role === "watcher") {
+    if (!text(form.phone)) errors.phone = "守望員須填寫手機（健康管理員聯繫用）";
+    for (const field of visibleDetailFields("watcher", form.watcher)) {
+      if (field.required && !text(form.watcher?.[field.key])) errors[`watcher.${field.key}`] = `請填寫${field.label}`;
+    }
   }
   return errors;
 }
@@ -409,7 +430,7 @@ export function createAccount(form, actor = {}, { now = new Date() } = {}) {
     supervisorName: "",
     supervisorContact: "",
     reason: "",
-    details: {},
+    details: form.role === "watcher" ? roleDetails("watcher", form.watcher) : {},
     consentAt: null,
     password: null,
     status: "active",
@@ -434,6 +455,45 @@ export function createAccount(form, actor = {}, { now = new Date() } = {}) {
     links: [{ label: "設定密碼", path: `/reset-password?token=${token}` }],
   });
   return { ok: true, account: withStatus(account), mail };
+}
+
+// ── 重新寄送設定密碼信 ────────────────────────────────────
+
+// 能否重新寄送：已啟用、還沒設定密碼的註冊帳號（審核通過或系統管理員建立後尚未設定）；
+// 已設定密碼的帳號改用「忘記密碼」，示範帳號沒有密碼信
+export const canResendSetup = (account) =>
+  !!account && !account.isDemo && accountStatusOf(account) === "active" && !(account.hasPassword ?? !!account.password);
+
+/**
+ * 系統管理員重新寄送設定密碼信：寄出新的連結（SETUP_TOKEN_DAYS 天內有效），
+ * 同一帳號之前未使用的設定密碼連結全部失效，並在狀態歷程記一筆
+ */
+export function resendSetupMail(id, actor = {}, { now = new Date() } = {}) {
+  const account = getUsers().find((u) => String(u.id) === String(id));
+  if (!account) return { ok: false, errors: { form: "示範帳號寫在程式中，沒有設定密碼信" } };
+  if (!canResendSetup(account)) {
+    return { ok: false, errors: { form: account.password ? "此帳號已設定密碼，請使用「忘記密碼」重設" : "只有已啟用的帳號可以重新寄送" } };
+  }
+  const email = normalizeEmail(account.email);
+  writeAccountList(
+    TOKENS_KEY,
+    readTokens().map((t) => (t.email === email && t.purpose === "setup" && !t.usedAt && !t.revokedAt ? { ...t, revokedAt: now.getTime() } : t))
+  );
+  const at = stamp(now);
+  const updated = updateUser(id, (u) => ({
+    ...u,
+    history: [...u.history, { at, action: "resend_setup", status: "active", reason: null, actor: actorOf(actor) }],
+    updatedAt: at,
+  }));
+  const token = createToken(email, "setup", now);
+  sendMail({
+    to: email,
+    type: "setup_resent",
+    subject: "【CareLink】請設定密碼（重新寄送）",
+    body: `${updated.name} 您好：\n\n系統管理員為您重新寄出設定密碼的連結。請在 ${SETUP_TOKEN_DAYS} 天內開啟下方連結設定密碼，設定後即可登入；之前寄出的設定密碼連結已失效。\n\n連結逾時可在登入頁使用「忘記密碼」重新取得。`,
+    links: [{ label: "設定密碼", path: `/reset-password?token=${token}` }],
+  });
+  return { ok: true, account: updated };
 }
 
 // ── 設定與重設密碼 ────────────────────────────────────────
@@ -461,10 +521,13 @@ function createToken(email, purpose, now) {
 }
 
 /**
- * 忘記密碼：只對已啟用的註冊帳號寄出重設密碼信；示範帳號的密碼寫在程式中，不寄
- * 不論 Email 是否存在都回傳相同結果，避免透露哪些 Email 有帳號
+ * 忘記密碼：只對已啟用的註冊帳號寄出重設密碼信，包括審核通過或建立後還沒設定密碼的帳號
+ * （申請人可以自己重新取得連結）；示範帳號的密碼寫在程式中，不寄
+ * 不論 Email 是否存在都回傳相同結果，避免透露哪些 Email 有帳號；Email 格式不正確時回傳錯誤
  */
 export function requestPasswordReset(email, { now = new Date() } = {}) {
+  const formatError = emailError(email);
+  if (formatError) return { ok: false, error: formatError };
   const account = findUserByEmail(email);
   if (account && accountStatusOf(account) === "active") {
     const token = createToken(account.email, "reset", now);
@@ -479,11 +542,12 @@ export function requestPasswordReset(email, { now = new Date() } = {}) {
   return { ok: true, message: "若此 Email 已註冊，我們已寄出重設密碼信，請到信箱查看。" };
 }
 
-// 檢查連結：不存在、已使用、已過期都不能用
+// 檢查連結：不存在、已使用、已被重新寄送取代、已過期都不能用
 export function checkResetToken(token, { now = new Date() } = {}) {
   const entry = readTokens().find((t) => t.token === token);
   if (!entry) return { ok: false, error: `連結無效，${FORGOT_PASSWORD_HINT}` };
   if (entry.usedAt) return { ok: false, error: `此連結已使用過，如需設定新密碼，${FORGOT_PASSWORD_HINT}` };
+  if (entry.revokedAt) return { ok: false, error: `此連結已失效，請使用最新一封設定密碼信中的連結，或${FORGOT_PASSWORD_HINT.replace("請", "")}` };
   if (now.getTime() > entry.expiresAt) return { ok: false, error: `連結已過期，${FORGOT_PASSWORD_HINT}` };
   const account = findUserByEmail(entry.email);
   if (!account || accountStatusOf(account) !== "active") return { ok: false, error: "此帳號目前無法設定密碼，請聯絡系統管理員" };

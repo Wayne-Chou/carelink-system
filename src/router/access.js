@@ -20,6 +20,10 @@ export const ROUTE_ACCESS = {
   "resource-dashboard": auth("resource.dashboard"),
   cases: auth("case.manage"),
   "case-detail": auth("case.manage"),
+  referrals: auth("referral.manage"),
+  "referral-detail": auth("referral.manage"),
+  "referral-new": auth("referral.create"),
+  "my-referrals": auth("referral.own"),
   accounts: auth("account.manage"),
 };
 

@@ -76,8 +76,8 @@ describe("一般操作", () => {
     assert.equal(auth.getCurrentResourceId(), "");
   });
 
-  test("五種角色：系統管理員、資源管理員、判讀人員、健康管理員、資源點", () => {
-    assert.deepEqual(ROLE_CODES, ["admin", "resource_manager", "reader", "manager", "provider"]);
+  test("六種角色：系統管理員、資源管理員、判讀人員、健康管理員、資源點、守望員", () => {
+    assert.deepEqual(ROLE_CODES, ["admin", "resource_manager", "reader", "manager", "provider", "watcher"]);
   });
 
   test("註冊的帳號以 role 決定角色，登入後讀得到", () => {
@@ -118,6 +118,7 @@ describe("一般操作", () => {
       ["reader@demo.carelink", "reader"],
       ["manager@demo.carelink", "manager"],
       ["provider@demo.carelink", "provider"],
+      ["watcher@demo.carelink", "watcher"],
     ];
     for (const [email, role] of accounts) {
       const result = auth.login({ email: email.toUpperCase(), password: "demo1234" });

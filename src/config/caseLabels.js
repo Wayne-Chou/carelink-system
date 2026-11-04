@@ -11,7 +11,7 @@ export const STAGE_OPTIONS = [
 
 export const REFERRER_TYPE_OPTIONS = [
   { code: "medical", label: "醫療" },
-  { code: "watcher", label: "守望員" },
+  { code: "watcher", label: "守望員轉介" },
   { code: "self", label: "自我轉介" },
 ];
 

@@ -12,12 +12,13 @@ export const ROLES = [
   { code: "reader", label: "判讀人員", description: "評估填寫、評估列表、判讀、待辦；資源詳細頁唯讀" },
   { code: "manager", label: "健康管理員", description: "個案列表、個案頁、待辦；資源詳細頁與已開案的評估唯讀" },
   { code: "provider", label: "資源點", description: "只能進入自己綁定資源的資源端後台、詳細頁，並編輯該資源的部分欄位" },
+  { code: "watcher", label: "守望員", description: "社區夥伴：發現需要幫忙的民眾，轉介給健康管理員" },
 ];
 
 export const ROLE_CODES = ROLES.map((r) => r.code);
 
 // 註冊頁可申請的角色：系統管理員、資源管理員不開放註冊，只能由系統管理員在帳號管理頁建立
-export const REGISTERABLE_ROLES = ["reader", "manager", "provider"];
+export const REGISTERABLE_ROLES = ["reader", "manager", "provider", "watcher"];
 
 export const isValidRole = (role) => ROLE_CODES.includes(role);
 
@@ -42,6 +43,9 @@ export function getRoleLabel(code) {
 //   todo.view              待辦（只看自己角色的項目）
 //   todo.viewAll           待辦可切換查看全部
 //   account.manage         帳號管理：審核註冊申請、停用與重新啟用、建立帳號（doc/specs/account-schema.md）
+//   referral.create        轉介民眾：守望員送出轉介單（doc/specs/referral-schema.md）
+//   referral.own           我的轉介：只看自己送出的轉介單與狀態，看不到個案內容
+//   referral.manage        守望員轉介：查看全部轉介單、開案或不開案
 export const PERMISSIONS = {
   admin: [
     "resource.manage",
@@ -58,6 +62,7 @@ export const PERMISSIONS = {
     "todo.view",
     "todo.viewAll",
     "account.manage",
+    "referral.manage",
     "workspace.home",
   ],
   // 資源管理員：不能進入評估、個案、資源端後台（後台會看到轉介個案）
@@ -71,8 +76,10 @@ export const PERMISSIONS = {
   ],
   reader: ["resource.view", "assessment.fill", "assessment.list", "assessment.review", "todo.view", "workspace.home"],
   // 待確認事項（doc/open-questions.md B 節）：健康管理員與判讀人員未來可能分等級、看不同範圍；原型階段看全部
-  manager: ["resource.view", "assessment.viewLinked", "case.manage", "todo.view", "workspace.home"],
+  manager: ["resource.view", "assessment.viewLinked", "case.manage", "referral.manage", "todo.view", "workspace.home"],
   provider: ["resource.view", "resource.dashboard", "resource.editOwn"],
+  // 守望員：只有轉介民眾與我的轉介；沒有後台首頁與待辦，登入後直接進入我的轉介
+  watcher: ["referral.create", "referral.own"],
 };
 
 // 待辦頁「給誰」與角色的對應（todoService 的 audience）
@@ -90,6 +97,16 @@ export const DEMO_ACCOUNTS = [
   { id: "demo-reader", name: "郭範例", email: "reader@demo.carelink", role: "reader", readerType: "doctor" },
   { id: "demo-manager", name: "高示範", email: "manager@demo.carelink", role: "manager" },
   { id: "demo-provider", name: "陳範例", email: "provider@demo.carelink", role: "provider", resourceId: "" },
+  // 守望員：轉介單會帶入姓名、單位與電話給健康管理員聯繫（details 欄位同註冊申請，見 config/accounts.js）
+  {
+    id: "demo-watcher",
+    name: "李示範",
+    email: "watcher@demo.carelink",
+    role: "watcher",
+    phone: "0900-000-201",
+    organization: "示範里辦公處（虛構）",
+    details: { unit: "示範里辦公處（虛構）", identityType: "village_chief", identityOther: "" },
+  },
 ].map((account) => ({ ...account, password: DEMO_PASSWORD, isDemo: true }));
 
 // ── 快速登入（登入頁，展示用）─────────────────────────────
@@ -105,4 +122,5 @@ export const QUICK_LOGINS = [
     subtitle: "合作機構",
     description: "回報轉介個案（需先由管理員綁定資源）",
   },
+  { role: "watcher", email: "watcher@demo.carelink", subtitle: "社區夥伴", description: "把需要幫忙的民眾轉介給健康管理員" },
 ];
